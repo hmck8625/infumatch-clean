@@ -21,6 +21,13 @@ export interface Influencer {
   thumbnailUrl: string;
   engagementRate: number;
   email?: string;
+  aiAnalysis?: {
+    target_age?: string;
+    top_product?: string;
+    match_score?: number;
+    safety_score?: number;
+  };
+  brandSafetyScore?: number;
 }
 
 export interface SearchParams {
@@ -212,6 +219,24 @@ class APIClient {
     if (response && typeof response === 'object' && 'data' in response) {
       console.log('[searchInfluencers] Processing data array:', response.data);
       const mappedData = response.data.map((item: any, index: number) => {
+        // AI分析データの安全な抽出
+        let aiAnalysis = {};
+        let brandSafetyScore = 0;
+        
+        if (item.ai_analysis && typeof item.ai_analysis === 'object') {
+          const ai = item.ai_analysis;
+          
+          // ネストされたオブジェクトから安全に値を抽出
+          aiAnalysis = {
+            target_age: ai.advanced?.target_age || ai.full_analysis?.category_tags?.target_age_group || '',
+            top_product: ai.advanced?.top_product || ai.full_analysis?.product_matching?.recommended_products?.[0]?.category || '',
+            match_score: ai.advanced?.match_score || ai.match_score || 0,
+            safety_score: ai.advanced?.safety_score || ai.brand_safety_score || 0
+          };
+          
+          brandSafetyScore = ai.brand_safety_score || ai.advanced?.safety_score || 0;
+        }
+        
         const mapped = {
           id: item.id || `${index}`,
           name: item.channel_name || item.name || 'Unknown Channel',
@@ -220,16 +245,19 @@ class APIClient {
           viewCount: item.view_count || item.viewCount || 0,
           videoCount: item.video_count || item.videoCount || 0,
           category: item.category || '一般',
-          description: item.description || item.ai_analysis || '',
+          description: item.description || '',
           thumbnailUrl: item.thumbnail_url || item.thumbnailUrl || '',
           engagementRate: item.engagement_rate || item.engagementRate || 0,
-          email: item.email || ''
+          email: item.email || '',
+          aiAnalysis: aiAnalysis,
+          brandSafetyScore: brandSafetyScore
         };
         
         // 各アイテムのマッピング結果をログ出力
         if (index < 3) {
           console.log(`[searchInfluencers] Item ${index} mapping:`, {
-            original: item,
+            original_ai_analysis: item.ai_analysis,
+            mapped_ai_analysis: aiAnalysis,
             mapped: mapped
           });
         }
