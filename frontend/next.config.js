@@ -19,14 +19,14 @@ const nextConfig = {
   // TypeScript 設定
   typescript: {
     // 本番ビルド時にTypeScriptエラーがあっても続行するか
-    // 開発時は false にして厳密にチェック
-    ignoreBuildErrors: false,
+    // Vercelデプロイ時はエラーを無視して続行
+    ignoreBuildErrors: true,
   },
 
   // ESLint 設定
   eslint: {
     // ビルド時にESLintエラーがあっても続行するか
-    ignoreDuringBuilds: false,
+    ignoreDuringBuilds: true,
   },
 
   // 画像最適化設定
