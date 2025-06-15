@@ -14,10 +14,10 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { to, subject, body: messageBody, message, replyToMessageId, threadId } = body;
+    const { to, subject, body: messageBody, message: messageText, replyToMessageId, threadId } = body;
     
-    // messageBodyまたはmessageのどちらかを使用
-    const finalMessageBody = messageBody || message;
+    // messageBodyまたはmessageTextのどちらかを使用
+    const finalMessageBody = messageBody || messageText;
 
     if (!to || !subject || !finalMessageBody) {
       return NextResponse.json(
@@ -41,8 +41,8 @@ export async function POST(request: NextRequest) {
       messageParts.splice(4, 0, `References: ${replyToMessageId}`);
     }
 
-    const message = messageParts.join('\r\n');
-    const encodedMessage = Buffer.from(message).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    const messageContent = messageParts.join('\r\n');
+    const encodedMessage = Buffer.from(messageContent).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 
     console.log('Sending email to:', to, 'Subject:', subject);
 
