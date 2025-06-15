@@ -1,6 +1,0 @@
-{
-  "dependencies": {
-    "firebase-admin": "^13.4.0",
-    "sonner": "^2.0.5"
-  }
-}
