@@ -139,7 +139,7 @@ export default function MessagesPage() {
   }, [selectedThread]);
 
   useEffect(() => {
-    if (currentThread && currentThread.messages.length > 0) {
+    if (currentThread && currentThread.messages?.length > 0) {
       generateReplyPatterns();
     }
   }, [currentThread]);
