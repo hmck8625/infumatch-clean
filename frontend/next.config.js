@@ -142,8 +142,21 @@ const nextConfig = {
         os: false,
         path: false,
         zlib: false,
+        http: false,
+        https: false,
+        events: false,
+        assert: false,
+        constants: false,
+        punycode: false,
       };
     }
+
+    // googleapis を server-only にする
+    config.externals = config.externals || [];
+    config.externals.push({
+      'googleapis': 'commonjs googleapis',
+      'google-auth-library': 'commonjs google-auth-library',
+    });
 
     // SVG を React コンポーネントとして読み込み
     config.module.rules.push({

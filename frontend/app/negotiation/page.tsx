@@ -23,7 +23,7 @@ import {
   AlertCircle,
   Loader2
 } from 'lucide-react';
-import { GmailService, EmailThread } from '@/lib/gmail';
+// import { GmailService, EmailThread } from '@/lib/gmail'; // Server-side only
 
 interface NegotiationAgent {
   name: string;

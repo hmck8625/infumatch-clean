@@ -4,7 +4,10 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { signOut } from 'next-auth/react';
-import { EmailThread, GmailMessage } from '@/lib/gmail';
+// import { EmailThread, GmailMessage } from '@/lib/gmail'; // Server-side only
+// Temporary interfaces for client-side
+interface EmailThread { id: string; snippet: string; historyId: string; }
+interface GmailMessage { id: string; threadId: string; snippet: string; }
 import { ErrorBoundary, useErrorHandler } from '@/components/error-boundary';
 import { AuthGuard, UserInfo } from '@/components/auth-guard';
 import { useAuthError } from '@/hooks/use-auth-error';
@@ -13,7 +16,8 @@ import { AttachmentUpload } from '@/components/attachment-upload';
 import { EmailSearch } from '@/components/email-search';
 import { NotificationManager } from '@/components/notification-manager';
 import { useRealtimeGmail } from '@/hooks/use-realtime-gmail';
-import { SearchFilters } from '@/lib/gmail';
+// import { SearchFilters } from '@/lib/gmail'; // Server-side only
+interface SearchFilters { query?: string; labelIds?: string[]; maxResults?: number; }
 
 export default function MessagesPage() {
   const searchParams = useSearchParams();
