@@ -5,13 +5,19 @@
 # -----------------------------------------------------------------------------
 # 環境設定ファイル
 # -----------------------------------------------------------------------------
+# 環境変数ファイル（機密情報を含む）
 .env
-.env.example
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
-.env.production
+
+# 本番環境変数（バックアップとして追跡するが、機密情報に注意）
+# .env.production は緊急時のバックアップとして Git で管理
+# ただし、Vercel Dashboard を主要な設定場所とする
+
+# 環境変数のサンプルファイル（追跡する）
+# .env.example
 
 # Google Cloud 認証情報
 credentials/
