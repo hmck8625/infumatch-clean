@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 
+// Force dynamic rendering for this API route
+export const dynamic = 'force-dynamic';
+
 // Firestore操作のためのサーバーサイド関数
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
@@ -17,15 +20,27 @@ try {
   adminApp = existingApps.length > 0 ? existingApps[0] : null;
   
   if (!adminApp) {
-    // サービスアカウントキーのパス  
-    const serviceAccountPath = path.join(process.cwd(), '..', 'hackathon-462905-7d72a76d3742.json');
+    console.log('🔑 Initializing Firebase Admin...');
     
-    console.log('🔑 Initializing Firebase Admin with service account...');
-    adminApp = initializeApp({
-      credential: cert(serviceAccountPath),
-      projectId: 'hackathon-462905'
-    });
-    console.log('✅ Firebase Admin initialized successfully');
+    // 環境変数からサービスアカウントキーを取得（Vercel用）
+    const serviceAccountKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+    
+    if (serviceAccountKey) {
+      // 環境変数から初期化（本番環境）
+      adminApp = initializeApp({
+        credential: cert(JSON.parse(serviceAccountKey)),
+        projectId: 'hackathon-462905'
+      });
+      console.log('✅ Firebase Admin initialized from environment variable');
+    } else {
+      // ローカル開発環境用のフォールバック
+      const serviceAccountPath = path.join(process.cwd(), '..', 'hackathon-462905-7d72a76d3742.json');
+      adminApp = initializeApp({
+        credential: cert(serviceAccountPath),
+        projectId: 'hackathon-462905'
+      });
+      console.log('✅ Firebase Admin initialized from local service account file');
+    }
   }
   
   if (adminApp) {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { signOut } from 'next-auth/react';
@@ -19,7 +19,7 @@ import { NotificationManager } from '@/components/notification-manager';
 // import { SearchFilters } from '@/lib/gmail'; // Server-side only
 interface SearchFilters { query?: string; labelIds?: string[]; maxResults?: number; }
 
-export default function MessagesPage() {
+function MessagesPageContent() {
   const searchParams = useSearchParams();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -1240,5 +1240,13 @@ export default function MessagesPage() {
         </div>
       </ErrorBoundary>
     </AuthGuard>
+  );
+}
+
+export default function MessagesPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center">読み込み中...</div>}>
+      <MessagesPageContent />
+    </Suspense>
   );
 }
