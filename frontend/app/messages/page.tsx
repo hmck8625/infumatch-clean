@@ -6,7 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { signOut } from 'next-auth/react';
 // import { EmailThread, GmailMessage } from '@/lib/gmail'; // Server-side only
 // Temporary interfaces for client-side
-interface EmailThread { id: string; snippet: string; historyId: string; }
+interface EmailThread { id: string; snippet: string; historyId: string; messages?: GmailMessage[]; }
 interface GmailMessage { id: string; threadId: string; snippet: string; }
 import { ErrorBoundary, useErrorHandler } from '@/components/error-boundary';
 import { AuthGuard, UserInfo } from '@/components/auth-guard';
