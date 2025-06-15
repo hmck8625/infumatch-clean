@@ -25,6 +25,14 @@ import {
 } from 'lucide-react';
 // import { GmailService, EmailThread } from '@/lib/gmail'; // Server-side only
 
+// Temporary interface definitions
+interface EmailThread { 
+  id: string; 
+  snippet: string; 
+  historyId: string; 
+  messages?: any[];
+}
+
 interface NegotiationAgent {
   name: string;
   status: 'ready' | 'processing' | 'waiting';
@@ -89,9 +97,9 @@ export default function NegotiationPage() {
 
     try {
       setIsLoading(true);
-      const gmailService = new GmailService(session.accessToken);
-      const threads = await gmailService.getInfluencerThreads();
-      setEmailThreads(threads);
+      // const gmailService = new GmailService(session.accessToken); // Temporarily disabled
+      // const threads = await gmailService.getInfluencerThreads(); // Temporarily disabled
+      setEmailThreads([]); // Mock empty threads
       setLastEmailCheck(new Date());
     } catch (error) {
       console.error('メール取得エラー:', error);
@@ -530,7 +538,7 @@ export default function NegotiationPage() {
                       <div className="flex items-center justify-between mb-2">
                         <h4 className="font-medium truncate">{thread.snippet}</h4>
                         <Badge variant="outline">
-                          {thread.messages.length}件
+                          {thread.messages?.length || 0}件
                         </Badge>
                       </div>
                       <p className="text-sm text-gray-600 truncate">{thread.snippet}</p>

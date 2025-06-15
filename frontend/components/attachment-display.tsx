@@ -1,7 +1,16 @@
 'use client';
 
 import { useState } from 'react';
-import { Attachment, GmailService } from '@/lib/gmail';
+// import { Attachment, GmailService } from '@/lib/gmail'; // Server-side only
+// Temporary interface
+interface Attachment { 
+  id: string; 
+  attachmentId: string;
+  filename: string; 
+  mimeType: string; 
+  size: number; 
+  data?: string; 
+}
 import { useAuthError } from '@/hooks/use-auth-error';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';

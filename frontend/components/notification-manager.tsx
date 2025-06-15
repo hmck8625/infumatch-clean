@@ -4,8 +4,18 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { notificationService } from '@/lib/notification-service';
+// import { notificationService } from '@/lib/notification-service'; // Temporarily disabled
 import { Bell, BellOff, Volume2, VolumeX, Settings, Sparkles, Clock, CheckCircle, XCircle } from 'lucide-react';
+
+// Mock notification service for temporary use
+const notificationService = {
+  getNotificationStatus: () => ({ enabled: false, permission: 'default' }),
+  toggleNotifications: () => Promise.resolve(false),
+  showNotification: () => {},
+  playNotificationSound: () => {},
+  startBackgroundCheck: () => {},
+  showGmailNotification: () => {},
+};
 
 interface NotificationManagerProps {
   onNotificationReceived?: (notification: any) => void;

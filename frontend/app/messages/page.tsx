@@ -15,7 +15,7 @@ import { AttachmentDisplay } from '@/components/attachment-display';
 import { AttachmentUpload } from '@/components/attachment-upload';
 import { EmailSearch } from '@/components/email-search';
 import { NotificationManager } from '@/components/notification-manager';
-import { useRealtimeGmail } from '@/hooks/use-realtime-gmail';
+// import { useRealtimeGmail } from '@/hooks/use-realtime-gmail'; // Temporarily disabled
 // import { SearchFilters } from '@/lib/gmail'; // Server-side only
 interface SearchFilters { query?: string; labelIds?: string[]; maxResults?: number; }
 
@@ -47,22 +47,33 @@ export default function MessagesPage() {
   const [newEmailBody, setNewEmailBody] = useState('');
   const [isSendingNewEmail, setIsSendingNewEmail] = useState(false);
   
-  // リアルタイムGmail機能
-  const {
-    threads: realtimeThreads,
-    isLoading: isRealtimeLoading,
-    lastUpdated,
-    newThreadsCount,
-    refresh: refreshRealtime,
-    resetNewCount,
-    isPolling,
-    startPolling,
-    stopPolling,
-  } = useRealtimeGmail(threads, {
-    pollInterval: 30000, // 30秒間隔
-    enableNotifications: true,
-    autoRefresh: true,
-  });
+  // リアルタイムGmail機能 (temporarily disabled)
+  // const {
+  //   threads: realtimeThreads,
+  //   isLoading: isRealtimeLoading,
+  //   lastUpdated,
+  //   newThreadsCount,
+  //   refresh: refreshRealtime,
+  //   resetNewCount,
+  //   isPolling,
+  //   startPolling,
+  //   stopPolling,
+  // } = useRealtimeGmail(threads, {
+  //   pollInterval: 30000, // 30秒間隔
+  //   enableNotifications: true,
+  //   autoRefresh: true,
+  // });
+
+  // Mock values for disabled functionality
+  const realtimeThreads = threads;
+  const isRealtimeLoading = false;
+  const lastUpdated = new Date();
+  const newThreadsCount = 0;
+  const refreshRealtime = () => {};
+  const resetNewCount = () => {};
+  const isPolling = false;
+  const startPolling = () => {};
+  const stopPolling = () => {};
 
   useEffect(() => {
     setIsVisible(true);
