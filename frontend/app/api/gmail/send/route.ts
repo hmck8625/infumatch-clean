@@ -26,42 +26,59 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 日本語対応：件名をRFC2047形式でエンコード
-    const encodeSubject = (str: string): string => {
-      // 日本語文字が含まれている場合のみエンコード
-      if (/[^\x00-\x7F]/.test(str)) {
-        const encoded = Buffer.from(str, 'utf8').toString('base64');
-        return `=?UTF-8?B?${encoded}?=`;
+    // From ヘッダー用の送信者情報を取得
+    const session_info = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+      headers: {
+        'Authorization': `Bearer ${session.accessToken}`,
+      },
+    });
+    
+    let fromName = 'InfuMatch';
+    if (session_info.ok) {
+      const userInfo = await session_info.json();
+      fromName = userInfo.name || 'InfuMatch';
+    }
+
+    // 日本語文字列をMIME encoded-wordでエンコード（RFC2047）
+    const encodeMimeWord = (str: string): string => {
+      if (!/[^\x00-\x7F]/.test(str)) {
+        return str; // ASCII文字のみの場合はそのまま
       }
-      return str;
+      const encoded = Buffer.from(str, 'utf8').toString('base64');
+      return `=?UTF-8?B?${encoded}?=`;
     };
 
-    // メールの作成（MIME形式）
-    const messageParts = [
+    // メールメッセージの構築（標準的なemail形式）
+    const emailLines = [
+      `From: ${encodeMimeWord(fromName)} <${session.user?.email || 'noreply@infumatch.com'}>`,
       `To: ${to}`,
-      `Subject: ${encodeSubject(subject)}`,
+      `Subject: ${encodeMimeWord(subject)}`,
       'MIME-Version: 1.0',
       'Content-Type: text/plain; charset=UTF-8',
       'Content-Transfer-Encoding: base64',
-      ''
     ];
 
-    // 返信の場合、追加ヘッダーを設定
+    // 返信の場合、スレッド用ヘッダーを追加
     if (replyToMessageId) {
-      messageParts.splice(-1, 0, `In-Reply-To: ${replyToMessageId}`);
-      messageParts.splice(-1, 0, `References: ${replyToMessageId}`);
+      // Gmail のMessage-IDは実際のIDをそのまま使用
+      emailLines.push(`In-Reply-To: <${replyToMessageId}>`);
+      emailLines.push(`References: <${replyToMessageId}>`);
     }
     
     if (threadId) {
-      messageParts.splice(-1, 0, `Thread-Topic: ${threadId}`);
+      // ThreadIdをGmail形式で設定
+      emailLines.push(`Thread-Topic: ${threadId}`);
     }
 
     // 本文をBase64エンコード
     const bodyBase64 = Buffer.from(finalMessageBody, 'utf8').toString('base64');
+
+    // 完全なメッセージを構築
+    const fullMessage = emailLines.join('\r\n') + '\r\n\r\n' + bodyBase64;
     
-    // メッセージ全体を組み立て
-    const messageContent = messageParts.join('\r\n') + bodyBase64;
-    const encodedMessage = Buffer.from(messageContent, 'utf8').toString('base64')
+    // Gmail APIのraw形式にエンコード
+    const encodedMessage = Buffer.from(fullMessage, 'utf8')
+      .toString('base64')
       .replace(/\+/g, '-')
       .replace(/\//g, '_')
       .replace(/=+$/, '');
