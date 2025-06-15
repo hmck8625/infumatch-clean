@@ -394,16 +394,25 @@ InfuMatchの田中です。
 
     setIsSendingNewEmail(true);
     try {
+      // 🔍 DEBUG: 新規メール送信データの詳細をログ出力
+      const newEmailData = {
+        to: newEmailTo,
+        subject: newEmailSubject,
+        message: newEmailBody,
+      };
+      
+      console.log('=== FRONTEND NEW EMAIL SEND DEBUG START ===');
+      console.log('📧 New email data:', JSON.stringify(newEmailData, null, 2));
+      console.log('📧 To:', newEmailTo);
+      console.log('📧 Subject:', newEmailSubject);
+      console.log('📧 Body:', newEmailBody);
+      
       const response = await fetch('/api/gmail/send', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          to: newEmailTo,
-          subject: newEmailSubject,
-          message: newEmailBody,
-        }),
+        body: JSON.stringify(newEmailData),
       });
 
       // 認証エラーをチェック
@@ -414,6 +423,10 @@ InfuMatchの田中です。
       }
 
       if (response.ok) {
+        const responseData = await response.json();
+        console.log('✅ New email send response:', responseData);
+        console.log('=== FRONTEND NEW EMAIL SEND DEBUG END (SUCCESS) ===');
+        
         alert('メールが正常に送信されました！');
         
         // フォームをリセット
@@ -426,7 +439,10 @@ InfuMatchの田中です。
         await loadThreads();
       } else {
         const errorData = await response.json();
-        console.error('送信エラー:', errorData);
+        console.error('❌ New email send failed:', response.status, response.statusText);
+        console.error('❌ Error response:', errorData);
+        console.log('=== FRONTEND NEW EMAIL SEND DEBUG END (ERROR) ===');
+        
         alert(`メール送信に失敗しました: ${errorData.error || '不明なエラー'}`);
       }
     } catch (error) {
@@ -490,18 +506,31 @@ InfuMatchの田中です。
         const replySubject = subjectHeader.startsWith('Re:') ? subjectHeader : `Re: ${subjectHeader}`;
         const lastMessageId = lastMessage.id;
         
+        // 🔍 DEBUG: 送信するデータの詳細をログ出力
+        const sendData = {
+          to: fromHeader,
+          subject: replySubject,
+          message: replyText,
+          threadId: currentThread.id,
+          replyToMessageId: lastMessageId,
+        };
+        
+        console.log('=== FRONTEND EMAIL SEND DEBUG START ===');
+        console.log('📧 Frontend send data:', JSON.stringify(sendData, null, 2));
+        console.log('📧 Original subject header:', subjectHeader);
+        console.log('📧 Reply subject:', replySubject);
+        console.log('📧 From header:', fromHeader);
+        console.log('📧 Reply text:', replyText);
+        console.log('📧 Thread ID:', currentThread.id);
+        console.log('📧 Reply to message ID:', lastMessageId);
+        console.log('📧 Last message details:', lastMessage);
+        
         const response = await fetch('/api/gmail/send', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({
-            to: fromHeader,
-            subject: replySubject,
-            message: replyText,
-            threadId: currentThread.id,
-            replyToMessageId: lastMessageId,
-          }),
+          body: JSON.stringify(sendData),
         });
 
         // 認証エラーをチェック
@@ -511,10 +540,19 @@ InfuMatchの田中です。
         }
 
         if (response.ok) {
+          const responseData = await response.json();
+          console.log('✅ Email send response:', responseData);
+          console.log('=== FRONTEND EMAIL SEND DEBUG END (SUCCESS) ===');
+          
           setReplyText('');
           alert('メールを送信しました');
           await loadThreadDetails(currentThread.id);
         } else {
+          const errorData = await response.text();
+          console.error('❌ Email send failed:', response.status, response.statusText);
+          console.error('❌ Error response:', errorData);
+          console.log('=== FRONTEND EMAIL SEND DEBUG END (ERROR) ===');
+          
           alert('メール送信に失敗しました');
         }
       }
