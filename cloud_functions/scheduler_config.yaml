@@ -1,0 +1,98 @@
+# =============================================================================
+# Cloud Scheduler 設定ファイル
+# =============================================================================
+# Google Cloud Scheduler ジョブの定義
+# gcloud scheduler jobs create ... コマンドで使用
+
+# YouTube データ収集ジョブ
+youtube_collection:
+  name: "youtube-influencer-collection"
+  description: "YouTube インフルエンサーデータの定期収集"
+  schedule: "0 */6 * * *"  # 6時間毎
+  time_zone: "Asia/Tokyo"
+  target:
+    http_target:
+      uri: "https://asia-northeast1-hackathon-462905.cloudfunctions.net/scheduled_youtube_collection"
+      http_method: "POST"
+      headers:
+        Content-Type: "application/json"
+      body: |
+        {
+          "source": "cloud-scheduler",
+          "job": "youtube_collection"
+        }
+  retry_config:
+    retry_count: 3
+    max_retry_duration: "600s"
+    min_backoff_duration: "5s"
+    max_backoff_duration: "3600s"
+
+# AI 分析処理ジョブ
+ai_analysis:
+  name: "ai-influencer-analysis"
+  description: "インフルエンサーのAI分析処理"
+  schedule: "0 2 * * *"  # 毎日2時
+  time_zone: "Asia/Tokyo"
+  target:
+    http_target:
+      uri: "https://asia-northeast1-hackathon-462905.cloudfunctions.net/scheduled_ai_analysis"
+      http_method: "POST"
+      headers:
+        Content-Type: "application/json"
+      body: |
+        {
+          "source": "cloud-scheduler",
+          "job": "ai_analysis"
+        }
+  retry_config:
+    retry_count: 2
+    max_retry_duration: "1800s"
+    min_backoff_duration: "10s"
+    max_backoff_duration: "300s"
+
+# データメンテナンスジョブ
+data_maintenance:
+  name: "data-maintenance"
+  description: "データクリーンアップとレポート生成"
+  schedule: "0 1 * * 0"  # 毎週日曜日1時
+  time_zone: "Asia/Tokyo"
+  target:
+    http_target:
+      uri: "https://asia-northeast1-hackathon-462905.cloudfunctions.net/scheduled_data_maintenance"
+      http_method: "POST"
+      headers:
+        Content-Type: "application/json"
+      body: |
+        {
+          "source": "cloud-scheduler",
+          "job": "data_maintenance"
+        }
+  retry_config:
+    retry_count: 1
+    max_retry_duration: "3600s"
+    min_backoff_duration: "30s"
+    max_backoff_duration: "600s"
+
+# 推薦モデル更新ジョブ
+model_update:
+  name: "recommendation-model-update"
+  description: "推薦モデルの週次更新"
+  schedule: "0 3 * * 1"  # 毎週月曜日3時
+  time_zone: "Asia/Tokyo"
+  target:
+    http_target:
+      uri: "https://asia-northeast1-hackathon-462905.cloudfunctions.net/scheduled_ai_analysis"
+      http_method: "POST"
+      headers:
+        Content-Type: "application/json"
+      body: |
+        {
+          "source": "cloud-scheduler",
+          "job": "model_update",
+          "force_model_update": true
+        }
+  retry_config:
+    retry_count: 2
+    max_retry_duration: "7200s"
+    min_backoff_duration: "60s"
+    max_backoff_duration: "1800s"

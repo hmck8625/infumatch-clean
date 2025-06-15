@@ -47,5 +47,5 @@ RUN pip install --no-cache-dir requests
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/')" || exit 1
 
-# アプリケーションの起動（simple_firestore_testを使用、ポート8001）
-CMD ["python", "-m", "uvicorn", "simple_firestore_test:app", "--host", "0.0.0.0", "--port", "8000"]
+# アプリケーションの起動（main.pyを使用）
+CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

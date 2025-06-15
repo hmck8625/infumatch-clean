@@ -15,12 +15,18 @@ export default function SignInPage() {
     
     // 環境変数デバッグ（本番環境で確認用）
     console.log('🔍 Environment Debug:', {
-      NEXTAUTH_URL: process.env.NEXTAUTH_URL,
       NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
       NODE_ENV: process.env.NODE_ENV,
-      // サーバーサイド環境変数は直接アクセスできないので存在確認のみ
       isProduction: process.env.NODE_ENV === 'production'
     });
+    
+    // サーバーサイド環境変数はAPIエンドポイント経由で確認
+    fetch('/api/debug-env')
+      .then(res => res.json())
+      .then(data => {
+        console.log('🔍 Server Environment Debug:', data);
+      })
+      .catch(err => console.error('Failed to fetch server env:', err));
     
     // 既にログイン済みかチェック
     getSession().then((session) => {

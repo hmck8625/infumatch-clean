@@ -1,0 +1,53 @@
+# =============================================================================
+# Cloud Functions 依存関係
+# =============================================================================
+
+# Cloud Functions フレームワーク
+functions-framework==3.4.0
+
+# Google Cloud クライアントライブラリ
+google-cloud-firestore==2.14.0
+google-cloud-scheduler==2.23.0
+google-cloud-storage==2.10.0
+google-cloud-monitoring==2.18.0
+google-cloud-logging==3.8.0
+
+# Vertex AI & AI Platform
+google-cloud-aiplatform==1.40.0
+google-cloud-vertexai==1.40.0
+
+# YouTube Data API
+google-api-python-client==2.108.0
+google-auth==2.25.2
+google-auth-oauthlib==1.2.0
+google-auth-httplib2==0.2.0
+
+# HTTP リクエスト
+httpx==0.25.2
+requests==2.31.0
+
+# データ処理
+pandas==2.1.4
+numpy==1.25.2
+
+# 非同期処理
+asyncio
+aiohttp==3.9.1
+
+# 日時処理
+python-dateutil==2.8.2
+
+# ログ処理
+structlog==23.2.0
+
+# 環境変数管理
+python-dotenv==1.0.0
+
+# JSON処理
+orjson==3.9.10
+
+# エラー処理・監視
+sentry-sdk==1.39.2
+
+# 型ヒント
+typing-extensions==4.8.0

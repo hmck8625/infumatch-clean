@@ -1,0 +1,63 @@
+# Cloud Run デプロイ時に除外するファイル
+
+# Python仮想環境
+venv/
+test_env/
+env/
+.env/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# ログファイル
+*.log
+logs/
+
+# キャッシュ
+.cache/
+.pytest_cache/
+.mypy_cache/
+
+# IDEファイル
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# データファイル
+*.json
+*.csv
+*.txt
+!requirements*.txt
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# テストファイル
+test_*.py
+*_test.py
+tests/
+
+# スクリプトファイル
+scripts/
+*.sh
+
+# 大きなファイル
+*.mp4
+*.avi
+*.mkv

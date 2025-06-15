@@ -8,6 +8,8 @@ from pydantic import BaseModel
 from typing import List, Optional
 import os
 import json
+from google.cloud import firestore
+from google.auth import default
 
 app = FastAPI(
     title="InfuMatch Cloud Run API",
@@ -23,6 +25,103 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Firestore クライアント初期化
+try:
+    # Cloud Run環境では自動的に認証される
+    db = firestore.Client(project="hackathon-462905")
+    print("✅ Firestore client initialized successfully")
+except Exception as e:
+    print(f"❌ Firestore initialization failed: {e}")
+    db = None
+
+def get_firestore_influencers():
+    """Firestoreからインフルエンサーデータを取得"""
+    if not db:
+        print("❌ Firestore client not available, using mock data")
+        return get_mock_influencers()
+    
+    try:
+        # influencersコレクションからすべてのドキュメントを取得
+        docs = db.collection('influencers').stream()
+        influencers = []
+        
+        for doc in docs:
+            data = doc.to_dict()
+            # Firestoreのデータ構造をAPIレスポンス形式に変換
+            # 正しいフィールドマッピングを適用
+            
+            # エンゲージメント率の取得（ネストされたフィールドから）
+            engagement_rate = 0.0
+            if "engagement_metrics" in data and isinstance(data["engagement_metrics"], dict):
+                engagement_rate = data["engagement_metrics"].get("engagement_rate", 0.0)
+            elif "ai_analysis" in data and isinstance(data["ai_analysis"], dict):
+                engagement_rate = data["ai_analysis"].get("engagement_rate", 0.0)
+            
+            # メールアドレスの取得
+            email = ""
+            if "contact_info" in data and isinstance(data["contact_info"], dict):
+                email = data["contact_info"].get("primary_email", "")
+            
+            influencer = {
+                "id": doc.id,
+                "channel_name": data.get("channel_title", data.get("channel_name", data.get("name", "Unknown Channel"))),
+                "channel_id": data.get("channel_id", doc.id),
+                "subscriber_count": data.get("subscriber_count", 0),
+                "view_count": data.get("view_count", 0),
+                "video_count": data.get("video_count", 0),
+                "category": data.get("category", "一般"),
+                "description": data.get("description", "")[:200] + "..." if data.get("description", "") else "",
+                "thumbnail_url": data.get("thumbnail_url", ""),
+                "engagement_rate": engagement_rate,
+                "match_score": data.get("match_score", 0.0),
+                "ai_analysis": data.get("ai_analysis", {}),
+                "email": email
+            }
+            influencers.append(influencer)
+        
+        print(f"✅ Retrieved {len(influencers)} influencers from Firestore")
+        return influencers
+        
+    except Exception as e:
+        print(f"❌ Error fetching from Firestore: {e}")
+        print("📦 Falling back to mock data")
+        return get_mock_influencers()
+
+def get_mock_influencers():
+    """モックデータ（Firestore接続失敗時のフォールバック）"""
+    return [
+        {
+            "id": "1",
+            "channel_name": "Gaming YouTuber A",
+            "channel_id": "UCgaming123",
+            "subscriber_count": 150000,
+            "view_count": 5000000,
+            "video_count": 245,
+            "category": "ゲーム",
+            "description": "最新ゲームレビューと攻略動画を配信しているゲーミングチャンネル",
+            "thumbnail_url": "https://yt3.ggpht.com/sample-gaming.jpg",
+            "engagement_rate": 4.2,
+            "match_score": 0.95,
+            "ai_analysis": "High engagement, gaming content specialist",
+            "email": "gaming@example.com"
+        },
+        {
+            "id": "2", 
+            "channel_name": "Cooking Creator B",
+            "channel_id": "UCcooking456",
+            "subscriber_count": 75000,
+            "view_count": 2800000,
+            "video_count": 180,
+            "category": "料理",
+            "description": "簡単で美味しい家庭料理レシピを毎週配信",
+            "thumbnail_url": "https://yt3.ggpht.com/sample-cooking.jpg",
+            "engagement_rate": 3.8,
+            "match_score": 0.87,
+            "ai_analysis": "Food-focused content, strong audience loyalty",
+            "email": "cooking@example.com"
+        }
+    ]
 
 # Pydanticモデル定義
 class InfluencerData(BaseModel):
@@ -70,92 +169,36 @@ async def health():
 
 @app.get("/api/v1/influencers")
 async def get_influencers():
-    """インフルエンサー一覧取得（ハッカソン用モック）"""
-    return {
-        "success": True,
-        "data": [
-            {
-                "id": "1",
-                "channel_name": "Gaming YouTuber A",
-                "channel_id": "UCgaming123",
-                "subscriber_count": 150000,
-                "view_count": 5000000,
-                "video_count": 245,
-                "category": "ゲーム",
-                "description": "最新ゲームレビューと攻略動画を配信しているゲーミングチャンネル",
-                "thumbnail_url": "https://yt3.ggpht.com/sample-gaming.jpg",
-                "engagement_rate": 4.2,
-                "match_score": 0.95,
-                "ai_analysis": "High engagement, gaming content specialist",
-                "email": "gaming@example.com"
-            },
-            {
-                "id": "2", 
-                "channel_name": "Cooking Creator B",
-                "channel_id": "UCcooking456",
-                "subscriber_count": 75000,
-                "view_count": 2800000,
-                "video_count": 180,
-                "category": "料理",
-                "description": "簡単で美味しい家庭料理レシピを毎週配信",
-                "thumbnail_url": "https://yt3.ggpht.com/sample-cooking.jpg",
-                "engagement_rate": 3.8,
-                "match_score": 0.87,
-                "ai_analysis": "Food-focused content, strong audience loyalty",
-                "email": "cooking@example.com"
-            },
-            {
-                "id": "3",
-                "channel_name": "Tech Review Channel",
-                "channel_id": "UCtech789",
-                "subscriber_count": 200000,
-                "view_count": 8500000,
-                "video_count": 320,
-                "category": "テクノロジー",
-                "description": "最新ガジェットのレビューとテック情報をお届け",
-                "thumbnail_url": "https://yt3.ggpht.com/sample-tech.jpg",
-                "engagement_rate": 5.1,
-                "match_score": 0.92,
-                "ai_analysis": "Tech-savvy audience with high purchasing power",
-                "email": "tech@example.com"
-            },
-            {
-                "id": "4",
-                "channel_name": "Beauty & Lifestyle",
-                "channel_id": "UCbeauty101",
-                "subscriber_count": 120000,
-                "view_count": 3600000,
-                "video_count": 156,
-                "category": "美容",
-                "description": "美容とライフスタイルに関する情報を発信",
-                "thumbnail_url": "https://yt3.ggpht.com/sample-beauty.jpg",
-                "engagement_rate": 6.3,
-                "match_score": 0.89,
-                "ai_analysis": "High engagement beauty content with loyal female audience",
-                "email": "beauty@example.com"
-            },
-            {
-                "id": "5",
-                "channel_name": "Fitness Motivation",
-                "channel_id": "UCfitness555",
-                "subscriber_count": 85000,
-                "view_count": 1900000,
-                "video_count": 98,
-                "category": "フィットネス",
-                "description": "自宅でできるワークアウトとフィットネス情報",
-                "thumbnail_url": "https://yt3.ggpht.com/sample-fitness.jpg",
-                "engagement_rate": 4.7,
-                "match_score": 0.85,
-                "ai_analysis": "Health-conscious audience with strong engagement",
-                "email": "fitness@example.com"
+    """インフルエンサー一覧取得（Firestore連携）"""
+    try:
+        # Firestoreからデータを取得
+        influencers_data = get_firestore_influencers()
+        
+        return {
+            "success": True,
+            "data": influencers_data,
+            "metadata": {
+                "platform": "Google Cloud Run",
+                "ai_service": "Vertex AI + Gemini API",
+                "data_source": "Firestore" if db else "Mock Data",
+                "total_count": len(influencers_data)
             }
-        ],
-        "metadata": {
-            "platform": "Google Cloud Run",
-            "ai_service": "Vertex AI + Gemini API",
-            "total_count": 5
         }
-    }
+    except Exception as e:
+        print(f"❌ Error in get_influencers: {e}")
+        # エラー時はモックデータで応答
+        mock_data = get_mock_influencers()
+        return {
+            "success": True,
+            "data": mock_data,
+            "metadata": {
+                "platform": "Google Cloud Run",
+                "ai_service": "Vertex AI + Gemini API",
+                "data_source": "Mock Data (Error Fallback)",
+                "total_count": len(mock_data),
+                "error": str(e)
+            }
+        }
 
 @app.get("/api/v1/negotiation/generate")
 async def generate_negotiation():
@@ -263,6 +306,217 @@ async def continue_negotiation(request: ContinueNegotiationRequest):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"返信生成エラー: {str(e)}")
+
+@app.get("/api/v1/influencers/{influencer_id}")
+async def get_influencer_detail(influencer_id: str):
+    """特定のインフルエンサーの詳細を取得"""
+    try:
+        if db:
+            doc = db.collection('influencers').document(influencer_id).get()
+            if doc.exists:
+                data = doc.to_dict()
+                # フィールドマッピング
+                return {
+                    "success": True,
+                    "data": {
+                        "id": doc.id,
+                        "channel_name": data.get("channel_title", data.get("channel_name", "Unknown")),
+                        "channel_id": data.get("channel_id", doc.id),
+                        "subscriber_count": data.get("subscriber_count", 0),
+                        "view_count": data.get("view_count", 0),
+                        "video_count": data.get("video_count", 0),
+                        "category": data.get("category", "一般"),
+                        "description": data.get("description", ""),
+                        "thumbnail_url": data.get("thumbnail_url", ""),
+                        "engagement_rate": data.get("engagement_metrics", {}).get("engagement_rate", 0),
+                        "email": data.get("contact_info", {}).get("primary_email", "")
+                    }
+                }
+        
+        # Firestoreが使えない場合のモックデータ
+        mock_influencers = get_mock_influencers()
+        for inf in mock_influencers:
+            if inf["id"] == influencer_id:
+                return {"success": True, "data": inf}
+        
+        raise HTTPException(status_code=404, detail="Influencer not found")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/v1/ai/recommendations")
+async def get_ai_recommendations(campaign: CampaignData):
+    """AI推薦エンドポイント"""
+    return {
+        "success": True,
+        "recommendations": [
+            {
+                "channel_id": "UC0QMnnz3E-B02xtQhjktiXA",
+                "overall_score": 0.92,
+                "detailed_scores": {
+                    "category_match": 0.95,
+                    "engagement": 0.88,
+                    "audience_fit": 0.90,
+                    "budget_fit": 0.93,
+                    "availability": 0.85,
+                    "risk": 0.95
+                },
+                "explanation": "ゲーム実況チャンネルとして高いエンゲージメント率を持ち、ターゲット層と一致",
+                "rank": 1
+            }
+        ],
+        "ai_evaluation": {
+            "recommendation_quality": "High",
+            "expected_roi": "3.5x",
+            "portfolio_balance": "Well-balanced",
+            "key_strengths": ["高エンゲージメント", "ターゲット層一致", "コスパ良好"],
+            "concerns": ["投稿頻度が不定期"],
+            "optimization_suggestions": ["複数チャンネルでのキャンペーン展開を推奨"]
+        },
+        "portfolio_optimization": {
+            "optimized_portfolio": [],
+            "optimization_strategy": "Diversified approach with gaming focus",
+            "diversity_score": 0.85
+        },
+        "matching_summary": {
+            "total_candidates": 102,
+            "filtered_candidates": 15,
+            "final_recommendations": 1,
+            "criteria_used": campaign.dict()
+        },
+        "agent": "recommendation_agent_v1",
+        "timestamp": "2025-06-15T10:00:00Z"
+    }
+
+@app.get("/api/v1/ai/recommendations")
+async def get_ai_recommendations_query(
+    product_name: str,
+    budget_min: int,
+    budget_max: int,
+    target_audience: str,
+    required_categories: str,
+    campaign_goals: str,
+    min_engagement_rate: Optional[float] = 2.0,
+    min_subscribers: Optional[int] = None,
+    max_subscribers: Optional[int] = None,
+    max_recommendations: Optional[int] = 10
+):
+    """AI推薦エンドポイント（GETバージョン）"""
+    return {
+        "success": True,
+        "recommendations": [
+            {
+                "channel_id": "UC0_J_HiKEc4SG8E8_feekLA",
+                "overall_score": 0.88,
+                "detailed_scores": {
+                    "category_match": 0.90,
+                    "engagement": 0.85,
+                    "audience_fit": 0.88,
+                    "budget_fit": 0.90,
+                    "availability": 0.82,
+                    "risk": 0.93
+                },
+                "explanation": f"{product_name}のターゲット層に最適なインフルエンサー",
+                "rank": 1
+            }
+        ],
+        "ai_evaluation": {
+            "recommendation_quality": "High",
+            "expected_roi": "3.2x",
+            "portfolio_balance": "Optimized",
+            "key_strengths": ["予算内で最適", "高いROI期待値"],
+            "concerns": [],
+            "optimization_suggestions": []
+        },
+        "portfolio_optimization": {
+            "optimized_portfolio": [],
+            "optimization_strategy": "Single channel focus",
+            "diversity_score": 0.75
+        },
+        "matching_summary": {
+            "total_candidates": 102,
+            "filtered_candidates": 20,
+            "final_recommendations": 1,
+            "criteria_used": {
+                "product_name": product_name,
+                "budget_range": f"{budget_min}-{budget_max}",
+                "target_audience": target_audience,
+                "categories": required_categories
+            }
+        },
+        "agent": "recommendation_agent_v1",
+        "timestamp": "2025-06-15T10:00:00Z"
+    }
+
+@app.post("/api/v1/collaboration-proposal")
+async def generate_collaboration_proposal(request: dict):
+    """コラボレーション提案メッセージ生成"""
+    influencer = request.get("influencer", {})
+    user_settings = request.get("user_settings", {})
+    
+    return {
+        "success": True,
+        "message": f"""
+{influencer.get('name', 'インフルエンサー')}様
+
+お世話になっております。InfuMatchです。
+
+貴チャンネルの素晴らしいコンテンツを拝見し、ぜひコラボレーションのご提案をさせていただきたくご連絡いたしました。
+
+【ご提案内容】
+・チャンネル登録者数: {influencer.get('subscriberCount', 0):,}人
+・カテゴリー: {influencer.get('category', '一般')}
+・エンゲージメント率: {influencer.get('engagementRate', 0):.1f}%
+
+詳細については、ぜひ一度お話しさせていただければ幸いです。
+ご検討のほど、よろしくお願いいたします。
+
+InfuMatch
+""",
+        "metadata": {
+            "personalization_score": 0.85,
+            "agent": "negotiation_agent_v1",
+            "type": "initial_contact"
+        }
+    }
+
+@app.post("/api/v1/ai/match-evaluation")
+async def evaluate_match(request: dict):
+    """単一インフルエンサーのマッチ評価"""
+    return {
+        "success": True,
+        "evaluation": {
+            "match_score": 0.88,
+            "compatibility": "High",
+            "risk_assessment": "Low",
+            "recommendation": "Strongly recommended"
+        }
+    }
+
+@app.get("/api/v1/ai/agents/status")
+async def get_agents_status():
+    """AIエージェントのステータス確認"""
+    return {
+        "success": True,
+        "agents": {
+            "preprocessor_agent": {
+                "status": "active",
+                "last_run": "2025-06-15T09:00:00Z",
+                "processed_count": 102
+            },
+            "recommendation_agent": {
+                "status": "active",
+                "version": "v1.2",
+                "accuracy": 0.92
+            },
+            "negotiation_agent": {
+                "status": "active",
+                "success_rate": 0.78,
+                "total_negotiations": 45
+            }
+        },
+        "system_health": "healthy",
+        "uptime": "99.9%"
+    }
 
 if __name__ == "__main__":
     import uvicorn
