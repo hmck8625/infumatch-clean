@@ -298,13 +298,35 @@ export default function SearchPage() {
     handleInitialLoad();
   }, []);
 
+  // filteredResults の変化を監視
+  useEffect(() => {
+    console.log('[useEffect] filteredResults changed:', {
+      length: filteredResults?.length,
+      isArray: Array.isArray(filteredResults),
+      firstItem: filteredResults?.[0]
+    });
+  }, [filteredResults]);
+
   const handleInitialLoad = async () => {
     try {
       setIsSearching(true);
       setError(null);
       
+      console.log('[handleInitialLoad] Calling searchInfluencers...');
       const results = await searchInfluencers({});
-      setFilteredResults(results);
+      console.log('[handleInitialLoad] Search results:', results);
+      console.log('[handleInitialLoad] Results type:', typeof results);
+      console.log('[handleInitialLoad] Results length:', results?.length);
+      console.log('[handleInitialLoad] Results isArray:', Array.isArray(results));
+      
+      if (results && Array.isArray(results) && results.length > 0) {
+        console.log('[handleInitialLoad] Setting filteredResults with:', results.length, 'items');
+        console.log('[handleInitialLoad] First item:', results[0]);
+        setFilteredResults(results);
+      } else {
+        console.error('[handleInitialLoad] Invalid results received:', results);
+        setError('取得したデータが無効です');
+      }
       setHasSearched(true);
     } catch (err) {
       console.error('Initial load failed:', err);

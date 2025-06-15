@@ -200,7 +200,50 @@ class APIClient {
     const query = searchParams.toString();
     const endpoint = `/api/v1/influencers${query ? `?${query}` : ''}`;
     
-    return this.request<Influencer[]>(endpoint);
+    // Cloud Runバックエンドのレスポンス形式に対応
+    const response = await this.request<{success: boolean, data: any[], metadata?: any}>(endpoint);
+    
+    // デバッグログを追加
+    console.log('[searchInfluencers] Full response:', response);
+    console.log('[searchInfluencers] Response type:', typeof response);
+    console.log('[searchInfluencers] Has data property:', response && 'data' in response);
+    
+    // dataプロパティが存在する場合はそれを返す、なければそのまま返す
+    if (response && typeof response === 'object' && 'data' in response) {
+      console.log('[searchInfluencers] Processing data array:', response.data);
+      const mappedData = response.data.map((item: any, index: number) => {
+        const mapped = {
+          id: item.id || `${index}`,
+          name: item.channel_name || item.name || 'Unknown Channel',
+          channelId: item.channel_id || item.id || '',
+          subscriberCount: item.subscriber_count || item.subscriberCount || 0,
+          viewCount: item.view_count || item.viewCount || 0,
+          videoCount: item.video_count || item.videoCount || 0,
+          category: item.category || '一般',
+          description: item.description || item.ai_analysis || '',
+          thumbnailUrl: item.thumbnail_url || item.thumbnailUrl || '',
+          engagementRate: item.engagement_rate || item.engagementRate || 0,
+          email: item.email || ''
+        };
+        
+        // 各アイテムのマッピング結果をログ出力
+        if (index < 3) {
+          console.log(`[searchInfluencers] Item ${index} mapping:`, {
+            original: item,
+            mapped: mapped
+          });
+        }
+        
+        return mapped;
+      });
+      
+      console.log('[searchInfluencers] Mapped data:', mappedData);
+      return mappedData;
+    }
+    
+    // フォールバック: 古い形式もサポート
+    console.log('[searchInfluencers] Using fallback, returning response as-is:', response);
+    return response as Influencer[];
   }
 
   /**
