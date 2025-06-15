@@ -270,6 +270,7 @@ export default function SearchPage() {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [minSubscribers, setMinSubscribers] = useState('');
   const [maxSubscribers, setMaxSubscribers] = useState('');
+  const [allInfluencers, setAllInfluencers] = useState<Influencer[]>([]);
   const [filteredResults, setFilteredResults] = useState<Influencer[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
@@ -307,6 +308,15 @@ export default function SearchPage() {
     });
   }, [filteredResults]);
 
+  // 検索条件変更時のリアルタイムフィルタリング
+  useEffect(() => {
+    if (allInfluencers.length > 0 && !useAI) {
+      const filtered = filterInfluencers(allInfluencers);
+      setFilteredResults(filtered);
+      console.log('[useEffect] Auto-filtered to', filtered.length, 'results');
+    }
+  }, [searchQuery, selectedCategory, minSubscribers, maxSubscribers, allInfluencers, useAI]);
+
   const handleInitialLoad = async () => {
     try {
       setIsSearching(true);
@@ -320,9 +330,10 @@ export default function SearchPage() {
       console.log('[handleInitialLoad] Results isArray:', Array.isArray(results));
       
       if (results && Array.isArray(results) && results.length > 0) {
-        console.log('[handleInitialLoad] Setting filteredResults with:', results.length, 'items');
+        console.log('[handleInitialLoad] Setting allInfluencers with:', results.length, 'items');
         console.log('[handleInitialLoad] First item:', results[0]);
-        setFilteredResults(results);
+        setAllInfluencers(results);
+        setFilteredResults(results); // 初期表示は全データ
       } else {
         console.error('[handleInitialLoad] Invalid results received:', results);
         setError('取得したデータが無効です');
@@ -345,6 +356,32 @@ export default function SearchPage() {
 
   const categories = ['all', 'gaming', 'ゲーム', 'テクノロジー', '料理', '料理・グルメ', 'フィットネス', '美容', '美容・コスメ', 'ライフスタイル', '教育', 'ハウツー＆スタイル'];
 
+  // クライアントサイドフィルタリング関数
+  const filterInfluencers = (influencers: Influencer[]) => {
+    return influencers.filter(influencer => {
+      // キーワード検索（名前、説明文、カテゴリ）
+      const keyword = searchQuery.trim().toLowerCase();
+      const matchesKeyword = !keyword || 
+        influencer.name.toLowerCase().includes(keyword) ||
+        influencer.description.toLowerCase().includes(keyword) ||
+        influencer.category.toLowerCase().includes(keyword);
+
+      // カテゴリフィルタ
+      const matchesCategory = selectedCategory === 'all' || 
+        influencer.category === selectedCategory ||
+        (selectedCategory === 'gaming' && influencer.category === 'ゲーム') ||
+        (selectedCategory === 'ゲーム' && influencer.category === 'gaming');
+
+      // 登録者数フィルタ
+      const minSubs = minSubscribers ? parseInt(minSubscribers) : 0;
+      const maxSubs = maxSubscribers ? parseInt(maxSubscribers) : Infinity;
+      const matchesSubscribers = influencer.subscriberCount >= minSubs && 
+        influencer.subscriberCount <= maxSubs;
+
+      return matchesKeyword && matchesCategory && matchesSubscribers;
+    });
+  };
+
   const handleSearch = async () => {
     try {
       setIsSearching(true);
@@ -354,17 +391,19 @@ export default function SearchPage() {
         // AI推薦の実行
         await handleAIRecommendation();
       } else {
-        // 通常検索の実行
-        const searchParams = {
-          keyword: searchQuery.trim() || undefined,
-          category: selectedCategory !== 'all' ? selectedCategory : undefined,
-          min_subscribers: minSubscribers ? parseInt(minSubscribers) : undefined,
-          max_subscribers: maxSubscribers ? parseInt(maxSubscribers) : undefined,
-        };
-
-        const results = await searchInfluencers(searchParams);
-        setFilteredResults(results);
+        // クライアントサイドフィルタリングを実行
+        console.log('[handleSearch] Applying filters to', allInfluencers.length, 'influencers');
+        console.log('[handleSearch] Search params:', {
+          keyword: searchQuery.trim(),
+          category: selectedCategory,
+          minSubscribers,
+          maxSubscribers
+        });
         
+        const filtered = filterInfluencers(allInfluencers);
+        console.log('[handleSearch] Filtered results:', filtered.length, 'items');
+        
+        setFilteredResults(filtered);
         setAiResults(null);
       }
       
