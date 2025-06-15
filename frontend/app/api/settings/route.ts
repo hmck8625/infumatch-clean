@@ -198,13 +198,31 @@ function getDefaultSettings(userId: string): UserSettings {
  */
 export async function GET(request: NextRequest) {
   try {
+    console.log('📞 Settings API GET request received');
     const session = await getServerSession(authOptions);
     
     if (!session?.user?.email) {
+      console.log('❌ No session or email found');
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
       );
+    }
+
+    console.log('👤 User email:', session.user.email);
+    
+    // Firebase Adminが初期化されていない場合はデフォルト設定を返す
+    if (!adminDb) {
+      console.log('⚠️ Firebase Admin not available, returning default settings');
+      const userId = session.user.email;
+      const defaultSettings = getDefaultSettings(userId);
+      
+      return NextResponse.json({
+        success: true,
+        data: defaultSettings,
+        fallback: true,
+        message: 'Using default settings - database not available'
+      });
     }
 
     // ユーザーIDとしてemailを使用
@@ -214,20 +232,45 @@ export async function GET(request: NextRequest) {
     const settings = await getSettingsFromFirestore(userId);
     
     if (!settings) {
-      return NextResponse.json(
-        { error: 'Failed to fetch settings' },
-        { status: 500 }
-      );
+      console.log('⚠️ Failed to fetch from Firestore, returning default settings');
+      const defaultSettings = getDefaultSettings(userId);
+      
+      return NextResponse.json({
+        success: true,
+        data: defaultSettings,
+        fallback: true,
+        message: 'Using default settings - fetch failed'
+      });
     }
     
+    console.log('✅ Settings retrieved successfully');
     return NextResponse.json({
       success: true,
       data: settings
     });
   } catch (error) {
-    console.error('設定取得エラー:', error);
+    console.error('❌ 設定取得エラー:', error);
+    
+    // エラーが発生した場合もデフォルト設定を返す
+    try {
+      const session = await getServerSession(authOptions);
+      if (session?.user?.email) {
+        const defaultSettings = getDefaultSettings(session.user.email);
+        
+        return NextResponse.json({
+          success: true,
+          data: defaultSettings,
+          fallback: true,
+          message: 'Using default settings due to error',
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
+    } catch (fallbackError) {
+      console.error('❌ Fallback also failed:', fallbackError);
+    }
+    
     return NextResponse.json(
-      { error: 'Failed to get settings' },
+      { error: 'Failed to get settings', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }

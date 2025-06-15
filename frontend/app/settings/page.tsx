@@ -137,14 +137,12 @@ export default function SettingsPage() {
     updatedAt: ''
   });
 
-  const [newProduct, setNewProduct] = useState<Partial<ProductInfo>>({
+  const [newProduct, setNewProduct] = useState({
     name: '',
     category: '',
     description: '',
     targetAudience: '',
-    keyFeatures: [],
-    priceRange: { min: 0, max: 0, currency: 'JPY' },
-    campaignTypes: []
+    priceRange: '0円〜10万円' // 文字列として管理
   });
 
   useEffect(() => {
@@ -155,19 +153,58 @@ export default function SettingsPage() {
     try {
       console.log('📞 Loading user settings...');
       const response = await fetch('/api/settings');
+      
       if (response.ok) {
         const result = await response.json();
         if (result.success && result.data) {
           console.log('✅ Settings loaded successfully');
-          setSettings(result.data);
+          
+          // データの整合性をチェックして安全にセット
+          const safeData = {
+            ...result.data,
+            matchingSettings: {
+              priorityCategories: result.data.matchingSettings?.priorityCategories || [],
+              minSubscribers: result.data.matchingSettings?.minSubscribers || 1000,
+              maxSubscribers: result.data.matchingSettings?.maxSubscribers || 1000000,
+              minEngagementRate: result.data.matchingSettings?.minEngagementRate || 2.0,
+              excludeCategories: result.data.matchingSettings?.excludeCategories || [],
+              geographicFocus: result.data.matchingSettings?.geographicFocus || ['日本']
+            },
+            companyInfo: {
+              companyName: result.data.companyInfo?.companyName || '',
+              industry: result.data.companyInfo?.industry || '',
+              employeeCount: result.data.companyInfo?.employeeCount || '',
+              website: result.data.companyInfo?.website || '',
+              description: result.data.companyInfo?.description || ''
+            },
+            products: result.data.products || [],
+            negotiationSettings: {
+              preferredTone: result.data.negotiationSettings?.preferredTone || 'professional',
+              responseTimeExpectation: result.data.negotiationSettings?.responseTimeExpectation || '24時間以内',
+              budgetFlexibility: result.data.negotiationSettings?.budgetFlexibility || 'medium',
+              decisionMakers: result.data.negotiationSettings?.decisionMakers || [],
+              communicationPreferences: result.data.negotiationSettings?.communicationPreferences || ['email']
+            }
+          };
+          
+          setSettings(safeData);
+          
+          if (result.fallback) {
+            setSaveMessage(result.message || 'デフォルト設定を使用しています');
+          }
         } else {
           console.error('❌ Failed to load settings:', result.error);
+          setSaveMessage('設定の読み込みに失敗しました。デフォルト設定を使用します。');
         }
       } else {
         console.error('❌ API Error:', response.status);
+        const errorText = await response.text();
+        console.error('❌ Error details:', errorText);
+        setSaveMessage('設定の読み込みに失敗しました。デフォルト設定を使用します。');
       }
     } catch (error) {
       console.error('❌ Settings load error:', error);
+      setSaveMessage('設定の読み込み中にエラーが発生しました。デフォルト設定を使用します。');
     } finally {
       setIsLoading(false);
     }
@@ -479,7 +516,7 @@ export default function SettingsPage() {
                             <div className="flex items-center space-x-2">
                               <Badge variant="outline">{product.category}</Badge>
                               <span className="text-xs text-gray-500">
-                                ¥{product.priceRange.min.toLocaleString()} - ¥{product.priceRange.max.toLocaleString()}
+                                {product.priceRange || '価格未設定'}
                               </span>
                             </div>
                           </div>
@@ -535,33 +572,16 @@ export default function SettingsPage() {
                     </div>
 
                     <div className="grid grid-cols-2 gap-4 mb-4">
-                      <div>
-                        <Label htmlFor="price-min">最小価格（円）</Label>
+                      <div className="col-span-2">
+                        <Label htmlFor="price-range">価格帯</Label>
                         <Input
-                          id="price-min"
-                          type="number"
-                          value={newProduct.priceRange?.min || 0}
+                          id="price-range"
+                          type="text"
+                          placeholder="例: 1万円〜10万円"
+                          value={newProduct.priceRange || ''}
                           onChange={(e) => setNewProduct(prev => ({ 
                             ...prev, 
-                            priceRange: { 
-                              ...prev.priceRange!, 
-                              min: parseInt(e.target.value) || 0 
-                            } 
-                          }))}
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="price-max">最大価格（円）</Label>
-                        <Input
-                          id="price-max"
-                          type="number"
-                          value={newProduct.priceRange?.max || 0}
-                          onChange={(e) => setNewProduct(prev => ({ 
-                            ...prev, 
-                            priceRange: { 
-                              ...prev.priceRange!, 
-                              max: parseInt(e.target.value) || 0 
-                            } 
+                            priceRange: e.target.value
                           }))}
                         />
                       </div>
@@ -602,15 +622,12 @@ export default function SettingsPage() {
                       <Input
                         id="budget-min"
                         type="number"
-                        value={settings.negotiationSettings.defaultBudgetRange.min}
+                        value={settings.matchingSettings.minSubscribers}
                         onChange={(e) => setSettings(prev => ({
                           ...prev,
-                          negotiationSettings: {
-                            ...prev.negotiationSettings,
-                            defaultBudgetRange: {
-                              ...prev.negotiationSettings.defaultBudgetRange,
-                              min: parseInt(e.target.value) || 0
-                            }
+                          matchingSettings: {
+                            ...prev.matchingSettings,
+                            minSubscribers: parseInt(e.target.value) || 1000
                           }
                         }))}
                       />
@@ -620,15 +637,12 @@ export default function SettingsPage() {
                       <Input
                         id="budget-max"
                         type="number"
-                        value={settings.negotiationSettings.defaultBudgetRange.max}
+                        value={settings.matchingSettings.maxSubscribers}
                         onChange={(e) => setSettings(prev => ({
                           ...prev,
-                          negotiationSettings: {
-                            ...prev.negotiationSettings,
-                            defaultBudgetRange: {
-                              ...prev.negotiationSettings.defaultBudgetRange,
-                              max: parseInt(e.target.value) || 0
-                            }
+                          matchingSettings: {
+                            ...prev.matchingSettings,
+                            maxSubscribers: parseInt(e.target.value) || 1000000
                           }
                         }))}
                       />
@@ -794,12 +808,12 @@ export default function SettingsPage() {
                       <Input
                         id="min-subscribers"
                         type="number"
-                        value={settings.matchingPreferences.minimumSubscribers}
+                        value={settings.matchingSettings.minSubscribers}
                         onChange={(e) => setSettings(prev => ({
                           ...prev,
-                          matchingPreferences: {
-                            ...prev.matchingPreferences,
-                            minimumSubscribers: parseInt(e.target.value) || 0
+                          matchingSettings: {
+                            ...prev.matchingSettings,
+                            minSubscribers: parseInt(e.target.value) || 1000
                           }
                         }))}
                       />
@@ -809,12 +823,12 @@ export default function SettingsPage() {
                       <Input
                         id="max-subscribers"
                         type="number"
-                        value={settings.matchingPreferences.maximumSubscribers}
+                        value={settings.matchingSettings.maxSubscribers}
                         onChange={(e) => setSettings(prev => ({
                           ...prev,
-                          matchingPreferences: {
-                            ...prev.matchingPreferences,
-                            maximumSubscribers: parseInt(e.target.value) || 0
+                          matchingSettings: {
+                            ...prev.matchingSettings,
+                            maxSubscribers: parseInt(e.target.value) || 1000000
                           }
                         }))}
                       />
@@ -828,7 +842,7 @@ export default function SettingsPage() {
                 <div>
                   <h4 className="font-semibold mb-4">優先チャンネルカテゴリ</h4>
                   <div className="flex flex-wrap gap-2 mb-2">
-                    {settings.matchingPreferences.preferredCategories.map((category, index) => (
+                    {settings.matchingSettings.priorityCategories.map((category, index) => (
                       <Badge
                         key={index}
                         variant="outline"
