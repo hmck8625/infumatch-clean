@@ -13,6 +13,15 @@ export default function SignInPage() {
   useEffect(() => {
     setIsVisible(true);
     
+    // 環境変数デバッグ（本番環境で確認用）
+    console.log('🔍 Environment Debug:', {
+      NEXTAUTH_URL: process.env.NEXTAUTH_URL,
+      NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
+      NODE_ENV: process.env.NODE_ENV,
+      // サーバーサイド環境変数は直接アクセスできないので存在確認のみ
+      isProduction: process.env.NODE_ENV === 'production'
+    });
+    
     // 既にログイン済みかチェック
     getSession().then((session) => {
       if (session) {
