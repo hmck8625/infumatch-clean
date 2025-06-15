@@ -26,23 +26,45 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // メールの作成
+    // 日本語対応：件名をRFC2047形式でエンコード
+    const encodeSubject = (str: string): string => {
+      // 日本語文字が含まれている場合のみエンコード
+      if (/[^\x00-\x7F]/.test(str)) {
+        const encoded = Buffer.from(str, 'utf8').toString('base64');
+        return `=?UTF-8?B?${encoded}?=`;
+      }
+      return str;
+    };
+
+    // メールの作成（MIME形式）
     const messageParts = [
       `To: ${to}`,
-      `Subject: ${subject}`,
-      'Content-Type: text/html; charset=utf-8',
-      '',
-      finalMessageBody
+      `Subject: ${encodeSubject(subject)}`,
+      'MIME-Version: 1.0',
+      'Content-Type: text/plain; charset=UTF-8',
+      'Content-Transfer-Encoding: base64',
+      ''
     ];
 
     // 返信の場合、追加ヘッダーを設定
     if (replyToMessageId) {
-      messageParts.splice(3, 0, `In-Reply-To: ${replyToMessageId}`);
-      messageParts.splice(4, 0, `References: ${replyToMessageId}`);
+      messageParts.splice(-1, 0, `In-Reply-To: ${replyToMessageId}`);
+      messageParts.splice(-1, 0, `References: ${replyToMessageId}`);
+    }
+    
+    if (threadId) {
+      messageParts.splice(-1, 0, `Thread-Topic: ${threadId}`);
     }
 
-    const messageContent = messageParts.join('\r\n');
-    const encodedMessage = Buffer.from(messageContent).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    // 本文をBase64エンコード
+    const bodyBase64 = Buffer.from(finalMessageBody, 'utf8').toString('base64');
+    
+    // メッセージ全体を組み立て
+    const messageContent = messageParts.join('\r\n') + bodyBase64;
+    const encodedMessage = Buffer.from(messageContent, 'utf8').toString('base64')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
 
     console.log('Sending email to:', to, 'Subject:', subject);
 

@@ -487,6 +487,9 @@ InfuMatchの田中です。
         }
       } else {
         // 添付ファイルなしの場合は既存のAPIを使用
+        const replySubject = subjectHeader.startsWith('Re:') ? subjectHeader : `Re: ${subjectHeader}`;
+        const lastMessageId = lastMessage.id;
+        
         const response = await fetch('/api/gmail/send', {
           method: 'POST',
           headers: {
@@ -494,9 +497,10 @@ InfuMatchの田中です。
           },
           body: JSON.stringify({
             to: fromHeader,
-            subject: subjectHeader.startsWith('Re:') ? subjectHeader : `Re: ${subjectHeader}`,
+            subject: replySubject,
             message: replyText,
             threadId: currentThread.id,
+            replyToMessageId: lastMessageId,
           }),
         });
 
