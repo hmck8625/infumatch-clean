@@ -1,0 +1,44 @@
+# =============================================================================
+# 最小限の依存関係（ローカル実行用）
+# =============================================================================
+
+# Core Framework
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+
+# HTTP関連
+httpx==0.25.2
+requests==2.31.0
+
+# API ドキュメント
+pydantic==2.5.0
+pydantic-settings==2.1.0
+
+# 設定・環境変数
+python-dotenv==1.0.0
+
+# ログ
+structlog==23.2.0
+
+# JSON処理
+orjson==3.9.10
+
+# 日付処理
+python-dateutil==2.8.2
+
+# Google Cloud（オプション）
+google-cloud-firestore==2.13.1
+google-auth==2.23.4
+google-api-python-client==2.108.0
+
+# AI/ML（オプション）
+google-generativeai==0.3.2
+
+# 非同期ファイル処理
+aiofiles==23.2.1
+
+# JWT処理
+PyJWT==2.8.0
+
+# テンプレート
+jinja2==3.1.2

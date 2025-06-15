@@ -1,0 +1,269 @@
+# =============================================================================
+# GitHub Actions CI/CD ワークフロー
+# =============================================================================
+# 自動ビルド・テスト・デプロイパイプライン
+
+name: Deploy InfuMatch
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths-ignore:
+      - 'README.md'
+      - 'docs/**'
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  PROJECT_ID: hackathon-462905
+  REGION: asia-northeast1
+  REGISTRY: asia-northeast1-docker.pkg.dev
+  REPOSITORY: infumatch
+
+jobs:
+  # =============================================================================
+  # テストジョブ
+  # =============================================================================
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        component: [backend, frontend]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js (Frontend)
+      if: matrix.component == 'frontend'
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+
+    - name: Setup Python (Backend)
+      if: matrix.component == 'backend'
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+        cache-dependency-path: backend/requirements.txt
+
+    - name: Install dependencies (Frontend)
+      if: matrix.component == 'frontend'
+      working-directory: ./frontend
+      run: npm ci
+
+    - name: Install dependencies (Backend)
+      if: matrix.component == 'backend'
+      working-directory: ./backend
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Lint (Frontend)
+      if: matrix.component == 'frontend'
+      working-directory: ./frontend
+      run: npm run lint
+
+    - name: Lint (Backend)
+      if: matrix.component == 'backend'
+      working-directory: ./backend
+      run: |
+        pip install flake8 black isort
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        black --check .
+        isort --check-only .
+
+    - name: Test (Frontend)
+      if: matrix.component == 'frontend'
+      working-directory: ./frontend
+      run: npm run test -- --coverage --watchAll=false
+
+    - name: Test (Backend)
+      if: matrix.component == 'backend'
+      working-directory: ./backend
+      run: |
+        pip install pytest pytest-cov
+        pytest --cov=. --cov-report=xml
+
+    - name: Build (Frontend)
+      if: matrix.component == 'frontend'
+      working-directory: ./frontend
+      run: npm run build
+      env:
+        NEXT_PUBLIC_API_URL: https://infumatch-backend-xxxxxxxxxx-an.a.run.app
+
+  # =============================================================================
+  # デプロイジョブ（メインブランチのみ）
+  # =============================================================================
+  deploy-backend:
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: test
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v2
+      with:
+        workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+        service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+
+    - name: Set up Cloud SDK
+      uses: google-github-actions/setup-gcloud@v2
+
+    - name: Configure Docker for Artifact Registry
+      run: gcloud auth configure-docker ${{ env.REGISTRY }}
+
+    - name: Build Docker image
+      run: |
+        docker build \
+          -f deploy/docker/backend.Dockerfile \
+          -t ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/backend:${{ github.sha }} \
+          -t ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/backend:latest \
+          .
+
+    - name: Push Docker image
+      run: |
+        docker push ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/backend:${{ github.sha }}
+        docker push ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/backend:latest
+
+    - name: Deploy to Cloud Run
+      run: |
+        gcloud run deploy infumatch-backend \
+          --image=${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/backend:${{ github.sha }} \
+          --platform=managed \
+          --region=${{ env.REGION }} \
+          --allow-unauthenticated \
+          --port=8000 \
+          --memory=2Gi \
+          --cpu=2 \
+          --timeout=300 \
+          --concurrency=80 \
+          --min-instances=0 \
+          --max-instances=10 \
+          --execution-environment=gen2 \
+          --service-account=${{ env.PROJECT_ID }}@appspot.gserviceaccount.com \
+          --set-env-vars="GOOGLE_CLOUD_PROJECT_ID=${{ env.PROJECT_ID }},GOOGLE_CLOUD_REGION=${{ env.REGION }},LOG_LEVEL=INFO" \
+          --set-secrets="YOUTUBE_API_KEY=youtube-api-key:latest,GEMINI_API_KEY=gemini-api-key:latest" \
+          --project=${{ env.PROJECT_ID }}
+
+    - name: Get service URL
+      id: get-url
+      run: |
+        URL=$(gcloud run services describe infumatch-backend \
+          --region=${{ env.REGION }} \
+          --project=${{ env.PROJECT_ID }} \
+          --format="value(status.url)")
+        echo "url=$URL" >> $GITHUB_OUTPUT
+
+    - name: Run health check
+      run: |
+        sleep 30
+        curl -f ${{ steps.get-url.outputs.url }}/health
+
+  deploy-functions:
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: test
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v2
+      with:
+        workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+        service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+
+    - name: Set up Cloud SDK
+      uses: google-github-actions/setup-gcloud@v2
+
+    - name: Deploy Cloud Functions
+      working-directory: ./cloud_functions
+      run: |
+        # HTTP トリガー関数
+        gcloud functions deploy http-trigger-main \
+          --gen2 \
+          --runtime=python311 \
+          --region=${{ env.REGION }} \
+          --source=. \
+          --entry-point=http_trigger_main \
+          --trigger-http \
+          --allow-unauthenticated \
+          --memory=512MB \
+          --timeout=540s \
+          --set-env-vars="GOOGLE_CLOUD_PROJECT=${{ env.PROJECT_ID }},GOOGLE_CLOUD_REGION=${{ env.REGION }}" \
+          --project=${{ env.PROJECT_ID }}
+
+        # スケジュール実行関数
+        gcloud functions deploy scheduled-youtube-collection \
+          --gen2 \
+          --runtime=python311 \
+          --region=${{ env.REGION }} \
+          --source=. \
+          --entry-point=scheduled_youtube_collection \
+          --trigger-topic=youtube-collection-trigger \
+          --memory=512MB \
+          --timeout=540s \
+          --set-env-vars="GOOGLE_CLOUD_PROJECT=${{ env.PROJECT_ID }},GOOGLE_CLOUD_REGION=${{ env.REGION }}" \
+          --project=${{ env.PROJECT_ID }}
+
+  # =============================================================================
+  # フロントエンドデプロイ（Vercel）
+  # =============================================================================
+  deploy-frontend:
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: [test, deploy-backend]
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Deploy to Vercel
+      uses: amondnet/vercel-action@v25
+      with:
+        vercel-token: ${{ secrets.VERCEL_TOKEN }}
+        vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+        vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+        working-directory: ./frontend
+        vercel-args: '--prod'
+
+  # =============================================================================
+  # 通知ジョブ
+  # =============================================================================
+  notify:
+    if: always()
+    needs: [test, deploy-backend, deploy-functions, deploy-frontend]
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Notify deployment status
+      uses: 8398a7/action-slack@v3
+      with:
+        status: ${{ job.status }}
+        channel: '#deployments'
+        webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+        text: |
+          Deployment Status: ${{ job.status }}
+          Branch: ${{ github.ref_name }}
+          Commit: ${{ github.sha }}
+          Author: ${{ github.actor }}
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
+      if: always()

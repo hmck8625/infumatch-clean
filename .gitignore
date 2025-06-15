@@ -1,0 +1,303 @@
+# =============================================================================
+# YouTube Influencer Matching Agent - .gitignore
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# 環境設定ファイル
+# -----------------------------------------------------------------------------
+.env
+.env.example
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Google Cloud 認証情報
+credentials/
+service-account*.json
+key.json
+gcloud-key.json
+
+# -----------------------------------------------------------------------------
+# Node.js / npm
+# -----------------------------------------------------------------------------
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+*.lcov
+
+# nyc test coverage
+.nyc_output
+
+# node-waf configuration
+.lock-wscript
+
+# Compiled binary addons
+build/Release
+
+# Dependency directories
+node_modules/
+jspm_packages/
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# -----------------------------------------------------------------------------
+# Next.js
+# -----------------------------------------------------------------------------
+.next/
+out/
+build/
+dist/
+
+# Vercel
+.vercel
+
+# -----------------------------------------------------------------------------
+# Python
+# -----------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# Virtual environments
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+.venv
+backend/venv/
+backend/env/
+backend/#/
+backend/仮想環境を作成/
+**/venv/
+**/env/
+
+# PyCharm
+.idea/
+
+# -----------------------------------------------------------------------------
+# macOS
+# -----------------------------------------------------------------------------
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Icon must end with two \r
+Icon
+
+# Thumbnails
+._*
+
+# Files that might appear in the root of a volume
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# Directories potentially created on remote AFP share
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# -----------------------------------------------------------------------------
+# Windows
+# -----------------------------------------------------------------------------
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+
+*.tmp
+*.temp
+
+# Windows Installer files
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+
+# Windows shortcuts
+*.lnk
+
+# -----------------------------------------------------------------------------
+# Linux
+# -----------------------------------------------------------------------------
+*~
+
+# temporary files which can be created if a process still has a handle open of a deleted file
+.fuse_hidden*
+
+# KDE directory preferences
+.directory
+
+# Linux trash folder which might appear on any partition or disk
+.Trash-*
+
+# .nfs files are created when an open file is removed but is still being accessed
+.nfs*
+
+# -----------------------------------------------------------------------------
+# VS Code
+# -----------------------------------------------------------------------------
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+!.vscode/*.code-snippets
+
+# Local History for Visual Studio Code
+.history/
+
+# Built Visual Studio Code Extensions
+*.vsix
+
+# -----------------------------------------------------------------------------
+# JetBrains IDEs (PyCharm, WebStorm, IntelliJ, etc.)
+# -----------------------------------------------------------------------------
+.idea/
+*.swp
+*.swo
+
+# -----------------------------------------------------------------------------
+# データファイル / ログ
+# -----------------------------------------------------------------------------
+*.log
+logs/
+data/
+temp/
+tmp/
+
+# データベースファイル
+*.db
+*.sqlite
+*.sqlite3
+
+# -----------------------------------------------------------------------------
+# Docker
+# -----------------------------------------------------------------------------
+Dockerfile.dev
+docker-compose.override.yml
+
+# -----------------------------------------------------------------------------
+# Terraform
+# -----------------------------------------------------------------------------
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+
+# -----------------------------------------------------------------------------
+# プロジェクト固有
+# -----------------------------------------------------------------------------
+# テスト用のサンプルデータ
+sample_data/
+test_output/
+
+# 生成されたドキュメント
+docs/generated/
+
+# キャッシュファイル
+.cache/
+*.cache
+
+# 一時的なアップロードファイル
+uploads/
+downloads/
+
+# バックアップファイル
+*.bak
+*.backup
+
+# Google Cloud認証ファイル
+hackathon-462905-7d72a76d3742.json
+
+# 収集したYouTubeチャンネルデータ
+*_channels_*.json
+gaming_youtubers.json
+multi_category_youtubers.json
+ai_enhanced_youtubers.json
+bigquery_data.json
+firestore_data.json
+existing_data_enhanced.json
+cooking_channels_backup.json
+ai_analysis_summary.json
+ai_analysis_test_result.json
+ai_enhancement_report.json
+
+# -----------------------------------------------------------------------------
+# CI/CD
+# -----------------------------------------------------------------------------
+.github/workflows/secrets.yml
