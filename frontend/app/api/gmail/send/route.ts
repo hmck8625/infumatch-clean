@@ -14,9 +14,12 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { to, subject, body: messageBody, replyToMessageId } = body;
+    const { to, subject, body: messageBody, message, replyToMessageId, threadId } = body;
+    
+    // messageBodyまたはmessageのどちらかを使用
+    const finalMessageBody = messageBody || message;
 
-    if (!to || !subject || !messageBody) {
+    if (!to || !subject || !finalMessageBody) {
       return NextResponse.json(
         { error: 'Missing required fields: to, subject, body' },
         { status: 400 }
@@ -29,7 +32,7 @@ export async function POST(request: NextRequest) {
       `Subject: ${subject}`,
       'Content-Type: text/html; charset=utf-8',
       '',
-      messageBody
+      finalMessageBody
     ];
 
     // 返信の場合、追加ヘッダーを設定

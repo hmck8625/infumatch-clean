@@ -7,7 +7,18 @@ import { signOut } from 'next-auth/react';
 // import { EmailThread, GmailMessage } from '@/lib/gmail'; // Server-side only
 // Temporary interfaces for client-side
 interface EmailThread { id: string; snippet: string; historyId: string; messages?: GmailMessage[]; }
-interface GmailMessage { id: string; threadId: string; snippet: string; }
+interface GmailMessage { 
+  id: string; 
+  threadId: string; 
+  snippet: string; 
+  internalDate: string;
+  payload: {
+    headers: { name: string; value: string; }[];
+    body?: { data?: string; };
+    parts?: { mimeType: string; body?: { data?: string; }; }[];
+  };
+  attachments?: any[];
+}
 import { ErrorBoundary, useErrorHandler } from '@/components/error-boundary';
 import { AuthGuard, UserInfo } from '@/components/auth-guard';
 import { useAuthError } from '@/hooks/use-auth-error';
@@ -139,7 +150,7 @@ function MessagesPageContent() {
   }, [selectedThread]);
 
   useEffect(() => {
-    if (currentThread && currentThread.messages?.length > 0) {
+    if (currentThread && currentThread.messages && currentThread.messages.length > 0) {
       generateReplyPatterns();
     }
   }, [currentThread]);
@@ -269,7 +280,7 @@ function MessagesPageContent() {
   };
 
   const generateReplyPatterns = async () => {
-    if (!currentThread || currentThread.messages.length === 0) return;
+    if (!currentThread || !currentThread.messages || currentThread.messages.length === 0) return;
     
     setIsGeneratingPatterns(true);
     setReplyPatterns([]);
@@ -389,7 +400,14 @@ function MessagesPageContent() {
 
     setIsSending(true);
     try {
-      const lastMessage = currentThread.messages[currentThread.messages.length - 1];
+      const lastMessage = currentThread.messages && currentThread.messages.length > 0 
+        ? currentThread.messages[currentThread.messages.length - 1] 
+        : null;
+      
+      if (!lastMessage) {
+        alert('メッセージが見つかりません');
+        return;
+      }
       const fromHeader = getHeader(lastMessage, 'from');
       const subjectHeader = getHeader(lastMessage, 'subject');
       
@@ -518,7 +536,7 @@ function MessagesPageContent() {
 
   // スレッドから件名を取得
   const getThreadSubject = (thread: EmailThread): string => {
-    if (thread.messages.length === 0) return 'タイトルなし';
+    if (!thread.messages || thread.messages.length === 0) return 'タイトルなし';
     const firstMessage = thread.messages[0];
     const subject = getHeader(firstMessage, 'subject');
     return subject || 'タイトルなし';
@@ -526,7 +544,7 @@ function MessagesPageContent() {
 
   // スレッドから主要な相手を取得（最後のメッセージの送信者）
   const getThreadPrimaryContact = (thread: EmailThread): string => {
-    if (thread.messages.length === 0) return '不明';
+    if (!thread.messages || thread.messages.length === 0) return '不明';
     const latestMessage = thread.messages[thread.messages.length - 1];
     const fromHeader = getHeader(latestMessage, 'from');
     
@@ -850,7 +868,7 @@ function MessagesPageContent() {
                                 {getThreadSubject(thread)}
                               </h3>
                               <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">
-                                {thread.messages.length}
+                                {thread.messages?.length || 0}
                               </span>
                               {isThreadUnread(thread) && (
                                 <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
@@ -873,11 +891,11 @@ function MessagesPageContent() {
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                                 </svg>
                                 <p className="text-xs text-gray-400">
-                                  {thread.messages.length > 0 && formatDate(thread.messages[thread.messages.length - 1].internalDate)}
+                                  {thread.messages && thread.messages.length > 0 && formatDate(thread.messages[thread.messages.length - 1].internalDate)}
                                 </p>
                               </div>
                               <div className="flex items-center space-x-1">
-                                {thread.messages.length > 1 && (
+                                {thread.messages && thread.messages.length > 1 && (
                                   <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                                   </svg>
@@ -905,7 +923,7 @@ function MessagesPageContent() {
                           Gmail スレッド詳細
                         </h2>
                         <p className="text-sm text-gray-500 mt-1">
-                          {currentThread.messages.length}件のメッセージ
+                          {currentThread.messages?.length || 0}件のメッセージ
                         </p>
                       </div>
                     </div>
@@ -913,7 +931,7 @@ function MessagesPageContent() {
 
                   {/* メール一覧 */}
                   <div className="max-h-96 overflow-y-auto scrollbar-hide">
-                    {currentThread.messages.map((message, index) => (
+                    {(currentThread.messages || []).map((message, index) => (
                       <div
                         key={message.id}
                         className="p-6 border-b border-gray-100 transition-all duration-300"
