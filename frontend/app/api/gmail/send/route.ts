@@ -73,14 +73,26 @@ export async function POST(request: NextRequest) {
     const encodedFromName = encodeMimeWord(fromName);
     const encodedSubject = encodeMimeWord(subject);
     
+    // Toヘッダーの名前部分もエンコード（名前 <email> 形式の場合）
+    let encodedTo = to;
+    const toEmailMatch = to.match(/^(.+?)\s*<(.+)>$/);
+    if (toEmailMatch) {
+      const toName = toEmailMatch[1].trim();
+      const toEmail = toEmailMatch[2].trim();
+      const encodedToName = encodeMimeWord(toName);
+      encodedTo = `${encodedToName} <${toEmail}>`;
+    }
+    
     console.log('📧 Original fromName:', fromName);
     console.log('📧 Encoded fromName:', encodedFromName);
     console.log('📧 Original subject:', subject);
     console.log('📧 Encoded subject:', encodedSubject);
+    console.log('📧 Original to:', to);
+    console.log('📧 Encoded to:', encodedTo);
     
     const emailLines = [
       `From: ${encodedFromName} <${session.user?.email || 'noreply@infumatch.com'}>`,
-      `To: ${to}`,
+      `To: ${encodedTo}`,
       `Subject: ${encodedSubject}`,
       'MIME-Version: 1.0',
       'Content-Type: text/plain; charset=UTF-8',

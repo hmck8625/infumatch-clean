@@ -1032,6 +1032,26 @@ InfuMatchの田中です。
                         <p className="text-sm text-gray-500 mt-1">
                           {currentThread.messages?.length || 0}件のメッセージ
                         </p>
+                        {/* 相手のメールアドレス表示 */}
+                        {currentThread.messages && currentThread.messages.length > 0 && (() => {
+                          const lastMessage = currentThread.messages[currentThread.messages.length - 1];
+                          const fromHeader = getHeader(lastMessage, 'from');
+                          const emailMatch = fromHeader.match(/^(.+?)\s*<(.+)>$/);
+                          const recipientEmail = emailMatch ? emailMatch[2] : fromHeader;
+                          const recipientName = emailMatch ? emailMatch[1].trim().replace(/['"]/g, '') : '';
+                          
+                          return (
+                            <div className="mt-2 flex items-center space-x-2">
+                              <span className="text-xs text-gray-400">送信先:</span>
+                              <span className="text-sm font-medium text-indigo-600">
+                                {recipientName && recipientName !== recipientEmail ? 
+                                  `${recipientName} <${recipientEmail}>` : 
+                                  recipientEmail
+                                }
+                              </span>
+                            </div>
+                          );
+                        })()}
                       </div>
                     </div>
                   </div>
