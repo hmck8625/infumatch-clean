@@ -18,4 +18,4 @@ ENV PORT=8000
 ENV GOOGLE_CLOUD_PROJECT_ID=hackathon-462905
 
 # アプリケーションを起動
-CMD ["python", "-m", "uvicorn", "simple_cloud_run:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python", "-m", "uvicorn", "orchestration_cloud_run:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -9,7 +9,7 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "https://infumatch-backend-269567634217.asia-northeast1.run.app/api/$1"
+      "destination": "https://infumatch-orchestration-269567634217.asia-northeast1.run.app/api/$1"
     }
   ],
   "headers": [

@@ -105,6 +105,13 @@ except ImportError:
     from fastapi import APIRouter
     email_auto_reply_router = APIRouter()
 
+# チャンネル調査 API ルーター
+try:
+    from api.channel_research import router as channel_research_router
+except ImportError:
+    from fastapi import APIRouter
+    channel_research_router = APIRouter()
+
 # ミドルウェア（存在しない場合はダミーを使用）
 try:
     from middleware.rate_limit import RateLimitMiddleware
@@ -363,6 +370,12 @@ def setup_routers(app: FastAPI) -> None:
     app.include_router(
         email_auto_reply_router,
         tags=["Email Auto Reply"]
+    )
+    
+    # チャンネル調査 API
+    app.include_router(
+        channel_research_router,
+        tags=["Channel Research"]
     )
 
 

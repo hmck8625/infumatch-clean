@@ -320,10 +320,12 @@ function MessagesPageContent() {
       // バックエンドの交渉エージェントAPIを呼び出し
       let apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://infumatch-backend-fuwvv3ux7q-an.a.run.app';
       
-      // 緊急修正: 古いURLが設定されている場合は強制的に正しいURLに変更
-      if (apiUrl.includes('hackathon-backend-462905-269567634217') || apiUrl.includes('infumatch-backend-269567634217')) {
-        console.warn('⚠️ 古いAPI URLが検出されました。正しいURLに修正します。');
-        apiUrl = 'https://infumatch-backend-fuwvv3ux7q-an.a.run.app';
+      // 最新のオーケストレーションシステムURLに更新
+      if (apiUrl.includes('hackathon-backend-462905-269567634217') || 
+          apiUrl.includes('infumatch-backend-269567634217') ||
+          apiUrl.includes('infumatch-backend-fuwvv3ux7q-an.a.run.app')) {
+        console.warn('⚠️ 古いAPI URLが検出されました。最新のオーケストレーションシステムURLに修正します。');
+        apiUrl = 'https://infumatch-orchestration-269567634217.asia-northeast1.run.app';
       }
       
       console.log('🔗 使用するAPI URL:', apiUrl);
@@ -338,26 +340,26 @@ function MessagesPageContent() {
         subject: getMessageSubject(message)
       }));
       
-      // リクエストデータを準備（continue negotiation API用）
+      // リクエストデータを準備（orchestrated negotiation API用）
       const requestData = {
+        thread_id: currentThread.id,
+        new_message: threadMessages.length > 0 ? threadMessages[threadMessages.length - 1].content : '',
+        company_settings: {
+          company_name: "InfuMatch",
+          contact_person: "田中美咲",
+          email: "tanaka@infumatch.com",
+          budget: {
+            min: 200000,
+            max: 500000,
+            currency: "JPY"
+          }
+        },
         conversation_history: threadMessages.map(msg => ({
           sender: msg.sender,
-          content: msg.content,
+          message: msg.content,
           timestamp: msg.date
         })),
-        new_message: threadMessages.length > 0 ? threadMessages[threadMessages.length - 1].content : '',
-        context: {
-          platform: 'gmail',
-          agent_role: 'negotiation_agent',
-          campaign_type: 'influencer_collaboration',
-          thread_id: currentThread.id,
-          subject: currentThread.messages[0] ? getMessageSubject(currentThread.messages[0]) : 'No Subject',
-          participants: [
-            'InfuMatch田中美咲',
-            getThreadPrimaryContact(currentThread)
-          ],
-          company_settings: {}  // 後で更新
-        }
+        custom_instructions: ""  // 後で更新
       };
       
       console.log('📤 API送信データ:', JSON.stringify(requestData, null, 2));
@@ -389,14 +391,23 @@ function MessagesPageContent() {
         updateAgentStatus('⚠️ 設定エラー', `企業設定エラー: ${e.message || e}`, 'エラーが発生しましたが、処理を続行します');
       }
       
-      // 企業設定をコンテキストに追加
-      requestData.context.company_settings = companySettings;
+      // 企業設定を統合
+      if (companySettings.companyInfo) {
+        const companyInfo = companySettings.companyInfo;
+        requestData.company_settings.company_name = companyInfo.companyName || "InfuMatch";
+        requestData.company_settings.contact_person = companyInfo.contactPerson || "田中美咲";
+        requestData.company_settings.email = companyInfo.email || "tanaka@infumatch.com";
+        
+        if (companySettings.negotiationSettings?.budget) {
+          requestData.company_settings.budget = companySettings.negotiationSettings.budget;
+        }
+      }
       
       // カスタムプロンプトを追加
       if (customPrompt.trim()) {
         updateAgentStatus('📝 カスタム指示適用', `ユーザー指示: "${customPrompt}"`, 
           `カスタム指示「${customPrompt}」を交渉戦略に組み込みます。この指示を優先的に考慮して返信を調整します`);
-        requestData.context.custom_instructions = customPrompt.trim();
+        requestData.custom_instructions = customPrompt.trim();
         console.log('📝 カスタムプロンプトを適用:', customPrompt);
       }
       
@@ -408,14 +419,14 @@ function MessagesPageContent() {
       updateAgentStatus('🧠 AI分析中', 'スレッド内容を分析し、戦略を立案しています...', 
         `${messageCount}件のメッセージを分析中。${lastSender}からの最新メッセージから交渉段階を判断し、次のアクションを決定します`);
       
-      // 既存のAPIを使用（高度な分析は将来のバックエンドデプロイ後に有効化）
-      const fullUrl = `${apiUrl}/api/v1/negotiation/continue`;
+      // 新しいマルチエージェントオーケストレーションAPIを使用
+      const fullUrl = `${apiUrl}/api/v1/negotiate/orchestrated`;
       console.log('🌐 リクエスト先URL:', fullUrl);
       console.log('🎯 企業設定を活用した返信生成を開始します');
       console.log('📝 最終的なコンテキスト:', {
-        has_company_settings: Object.keys(requestData.context.company_settings).length > 0,
-        has_custom_instructions: !!requestData.context.custom_instructions,
-        custom_instructions: requestData.context.custom_instructions || '設定なし'
+        has_company_settings: Object.keys(requestData.company_settings).length > 0,
+        has_custom_instructions: !!requestData.custom_instructions,
+        custom_instructions: requestData.custom_instructions || '設定なし'
       });
       
       const response = await fetch(fullUrl, {
@@ -442,17 +453,38 @@ function MessagesPageContent() {
       const result = await response.json();
       console.log('📥 API応答:', result);
       
-      // AI思考過程の詳細表示
+      // AI思考過程の詳細表示 (オーケストレーション対応)
       const aiThinking = result.ai_thinking || {};
+      const orchestrationDetails = result.orchestration_details || {};
+      const metadata = result.metadata || {};
       
-      updateAgentStatus('📥 AI応答受信', 'AIからの返信データを処理しています...', 
-        `${aiThinking.message_analysis || 'メッセージ分析完了'} → ${aiThinking.detected_intent || '意図を特定'} → ${aiThinking.strategy_selected || '戦略選択完了'}`);
+      // オーケストレーション情報の表示
+      if (metadata.processing_type === 'multi_agent_orchestration') {
+        updateAgentStatus('🎭 マルチエージェント協調', 
+          `${orchestrationDetails.active_agents?.length || 6}つの専門AIエージェントが協調して処理完了`, 
+          aiThinking.orchestration_summary || 'マルチエージェント協調による高度な交渉処理');
+          
+        if (aiThinking.stage_analysis) {
+          updateAgentStatus('📊 交渉段階分析', aiThinking.stage_analysis, 
+            `エージェント協調スコア: ${aiThinking.agent_coordination || '高'}`)
+        }
+        
+        if (aiThinking.quality_optimization) {
+          updateAgentStatus('⭐ 品質最適化', aiThinking.quality_optimization, 
+            `統合判断信頼度: ${aiThinking.decision_confidence || '高'}`)
+        }
+      } else {
+        // フォールバック時の表示
+        updateAgentStatus('📥 AI応答受信', 'AIからの返信データを処理しています...', 
+          `${aiThinking.processing_note || 'AI処理完了'} → ${aiThinking.reason || '標準応答生成'}`);
+      }
       
       // AI分析の詳細をログ出力
       console.log('🧠 AI詳細分析結果:', aiThinking);
+      console.log('🎭 オーケストレーション詳細:', orchestrationDetails);
       console.log('📄 AI生成基本返信:', result.content);
       
-      // AI思考過程をユーザーに見せる
+      // 従来のAI思考過程も表示（互換性のため）
       if (aiThinking.message_analysis) {
         updateAgentStatus('🔍 メッセージ理解', aiThinking.message_analysis, 
           aiThinking.detected_intent || 'メッセージの意図を分析しました');
@@ -467,9 +499,6 @@ function MessagesPageContent() {
         updateAgentStatus('⚙️ カスタム指示適用', aiThinking.custom_instructions_impact, 
           'ユーザーの指示に基づいて応答をカスタマイズしました');
       }
-      
-      updateAgentStatus('🎯 AI戦略決定', aiThinking.strategy_selected || '応答戦略を決定', 
-        aiThinking.base_response_reasoning || 'AIが最適な応答パターンを生成しました');
       
       if (result.success) {
         // AIから返された基本返信を基に、3つの異なる特徴を持つパターンを生成

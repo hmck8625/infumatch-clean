@@ -28,3 +28,7 @@ google-generativeai==0.3.2
 
 # CORS対応
 python-multipart==0.0.6
+
+# 新しいオーケストレーション依存関係
+asyncio
+dataclasses

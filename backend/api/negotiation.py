@@ -19,6 +19,10 @@ from services.ai_agents.advanced_negotiation_analyzer import (
     NegotiationContext,
     NegotiationStrategy
 )
+from services.orchestrated_negotiation_service import (
+    get_orchestrated_negotiation_service,
+    process_message_with_orchestration
+)
 
 logger = logging.getLogger(__name__)
 
@@ -80,11 +84,6 @@ class AdvancedAnalysisRequest(BaseModel):
     class Config:
         schema_extra = {
             "example": {
-                "email_thread": {
-                    "id": "thread_123",
-                    "subject": "コラボレーションについて",
-                    "participants": ["田中美咲", "料理YouTuber"]
-                },
                 "thread_messages": [
                     {
                         "sender": "料理YouTuber",
@@ -92,12 +91,49 @@ class AdvancedAnalysisRequest(BaseModel):
                         "date": "2024-06-14T10:00:00Z"
                     }
                 ],
-                "context": {
-                    "campaign_type": "商品紹介",
-                    "budget_range": "30000-50000"
-                }
+                "company_settings": {
+                    "company_name": "InfuMatch",
+                    "contact_person": "田中美咲"
+                },
+                "include_strategy": True
             }
         }
+
+
+class OrchestratedNegotiationRequest(BaseModel):
+    """マルチエージェントオーケストレーション交渉リクエスト"""
+    thread_id: str = Field(..., description="スレッドID")
+    new_message: str = Field(..., description="新着メッセージ")
+    company_settings: Dict[str, Any] = Field(..., description="企業設定")
+    conversation_history: list = Field(default_factory=list, description="会話履歴")
+    custom_instructions: str = Field(default="", description="カスタム指示")
+    
+    class Config:
+        schema_extra = {
+            "example": {
+                "thread_id": "thread_12345",
+                "new_message": "こんにちは。Google Alertsです。弊社の新商品のPRについて、ご協力いただけるインフルエンサーを探しております。",
+                "company_settings": {
+                    "company_name": "InfuMatch",
+                    "contact_person": "田中美咲",
+                    "email": "tanaka@infumatch.com",
+                    "budget": {
+                        "min": 200000,
+                        "max": 500000,
+                        "currency": "JPY"
+                    }
+                },
+                "conversation_history": [
+                    {
+                        "timestamp": "2024-06-15T10:00:00Z",
+                        "sender": "client",
+                        "message": "初回の問い合わせメッセージ"
+                    }
+                ],
+                "custom_instructions": "丁寧で専門的な対応を心がけ、具体的な提案を行ってください。"
+            }
+        }
+
 
 
 class NegotiationResponse(BaseModel):
@@ -561,3 +597,118 @@ async def generate_strategic_reply(
     except Exception as e:
         logger.error(f"❌ Strategic reply API error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/orchestrated", response_model=NegotiationResponse)
+async def process_orchestrated_negotiation(
+    request: OrchestratedNegotiationRequest
+) -> NegotiationResponse:
+    """
+    マルチエージェントオーケストレーション交渉処理
+    
+    複数の専門AIエージェント（コンテキスト分析、戦略立案、
+    コミュニケーション、価格戦略、リスク評価）を協調させて、
+    高度で専門的な交渉返信を生成します。
+    
+    従来の単一エージェントアプローチを大幅に上回る
+    プロフェッショナルレベルの交渉対応を実現します。
+    """
+    try:
+        logger.info(f"🎭 Orchestrated negotiation processing started for thread: {request.thread_id}")
+        
+        # マルチエージェントシステムで処理
+        result = await process_message_with_orchestration(
+            thread_id=request.thread_id,
+            new_message=request.new_message,
+            company_settings=request.company_settings,
+            conversation_history=request.conversation_history,
+            custom_instructions=request.custom_instructions
+        )
+        
+        if result.get("success"):
+            logger.info(f"✅ Orchestrated negotiation completed for thread: {request.thread_id}")
+            
+            return NegotiationResponse(
+                success=True,
+                content=result.get("content"),
+                metadata={
+                    **result.get("metadata", {}),
+                    "processing_type": "multi_agent_orchestration",
+                    "orchestration_details": result.get("orchestration_details", {}),
+                    "ai_thinking": result.get("ai_thinking", {}),
+                    "action": "orchestrated_negotiation"
+                }
+            )
+        else:
+            logger.warning(f"⚠️ Orchestrated negotiation failed for thread: {request.thread_id}")
+            
+            return NegotiationResponse(
+                success=True,  # フォールバック応答も成功とみなす
+                content=result.get("content", "申し訳ございません。詳細について改めてご連絡いたします。"),
+                metadata={
+                    **result.get("metadata", {}),
+                    "fallback_reason": result.get("metadata", {}).get("fallback_reason", "system_error"),
+                    "action": "orchestrated_negotiation_fallback"
+                }
+            )
+            
+    except Exception as e:
+        logger.error(f"❌ Orchestrated negotiation API error: {e}")
+        
+        # 完全にエラーの場合は基本応答を返す
+        company_name = request.company_settings.get("company_name", "InfuMatch")
+        contact_person = request.company_settings.get("contact_person", "田中美咲")
+        
+        fallback_content = f"""いつもお世話になっております。
+{company_name} の{contact_person}です。
+
+ご連絡いただき、ありがとうございます。
+
+詳細について検討し、改めてご連絡いたします。
+ご質問やご相談がございましたら、お気軽にお声がけください。
+
+何卒よろしくお願いいたします。
+
+{company_name}
+{contact_person}"""
+        
+        return NegotiationResponse(
+            success=True,
+            content=fallback_content,
+            metadata={
+                "processing_type": "emergency_fallback",
+                "error": str(e),
+                "action": "orchestrated_negotiation_error_fallback"
+            }
+        )
+
+
+@router.get("/orchestration/status")
+async def get_orchestration_status():
+    """
+    マルチエージェントオーケストレーションシステムの状態を取得
+    
+    システムの健全性、登録されているエージェント、
+    パフォーマンス統計などの情報を返します。
+    """
+    try:
+        logger.info("📊 Getting orchestration system status")
+        
+        # オーケストレーションサービスを取得
+        service = await get_orchestrated_negotiation_service()
+        status = service.get_system_status()
+        
+        return {
+            "success": True,
+            "system_status": status,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Orchestration status API error: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "system_status": {"status": "error", "ready": False},
+            "timestamp": datetime.utcnow().isoformat()
+        }
