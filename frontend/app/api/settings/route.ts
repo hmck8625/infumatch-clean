@@ -1,11 +1,53 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { firestoreAdminService } from '@/lib/firestore-admin';
 
 /**
  * GET: ユーザー設定を取得
  */
+// 一時的な設定保存用（メモリ内）
+const userSettings = new Map<string, any>();
+
+// デフォルト設定を生成
+function getDefaultSettings(userId: string) {
+  const now = new Date().toISOString();
+  return {
+    userId,
+    companyInfo: {
+      companyName: '',
+      industry: '',
+      employeeCount: '',
+      website: '',
+      description: '',
+      contactPerson: '',
+      contactEmail: ''
+    },
+    products: [],
+    negotiationSettings: {
+      preferredTone: 'professional',
+      responseTimeExpectation: '24時間以内',
+      budgetFlexibility: 'medium',
+      decisionMakers: [],
+      communicationPreferences: ['email'],
+      specialInstructions: '',
+      keyPriorities: [],
+      avoidTopics: []
+    },
+    matchingSettings: {
+      priorityCategories: [],
+      minSubscribers: 1000,
+      maxSubscribers: 1000000,
+      minEngagementRate: 2.0,
+      excludeCategories: [],
+      geographicFocus: ['日本'],
+      priorityKeywords: [],
+      excludeKeywords: []
+    },
+    createdAt: now,
+    updatedAt: now
+  };
+}
+
 export async function GET(request: NextRequest) {
   try {
     console.log('📞 Settings API GET request received');
@@ -31,22 +73,18 @@ export async function GET(request: NextRequest) {
 
     console.log('👤 User email:', session.user.email);
     
-    // Firestore Admin SDKで設定を取得
-    const result = await firestoreAdminService.getUserSettings(session.user.email);
-    
-    if (result.success) {
-      console.log('✅ Settings retrieved successfully');
-      return NextResponse.json({
-        success: true,
-        data: result.data
-      });
-    } else {
-      console.error('❌ Failed to get settings:', result.error);
-      return NextResponse.json(
-        { error: result.error },
-        { status: 500 }
-      );
+    // メモリから設定を取得、なければデフォルト設定
+    let settings = userSettings.get(session.user.email);
+    if (!settings) {
+      settings = getDefaultSettings(session.user.email);
+      userSettings.set(session.user.email, settings);
     }
+    
+    console.log('✅ Settings retrieved successfully (from memory)');
+    return NextResponse.json({
+      success: true,
+      data: settings
+    });
   } catch (error) {
     console.error('❌ 設定取得エラー:', error);
     return NextResponse.json(
@@ -87,23 +125,30 @@ export async function PUT(request: NextRequest) {
     
     console.log('📦 Request body received:', JSON.stringify(body, null, 2));
     
-    // Firestore Admin SDKで設定を保存
-    const result = await firestoreAdminService.saveUserSettings(session.user.email, body);
-    
-    if (result.success) {
-      console.log('✅ Settings saved successfully');
-      return NextResponse.json({ 
-        success: true, 
-        message: 'Settings saved successfully',
-        data: result.data 
-      });
-    } else {
-      console.error('❌ Failed to save settings:', result.error);
-      return NextResponse.json(
-        { error: result.error },
-        { status: 500 }
-      );
+    // 既存設定を取得またはデフォルト設定を使用
+    let existingSettings = userSettings.get(session.user.email);
+    if (!existingSettings) {
+      existingSettings = getDefaultSettings(session.user.email);
     }
+    
+    // 設定をマージして更新
+    const updatedSettings = {
+      ...existingSettings,
+      ...body,
+      userId: session.user.email,
+      updatedAt: new Date().toISOString(),
+      createdAt: existingSettings.createdAt || new Date().toISOString()
+    };
+    
+    // メモリに保存
+    userSettings.set(session.user.email, updatedSettings);
+    
+    console.log('✅ Settings saved successfully (to memory)');
+    return NextResponse.json({ 
+      success: true, 
+      message: 'Settings saved successfully',
+      data: updatedSettings 
+    });
   } catch (error) {
     console.error('❌ 設定保存エラー:', error);
     console.error('❌ Error stack:', error instanceof Error ? error.stack : 'No stack trace');
@@ -146,11 +191,21 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    // Firestore Admin SDKで設定セクションを更新
-    // Note: Admin serviceにはupdateSettingsSectionメソッドがないため、saveUserSettingsを使用
-    const result = await firestoreAdminService.saveUserSettings(session.user.email, {
-      [section]: body
-    });
+    // メモリ内設定を部分更新
+    let existingSettings = userSettings.get(session.user.email);
+    if (!existingSettings) {
+      existingSettings = getDefaultSettings(session.user.email);
+    }
+    
+    const updatedSettings = {
+      ...existingSettings,
+      [section]: body,
+      updatedAt: new Date().toISOString()
+    };
+    
+    userSettings.set(session.user.email, updatedSettings);
+    
+    const result = { success: true, data: updatedSettings };
     
     if (result.success) {
       return NextResponse.json({
@@ -187,10 +242,9 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Firestore Admin SDKで設定を削除
-    // Note: Admin serviceにはdeleteUserSettingsメソッドがないため、一時的に無効化
-    // const result = await firestoreAdminService.deleteUserSettings(session.user.email);
-    const result = { success: false, error: 'Delete operation not implemented in admin service' };
+    // メモリから設定を削除
+    userSettings.delete(session.user.email);
+    const result = { success: true };
     
     if (result.success) {
       return NextResponse.json({ 
