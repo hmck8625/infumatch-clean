@@ -51,6 +51,12 @@ function MessagesPageContent() {
   const [showNotifications, setShowNotifications] = useState(false);
   const [searchFilters, setSearchFilters] = useState<SearchFilters>({});
   
+  // エージェント状況とカスタムプロンプト
+  const [agentStatus, setAgentStatus] = useState<string>('待機中');
+  const [processingSteps, setProcessingSteps] = useState<string[]>([]);
+  const [customPrompt, setCustomPrompt] = useState<string>('');
+  const [showCustomPrompt, setShowCustomPrompt] = useState(false);
+  
   // 新規メール作成用の状態
   const [isComposingNew, setIsComposingNew] = useState(false);
   const [newEmailTo, setNewEmailTo] = useState('');
@@ -280,14 +286,23 @@ function MessagesPageContent() {
     }
   };
 
+  const updateAgentStatus = (status: string, step?: string) => {
+    setAgentStatus(status);
+    if (step) {
+      setProcessingSteps(prev => [...prev, `${new Date().toLocaleTimeString()}: ${step}`]);
+    }
+  };
+
   const generateReplyPatterns = async () => {
     if (!currentThread || !currentThread.messages || currentThread.messages.length === 0) return;
     
     setIsGeneratingPatterns(true);
     setReplyPatterns([]);
     setThreadAnalysis(null);
+    setProcessingSteps([]);
     
     try {
+      updateAgentStatus('🚀 初期化中', 'AI交渉エージェントを起動しています...');
       console.log('🤖 AIエージェントが返信パターンを生成中...');
       
       // バックエンドの交渉エージェントAPIを呼び出し
@@ -336,6 +351,7 @@ function MessagesPageContent() {
       console.log('📤 API送信データ:', JSON.stringify(requestData, null, 2));
       
       // 企業設定を取得（settingsから）
+      updateAgentStatus('📋 設定取得中', '企業情報・商材情報・交渉ポイントを読み込んでいます...');
       let companySettings = {};
       try {
         const settingsResponse = await fetch('/api/settings');
@@ -343,13 +359,32 @@ function MessagesPageContent() {
           const settingsData = await settingsResponse.json();
           companySettings = settingsData.settings || {};
           console.log('🏢 企業設定を取得:', companySettings);
+          
+          // 設定の詳細をログ出力
+          const companyInfo = companySettings.companyInfo || {};
+          const products = companySettings.products || [];
+          const negotiationSettings = companySettings.negotiationSettings || {};
+          
+          updateAgentStatus('✅ 設定読み込み完了', 
+            `企業: ${companyInfo.companyName || '未設定'}, 商材: ${products.length}件, 交渉ポイント: ${negotiationSettings.keyPriorities?.length || 0}項目`);
+        } else {
+          updateAgentStatus('⚠️ 設定取得失敗', '企業設定の読み込みに失敗しました');
         }
       } catch (e) {
         console.warn('⚠️ 企業設定の取得に失敗:', e);
+        updateAgentStatus('⚠️ 設定エラー', `企業設定エラー: ${e.message}`);
       }
       
       // 企業設定をコンテキストに追加
       requestData.context.company_settings = companySettings;
+      
+      // カスタムプロンプトを追加
+      if (customPrompt.trim()) {
+        updateAgentStatus('📝 カスタム指示適用', `ユーザー指示: "${customPrompt}"`);
+        requestData.context.custom_instructions = customPrompt.trim();
+      }
+      
+      updateAgentStatus('🧠 AI分析中', 'スレッド内容を分析し、戦略を立案しています...');
       
       // 既存のAPIを使用（高度な分析は将来のバックエンドデプロイ後に有効化）
       const fullUrl = `${apiUrl}/api/v1/negotiation/continue`;
@@ -373,8 +408,11 @@ function MessagesPageContent() {
       if (!response.ok) {
         const errorText = await response.text();
         console.error('❌ APIエラー詳細:', errorText);
+        updateAgentStatus('❌ APIエラー', `${response.status}: ${errorText}`);
         throw new Error(`API Error: ${response.status} ${response.statusText} - ${errorText}`);
       }
+      
+      updateAgentStatus('📥 AI応答受信', 'AIからの返信データを処理しています...');
       
       const result = await response.json();
       console.log('📥 API応答:', result);
@@ -396,6 +434,8 @@ function MessagesPageContent() {
         
         // 将来の高度な分析のためのプレースホルダー
         console.log('💡 高度な分析機能は次回のバックエンドデプロイで利用可能になります');
+        
+        updateAgentStatus('🎨 パターン生成中', '3つの異なるコミュニケーションスタイルを作成しています...');
         
         // 多様性を向上させるためのランダム要素を追加
         const currentTime = new Date();
@@ -495,16 +535,19 @@ ${baseReply}
           next_steps: ['返信パターンの選択', '個別カスタマイズ']
         };
         
+        updateAgentStatus('✅ 生成完了', `3つの返信パターンが生成されました`);
         console.log(`✅ AI返信を基に3つのパターンを生成しました: "${baseReply.substring(0, 50)}..."`);
         
         setReplyPatterns(patterns);
         setThreadAnalysis(analysis);
       } else {
+        updateAgentStatus('❌ 生成失敗', result.error || 'API返信が不正な形式です');
         throw new Error(result.error || 'API返信が不正な形式です');
       }
       
     } catch (error) {
       console.error('❌ 返信パターン生成エラー:', error);
+      updateAgentStatus('❌ エラー発生', error.message);
       
       // フォールバック: エラー時はモックデータを使用
       console.log('🔄 フォールバック: モックデータを使用します');
@@ -1511,6 +1554,89 @@ InfuMatchの田中です。
                   </div>
                 </div>
               )}
+
+              {/* エージェント動作状況表示 */}
+              <div className="mb-6">
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-200">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <div className="flex-shrink-0">
+                        <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                          <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.847a4.5 4.5 0 003.09 3.09L15.75 12l-2.847.813a4.5 4.5 0 00-3.09 3.09z" />
+                          </svg>
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-sm font-medium text-blue-900">
+                          🤖 AIエージェント: {agentStatus}
+                        </div>
+                        {processingSteps.length > 0 && (
+                          <div className="text-xs text-blue-700 mt-1">
+                            {processingSteps[processingSteps.length - 1]}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    
+                    {/* 処理ステップ履歴 */}
+                    {processingSteps.length > 1 && (
+                      <button
+                        onClick={() => setShowCustomPrompt(!showCustomPrompt)}
+                        className="text-xs text-blue-600 hover:text-blue-800 underline"
+                      >
+                        詳細表示 ({processingSteps.length}段階)
+                      </button>
+                    )}
+                  </div>
+                  
+                  {/* 詳細ステップ表示 */}
+                  {showCustomPrompt && processingSteps.length > 1 && (
+                    <div className="mt-3 border-t border-blue-200 pt-3">
+                      <div className="text-xs text-blue-700 space-y-1">
+                        {processingSteps.slice(-5).map((step, index) => (
+                          <div key={index} className="flex items-center space-x-2">
+                            <div className="w-1 h-1 bg-blue-400 rounded-full"></div>
+                            <span>{step}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* カスタムプロンプト入力エリア */}
+              <div className="mb-6">
+                <div className="bg-yellow-50 rounded-xl p-4 border border-yellow-200">
+                  <div className="flex items-center justify-between mb-3">
+                    <label className="text-sm font-medium text-yellow-800 flex items-center">
+                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                      📝 カスタム指示（任意）
+                    </label>
+                    <button
+                      onClick={() => setCustomPrompt('')}
+                      className="text-xs text-yellow-600 hover:text-yellow-800 underline"
+                    >
+                      クリア
+                    </button>
+                  </div>
+                  
+                  <textarea
+                    value={customPrompt}
+                    onChange={(e) => setCustomPrompt(e.target.value)}
+                    placeholder="例: 値引きしたい、もっと積極的に、丁寧な言葉遣いで、急ぎで返信が欲しい、など"
+                    className="w-full px-3 py-2 text-sm border border-yellow-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent resize-none"
+                    rows={2}
+                  />
+                  
+                  <div className="mt-2 text-xs text-yellow-700">
+                    💡 AIは企業設定・商材情報・交渉ポイントと併せて、ここで指定した内容も考慮して返信を生成します
+                  </div>
+                </div>
+              </div>
 
               {/* 生成ボタン */}
               <div className="flex justify-center mb-6">

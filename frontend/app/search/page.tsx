@@ -270,6 +270,7 @@ export default function SearchPage() {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [minSubscribers, setMinSubscribers] = useState('');
   const [maxSubscribers, setMaxSubscribers] = useState('');
+  const [hasEmailFilter, setHasEmailFilter] = useState(false);
   const [allInfluencers, setAllInfluencers] = useState<Influencer[]>([]);
   const [filteredResults, setFilteredResults] = useState<Influencer[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -315,7 +316,7 @@ export default function SearchPage() {
       setFilteredResults(filtered);
       console.log('[useEffect] Auto-filtered to', filtered.length, 'results');
     }
-  }, [searchQuery, selectedCategory, minSubscribers, maxSubscribers, allInfluencers, useAI]);
+  }, [searchQuery, selectedCategory, minSubscribers, maxSubscribers, hasEmailFilter, allInfluencers, useAI]);
 
   const handleInitialLoad = async () => {
     try {
@@ -378,7 +379,11 @@ export default function SearchPage() {
       const matchesSubscribers = influencer.subscriberCount >= minSubs && 
         influencer.subscriberCount <= maxSubs;
 
-      return matchesKeyword && matchesCategory && matchesSubscribers;
+      // メールアドレスフィルタ
+      const hasEmail = influencer.email && influencer.email !== 'null' && influencer.email.trim() !== '';
+      const matchesEmail = !hasEmailFilter || hasEmail;
+
+      return matchesKeyword && matchesCategory && matchesSubscribers && matchesEmail;
     });
   };
 
@@ -388,8 +393,9 @@ export default function SearchPage() {
       setError(null);
       
       if (useAI) {
-        // AI推薦の実行
-        await handleAIRecommendation();
+        // AI推薦の場合は /matching ページにリダイレクト
+        router.push('/matching');
+        return;
       } else {
         // クライアントサイドフィルタリングを実行
         console.log('[handleSearch] Applying filters to', allInfluencers.length, 'influencers');
@@ -657,6 +663,22 @@ export default function SearchPage() {
                     className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                   />
                 </div>
+              </div>
+
+              {/* メールフィルタ */}
+              <div className="mt-4">
+                <label className="flex items-center space-x-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={hasEmailFilter}
+                    onChange={(e) => setHasEmailFilter(e.target.checked)}
+                    className="w-5 h-5 text-purple-600 bg-white border-gray-300 rounded focus:ring-purple-500 focus:ring-2"
+                  />
+                  <div className="flex items-center space-x-2">
+                    <MailCheck className="w-5 h-5 text-green-600" />
+                    <span className="text-sm font-medium text-gray-700">メールアドレス有りのみ表示</span>
+                  </div>
+                </label>
               </div>
             </div>
           )}
