@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { firestoreSettingsService } from '@/lib/firestore';
+import { firestoreAdminService } from '@/lib/firestore-admin';
 
 /**
  * GET: ユーザー設定を取得
@@ -11,18 +11,28 @@ export async function GET(request: NextRequest) {
     console.log('📞 Settings API GET request received');
     const session = await getServerSession(authOptions);
     
+    console.log('🔍 Session debug info:', {
+      hasSession: !!session,
+      hasUser: !!session?.user,
+      hasEmail: !!session?.user?.email,
+      email: session?.user?.email,
+      name: session?.user?.name,
+      id: session?.user?.id,
+      expires: session?.expires
+    });
+    
     if (!session?.user?.email) {
       console.log('❌ No session or email found');
       return NextResponse.json(
-        { error: 'Unauthorized' },
+        { error: 'Unauthorized - No valid session found' },
         { status: 401 }
       );
     }
 
     console.log('👤 User email:', session.user.email);
     
-    // Firestoreから設定を取得
-    const result = await firestoreSettingsService.getUserSettings(session.user.email);
+    // Firestore Admin SDKで設定を取得
+    const result = await firestoreAdminService.getUserSettings(session.user.email);
     
     if (result.success) {
       console.log('✅ Settings retrieved successfully');
@@ -54,10 +64,20 @@ export async function PUT(request: NextRequest) {
     console.log('💾 Settings PUT request received');
     const session = await getServerSession(authOptions);
     
+    console.log('🔍 PUT Session debug info:', {
+      hasSession: !!session,
+      hasUser: !!session?.user,
+      hasEmail: !!session?.user?.email,
+      email: session?.user?.email,
+      name: session?.user?.name,
+      id: session?.user?.id,
+      expires: session?.expires
+    });
+    
     if (!session?.user?.email) {
       console.log('❌ No session found for PUT request');
       return NextResponse.json(
-        { error: 'Unauthorized' },
+        { error: 'Unauthorized - No valid session found' },
         { status: 401 }
       );
     }
@@ -67,8 +87,8 @@ export async function PUT(request: NextRequest) {
     
     console.log('📦 Request body received:', JSON.stringify(body, null, 2));
     
-    // Firestoreに設定を保存
-    const result = await firestoreSettingsService.saveUserSettings(session.user.email, body);
+    // Firestore Admin SDKで設定を保存
+    const result = await firestoreAdminService.saveUserSettings(session.user.email, body);
     
     if (result.success) {
       console.log('✅ Settings saved successfully');
@@ -126,12 +146,11 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    // Firestoreの設定セクションを更新
-    const result = await firestoreSettingsService.updateSettingsSection(
-      session.user.email, 
-      section as any, 
-      body
-    );
+    // Firestore Admin SDKで設定セクションを更新
+    // Note: Admin serviceにはupdateSettingsSectionメソッドがないため、saveUserSettingsを使用
+    const result = await firestoreAdminService.saveUserSettings(session.user.email, {
+      [section]: body
+    });
     
     if (result.success) {
       return NextResponse.json({
@@ -168,8 +187,10 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Firestoreから設定を削除
-    const result = await firestoreSettingsService.deleteUserSettings(session.user.email);
+    // Firestore Admin SDKで設定を削除
+    // Note: Admin serviceにはdeleteUserSettingsメソッドがないため、一時的に無効化
+    // const result = await firestoreAdminService.deleteUserSettings(session.user.email);
+    const result = { success: false, error: 'Delete operation not implemented in admin service' };
     
     if (result.success) {
       return NextResponse.json({ 

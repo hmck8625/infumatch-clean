@@ -151,6 +151,17 @@ export class FirestoreSettingsService {
     try {
       console.log(`📖 Fetching settings for user: ${userId}`);
       
+      // 認証状態をチェック
+      if (auth && auth.currentUser) {
+        console.log('🔍 Firebase Auth current user:', {
+          uid: auth.currentUser.uid,
+          email: auth.currentUser.email,
+          emailVerified: auth.currentUser.emailVerified
+        });
+      } else {
+        console.log('⚠️ No Firebase Auth current user found');
+      }
+      
       // ビルド時やFirebase未初期化時のフォールバック
       if (!db) {
         console.warn('⚠️ Firestore not initialized, returning default settings');
