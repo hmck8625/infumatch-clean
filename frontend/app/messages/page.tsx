@@ -52,8 +52,15 @@ function MessagesPageContent() {
   const [searchFilters, setSearchFilters] = useState<SearchFilters>({});
   
   // エージェント状況とカスタムプロンプト
+  interface ProcessingStep {
+    time: string;
+    status: string;
+    detail: string;
+    reasoning?: string; // AIの思考過程
+  }
+  
   const [agentStatus, setAgentStatus] = useState<string>('待機中');
-  const [processingSteps, setProcessingSteps] = useState<string[]>([]);
+  const [processingSteps, setProcessingSteps] = useState<ProcessingStep[]>([]);
   const [customPrompt, setCustomPrompt] = useState<string>('');
   const [showCustomPrompt, setShowCustomPrompt] = useState(false);
   
@@ -286,10 +293,15 @@ function MessagesPageContent() {
     }
   };
 
-  const updateAgentStatus = (status: string, step?: string) => {
+  const updateAgentStatus = (status: string, detail?: string, reasoning?: string) => {
     setAgentStatus(status);
-    if (step) {
-      setProcessingSteps(prev => [...prev, `${new Date().toLocaleTimeString()}: ${step}`]);
+    if (detail) {
+      setProcessingSteps(prev => [...prev, {
+        time: new Date().toLocaleTimeString(),
+        status: status,
+        detail: detail,
+        reasoning: reasoning
+      }]);
     }
   };
 
@@ -302,7 +314,7 @@ function MessagesPageContent() {
     setProcessingSteps([]);
     
     try {
-      updateAgentStatus('🚀 初期化中', 'AI交渉エージェントを起動しています...');
+      updateAgentStatus('🚀 初期化中', 'AI交渉エージェントを起動しています...', 'エージェントを初期化し、必要なリソースを準備します');
       console.log('🤖 AIエージェントが返信パターンを生成中...');
       
       // バックエンドの交渉エージェントAPIを呼び出し
@@ -349,9 +361,10 @@ function MessagesPageContent() {
       };
       
       console.log('📤 API送信データ:', JSON.stringify(requestData, null, 2));
+      console.log('📝 カスタムプロンプトの状態:', customPrompt ? `「${customPrompt}」が設定されています` : '未設定');
       
       // 企業設定を取得（settingsから）
-      updateAgentStatus('📋 設定取得中', '企業情報・商材情報・交渉ポイントを読み込んでいます...');
+      updateAgentStatus('📋 設定取得中', '企業情報・商材情報・交渉ポイントを読み込んでいます...', '交渉戦略を最適化するため、企業固有の設定情報を取得します');
       let companySettings = {};
       try {
         const settingsResponse = await fetch('/api/settings');
@@ -366,13 +379,14 @@ function MessagesPageContent() {
           const negotiationSettings = companySettings.negotiationSettings || {};
           
           updateAgentStatus('✅ 設定読み込み完了', 
-            `企業: ${companyInfo.companyName || '未設定'}, 商材: ${products.length}件, 交渉ポイント: ${negotiationSettings.keyPriorities?.length || 0}項目`);
+            `企業: ${companyInfo.companyName || '未設定'}, 商材: ${products.length}件, 交渉ポイント: ${negotiationSettings.keyPriorities?.length || 0}項目`,
+            `${companyInfo.companyName || '企業'}の商材と交渉ポイントを把握しました。これらの情報を基に最適な返信を生成します`);
         } else {
-          updateAgentStatus('⚠️ 設定取得失敗', '企業設定の読み込みに失敗しました');
+          updateAgentStatus('⚠️ 設定取得失敗', '企業設定の読み込みに失敗しました', 'デフォルト設定で続行します');
         }
-      } catch (e) {
+      } catch (e: any) {
         console.warn('⚠️ 企業設定の取得に失敗:', e);
-        updateAgentStatus('⚠️ 設定エラー', `企業設定エラー: ${e.message}`);
+        updateAgentStatus('⚠️ 設定エラー', `企業設定エラー: ${e.message || e}`, 'エラーが発生しましたが、処理を続行します');
       }
       
       // 企業設定をコンテキストに追加
@@ -380,16 +394,29 @@ function MessagesPageContent() {
       
       // カスタムプロンプトを追加
       if (customPrompt.trim()) {
-        updateAgentStatus('📝 カスタム指示適用', `ユーザー指示: "${customPrompt}"`);
+        updateAgentStatus('📝 カスタム指示適用', `ユーザー指示: "${customPrompt}"`, 
+          `カスタム指示「${customPrompt}」を交渉戦略に組み込みます。この指示を優先的に考慮して返信を調整します`);
         requestData.context.custom_instructions = customPrompt.trim();
+        console.log('📝 カスタムプロンプトを適用:', customPrompt);
       }
       
-      updateAgentStatus('🧠 AI分析中', 'スレッド内容を分析し、戦略を立案しています...');
+      // スレッド分析を開始
+      const threadSubject = currentThread.messages[0] ? getMessageSubject(currentThread.messages[0]) : 'No Subject';
+      const messageCount = currentThread.messages.length;
+      const lastSender = threadMessages[threadMessages.length - 1]?.sender || '不明';
+      
+      updateAgentStatus('🧠 AI分析中', 'スレッド内容を分析し、戦略を立案しています...', 
+        `${messageCount}件のメッセージを分析中。${lastSender}からの最新メッセージから交渉段階を判断し、次のアクションを決定します`);
       
       // 既存のAPIを使用（高度な分析は将来のバックエンドデプロイ後に有効化）
       const fullUrl = `${apiUrl}/api/v1/negotiation/continue`;
       console.log('🌐 リクエスト先URL:', fullUrl);
       console.log('🎯 企業設定を活用した返信生成を開始します');
+      console.log('📝 最終的なコンテキスト:', {
+        has_company_settings: Object.keys(requestData.context.company_settings).length > 0,
+        has_custom_instructions: !!requestData.context.custom_instructions,
+        custom_instructions: requestData.context.custom_instructions || '設定なし'
+      });
       
       const response = await fetch(fullUrl, {
         method: 'POST',
@@ -408,11 +435,12 @@ function MessagesPageContent() {
       if (!response.ok) {
         const errorText = await response.text();
         console.error('❌ APIエラー詳細:', errorText);
-        updateAgentStatus('❌ APIエラー', `${response.status}: ${errorText}`);
+        updateAgentStatus('❌ APIエラー', `${response.status}: ${errorText}`, 'APIエラーが発生しました。フォールバックモードに切り替えます');
         throw new Error(`API Error: ${response.status} ${response.statusText} - ${errorText}`);
       }
       
-      updateAgentStatus('📥 AI応答受信', 'AIからの返信データを処理しています...');
+      updateAgentStatus('📥 AI応答受信', 'AIからの返信データを処理しています...', 
+        'AIが生成した基本返信を受信しました。これを基に3つの異なるコミュニケーションスタイルのパターンを作成します');
       
       const result = await response.json();
       console.log('📥 API応答:', result);
@@ -435,7 +463,28 @@ function MessagesPageContent() {
         // 将来の高度な分析のためのプレースホルダー
         console.log('💡 高度な分析機能は次回のバックエンドデプロイで利用可能になります');
         
-        updateAgentStatus('🎨 パターン生成中', '3つの異なるコミュニケーションスタイルを作成しています...');
+        // 交渉段階を分析
+        const negotiationStage = basicMetadata.relationship_stage || 'initial_contact';
+        let stageReasoning = '';
+        
+        switch(negotiationStage) {
+          case 'initial_contact':
+            stageReasoning = '初回接触段階です。信頼関係構築を重視し、相手の興味を引き出す内容にします';
+            break;
+          case 'warming_up':
+            stageReasoning = 'ウォーミングアップ段階です。具体的な提案に向けて、相手のニーズを探りながら関係を深めます';
+            break;
+          case 'negotiation':
+            stageReasoning = '交渉段階です。価格や条件面での調整を行い、Win-Winの解決策を模索します';
+            break;
+          case 'closing':
+            stageReasoning = 'クロージング段階です。最終確認と次のステップを明確にして、契約に向けて進めます';
+            break;
+          default:
+            stageReasoning = '現在の交渉段階を分析し、適切なアプローチを選択します';
+        }
+        
+        updateAgentStatus('🎨 パターン生成中', '3つの異なるコミュニケーションスタイルを作成しています...', stageReasoning);
         
         // 多様性を向上させるためのランダム要素を追加
         const currentTime = new Date();
@@ -535,7 +584,8 @@ ${baseReply}
           next_steps: ['返信パターンの選択', '個別カスタマイズ']
         };
         
-        updateAgentStatus('✅ 生成完了', `3つの返信パターンが生成されました`);
+        updateAgentStatus('✅ 生成完了', `3つの返信パターンが生成されました`, 
+          `友好的・積極的、慎重・プロフェッショナル、ビジネス重視の3パターンを用意しました。${customPrompt ? 'カスタム指示も反映済みです。' : ''}状況に応じて最適なものを選択してください`);
         console.log(`✅ AI返信を基に3つのパターンを生成しました: "${baseReply.substring(0, 50)}..."`);
         
         setReplyPatterns(patterns);
@@ -545,9 +595,9 @@ ${baseReply}
         throw new Error(result.error || 'API返信が不正な形式です');
       }
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ 返信パターン生成エラー:', error);
-      updateAgentStatus('❌ エラー発生', error.message);
+      updateAgentStatus('❌ エラー発生', error.message || error.toString(), 'エラーが発生したため、フォールバックパターンを使用します');
       
       // フォールバック: エラー時はモックデータを使用
       console.log('🔄 フォールバック: モックデータを使用します');
@@ -1573,7 +1623,7 @@ InfuMatchの田中です。
                         </div>
                         {processingSteps.length > 0 && (
                           <div className="text-xs text-blue-700 mt-1">
-                            {processingSteps[processingSteps.length - 1]}
+                            {processingSteps[processingSteps.length - 1].detail}
                           </div>
                         )}
                       </div>
@@ -1592,15 +1642,27 @@ InfuMatchの田中です。
                   
                   {/* 詳細ステップ表示 */}
                   {showCustomPrompt && processingSteps.length > 1 && (
-                    <div className="mt-3 border-t border-blue-200 pt-3">
-                      <div className="text-xs text-blue-700 space-y-1">
-                        {processingSteps.slice(-5).map((step, index) => (
-                          <div key={index} className="flex items-center space-x-2">
-                            <div className="w-1 h-1 bg-blue-400 rounded-full"></div>
-                            <span>{step}</span>
+                    <div className="mt-3 border-t border-blue-200 pt-3 space-y-3">
+                      {processingSteps.slice(-5).map((step, index) => (
+                        <div key={index} className="space-y-1">
+                          <div className="flex items-start space-x-2">
+                            <div className="w-1.5 h-1.5 bg-blue-400 rounded-full mt-1 flex-shrink-0"></div>
+                            <div className="flex-grow">
+                              <div className="text-xs text-blue-800">
+                                <span className="font-medium">{step.time}</span> - {step.status}
+                              </div>
+                              <div className="text-xs text-blue-700 ml-3">
+                                {step.detail}
+                              </div>
+                              {step.reasoning && (
+                                <div className="text-xs text-blue-600 ml-3 mt-1 italic">
+                                  💭 {step.reasoning}
+                                </div>
+                              )}
+                            </div>
                           </div>
-                        ))}
-                      </div>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
