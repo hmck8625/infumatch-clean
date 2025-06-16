@@ -77,6 +77,13 @@ except ImportError:
     from fastapi import APIRouter
     negotiation_router = APIRouter()
 
+# 設定管理 API ルーター
+try:
+    from api.settings import router as settings_router
+except ImportError:
+    from fastapi import APIRouter
+    settings_router = APIRouter()
+
 # データ同期 API ルーター
 try:
     from api.v1.data_sync import router as data_sync_router
@@ -331,6 +338,12 @@ def setup_routers(app: FastAPI) -> None:
         negotiation_router,
         prefix="/api/v1",
         tags=["Negotiation Agent"]
+    )
+    
+    # 設定管理 API
+    app.include_router(
+        settings_router,
+        tags=["User Settings"]
     )
     
     # データ同期 API

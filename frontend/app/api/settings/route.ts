@@ -2,216 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 
-// Force dynamic rendering for this API route
-export const dynamic = 'force-dynamic';
-
-// Firestore操作のためのサーバーサイド関数
-import { initializeApp, getApps, cert } from 'firebase-admin/app';
-import { getFirestore } from 'firebase-admin/firestore';
-import path from 'path';
-
-// Firebase Admin初期化
-let adminApp;
-let adminDb = null;
-
-try {
-  // 既存のアプリがあるかチェック
-  const existingApps = getApps();
-  adminApp = existingApps.length > 0 ? existingApps[0] : null;
-  
-  if (!adminApp) {
-    console.log('🔑 Initializing Firebase Admin...');
-    
-    // 環境変数からサービスアカウントキーを取得（Vercel用）
-    const serviceAccountKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
-    
-    if (serviceAccountKey) {
-      // 環境変数から初期化（本番環境）
-      adminApp = initializeApp({
-        credential: cert(JSON.parse(serviceAccountKey)),
-        projectId: 'hackathon-462905'
-      });
-      console.log('✅ Firebase Admin initialized from environment variable');
-    } else {
-      // ローカル開発環境用のフォールバック
-      const serviceAccountPath = path.join(process.cwd(), '..', 'hackathon-462905-7d72a76d3742.json');
-      adminApp = initializeApp({
-        credential: cert(serviceAccountPath),
-        projectId: 'hackathon-462905'
-      });
-      console.log('✅ Firebase Admin initialized from local service account file');
-    }
-  }
-  
-  if (adminApp) {
-    adminDb = getFirestore(adminApp);
-  }
-} catch (error) {
-  console.error('❌ Firebase Admin initialization error:', error);
-  // エラーが発生してもアプリを止めない
-  adminApp = null;
-  adminDb = null;
-}
-
-// 設定データの型定義
-interface UserSettings {
-  userId: string;
-  companyInfo: {
-    companyName: string;
-    industry: string;
-    employeeCount: string;
-    website: string;
-    description: string;
-    contactPerson?: string;
-    contactEmail?: string;
-  };
-  products: Array<{
-    id: string;
-    name: string;
-    category: string;
-    targetAudience: string;
-    priceRange: string;
-    description: string;
-  }>;
-  negotiationSettings: {
-    preferredTone: string;
-    responseTimeExpectation: string;
-    budgetFlexibility: string;
-    decisionMakers: string[];
-    communicationPreferences: string[];
-    specialInstructions?: string;
-    keyPriorities?: string[];
-    avoidTopics?: string[];
-  };
-  matchingSettings: {
-    priorityCategories: string[];
-    minSubscribers: number;
-    maxSubscribers: number;
-    minEngagementRate: number;
-    excludeCategories: string[];
-    geographicFocus: string[];
-    priorityKeywords?: string[];
-    excludeKeywords?: string[];
-  };
-  createdAt: string;
-  updatedAt: string;
-}
-
-/**
- * Firestoreから設定を取得
- */
-async function getSettingsFromFirestore(userId: string): Promise<UserSettings | null> {
-  if (!adminDb) {
-    console.error('Firebase Admin not initialized');
-    return null;
-  }
-
-  try {
-    console.log(`📖 Fetching settings for user: ${userId}`);
-    
-    const docRef = adminDb.collection('user_settings').doc(userId);
-    const doc = await docRef.get();
-
-    if (doc.exists) {
-      const data = doc.data() as UserSettings;
-      console.log('✅ Settings found in Firestore');
-      return data;
-    } else {
-      console.log('📄 No settings found, returning default settings');
-      return getDefaultSettings(userId);
-    }
-  } catch (error) {
-    console.error('❌ Error fetching settings from Firestore:', error);
-    return null;
-  }
-}
-
-/**
- * Firestoreに設定を保存
- */
-async function saveSettingsToFirestore(userId: string, settings: Partial<UserSettings>): Promise<UserSettings | null> {
-  if (!adminDb) {
-    console.error('Firebase Admin not initialized');
-    return null;
-  }
-
-  try {
-    console.log(`💾 Saving settings for user: ${userId}`);
-    console.log('📦 Settings to save:', JSON.stringify(settings, null, 2));
-    
-    const docRef = adminDb.collection('user_settings').doc(userId);
-    const now = new Date().toISOString();
-    
-    // 既存設定を取得
-    const existing = await getSettingsFromFirestore(userId);
-    const baseSettings = existing || getDefaultSettings(userId);
-    
-    console.log('🔄 Existing settings:', existing ? 'Found' : 'Not found, using defaults');
-    
-    // 更新データをマージ
-    const updatedSettings: UserSettings = {
-      ...baseSettings,
-      ...settings,
-      userId,
-      updatedAt: now,
-      createdAt: baseSettings.createdAt || now
-    };
-    
-    console.log('📤 Final settings to save:', JSON.stringify(updatedSettings, null, 2));
-
-    await docRef.set(updatedSettings, { merge: true });
-    
-    console.log('✅ Settings saved successfully to Firestore');
-    return updatedSettings;
-  } catch (error) {
-    console.error('❌ Error saving settings to Firestore:', error);
-    console.error('❌ Error details:', error instanceof Error ? error.stack : 'No stack trace');
-    return null;
-  }
-}
-
-/**
- * デフォルト設定を生成
- */
-function getDefaultSettings(userId: string): UserSettings {
-  const now = new Date().toISOString();
-  
-  return {
-    userId,
-    companyInfo: {
-      companyName: '',
-      industry: '',
-      employeeCount: '',
-      website: '',
-      description: '',
-      contactPerson: '',
-      contactEmail: ''
-    },
-    products: [],
-    negotiationSettings: {
-      preferredTone: 'professional',
-      responseTimeExpectation: '24時間以内',
-      budgetFlexibility: 'medium',
-      decisionMakers: [],
-      communicationPreferences: ['email'],
-      specialInstructions: '',
-      keyPriorities: [],
-      avoidTopics: []
-    },
-    matchingSettings: {
-      priorityCategories: [],
-      minSubscribers: 1000,
-      maxSubscribers: 1000000,
-      minEngagementRate: 2.0,
-      excludeCategories: [],
-      geographicFocus: ['日本'],
-      priorityKeywords: [],
-      excludeKeywords: []
-    },
-    createdAt: now,
-    updatedAt: now
-  };
-}
+// バックエンドAPIのURL
+const BACKEND_API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 /**
  * GET: ユーザー設定を取得
@@ -231,42 +23,36 @@ export async function GET(request: NextRequest) {
 
     console.log('👤 User email:', session.user.email);
     
-    // Firebase Adminが初期化されていない場合はデフォルト設定を返す
-    if (!adminDb) {
-      console.log('⚠️ Firebase Admin not available, returning default settings');
-      const userId = session.user.email;
-      const defaultSettings = getDefaultSettings(userId);
+    // バックエンドAPIにリクエストを転送
+    const response = await fetch(`${BACKEND_API_URL}/api/settings`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${session.user.email}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      console.error('❌ Backend API error:', response.status);
+      const errorText = await response.text();
+      console.error('❌ Error details:', errorText);
       
+      // エラーでもデフォルト設定を返す
+      const defaultSettings = getDefaultSettings(session.user.email);
       return NextResponse.json({
         success: true,
         data: defaultSettings,
         fallback: true,
-        message: 'Using default settings - database not available'
+        message: 'Using default settings - backend not available'
       });
     }
 
-    // ユーザーIDとしてemailを使用
-    const userId = session.user.email;
+    const data = await response.json();
+    console.log('✅ Settings retrieved successfully from backend');
     
-    // Firestoreから設定を取得
-    const settings = await getSettingsFromFirestore(userId);
-    
-    if (!settings) {
-      console.log('⚠️ Failed to fetch from Firestore, returning default settings');
-      const defaultSettings = getDefaultSettings(userId);
-      
-      return NextResponse.json({
-        success: true,
-        data: defaultSettings,
-        fallback: true,
-        message: 'Using default settings - fetch failed'
-      });
-    }
-    
-    console.log('✅ Settings retrieved successfully');
     return NextResponse.json({
       success: true,
-      data: settings
+      data: data
     });
   } catch (error) {
     console.error('❌ 設定取得エラー:', error);
@@ -314,38 +100,37 @@ export async function PUT(request: NextRequest) {
 
     console.log('👤 User email:', session.user.email);
     const body = await request.json();
-    const userId = session.user.email;
     
     console.log('📦 Request body received:', JSON.stringify(body, null, 2));
     
-    // バリデーション（オプショナル）
-    // 企業名は任意とする（初回保存時は空の可能性があるため）
+    // バックエンドAPIにリクエストを転送
+    const response = await fetch(`${BACKEND_API_URL}/api/settings`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${session.user.email}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body)
+    });
 
-    // Firebase Adminが初期化されていない場合
-    if (!adminDb) {
-      console.error('❌ Firebase Admin not initialized for save');
-      return NextResponse.json(
-        { error: 'Database not available' },
-        { status: 500 }
-      );
-    }
-
-    // Firestoreに設定を保存
-    const updatedSettings = await saveSettingsToFirestore(userId, body);
-    
-    if (!updatedSettings) {
-      console.error('❌ saveSettingsToFirestore returned null');
+    if (!response.ok) {
+      console.error('❌ Backend API error:', response.status);
+      const errorText = await response.text();
+      console.error('❌ Error details:', errorText);
+      
       return NextResponse.json(
         { error: 'Failed to save settings' },
-        { status: 500 }
+        { status: response.status }
       );
     }
 
-    console.log('✅ Settings saved successfully');
+    const data = await response.json();
+    console.log('✅ Settings saved successfully to backend');
+    
     return NextResponse.json({ 
       success: true, 
       message: 'Settings saved successfully',
-      data: updatedSettings 
+      data: data 
     });
   } catch (error) {
     console.error('❌ 設定保存エラー:', error);
@@ -374,47 +159,35 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { section, data } = await request.json();
-    const userId = session.user.email;
+    const url = new URL(request.url);
+    const pathParts = url.pathname.split('/');
+    const section = pathParts[pathParts.length - 1];
     
-    if (!section || !data) {
-      return NextResponse.json(
-        { error: 'Section and data are required' },
-        { status: 400 }
-      );
-    }
-
-    // 現在の設定を取得
-    const currentSettings = await getSettingsFromFirestore(userId);
-    if (!currentSettings) {
-      return NextResponse.json(
-        { error: 'Failed to fetch current settings' },
-        { status: 500 }
-      );
-    }
-
-    // 指定セクションを更新
-    const updatedSettings = {
-      ...currentSettings,
-      [section]: data,
-      updatedAt: new Date().toISOString()
-    };
-
-    // Firestoreに保存
-    const result = await saveSettingsToFirestore(userId, updatedSettings);
+    const body = await request.json();
     
-    if (!result) {
-      return NextResponse.json(
-        { error: 'Failed to update settings' },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json({ 
-      success: true, 
-      message: `${section} updated successfully`,
-      data: result 
+    // バックエンドAPIにリクエストを転送
+    const response = await fetch(`${BACKEND_API_URL}/api/settings/section/${section}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${session.user.email}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body)
     });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Backend API error:', errorText);
+      
+      return NextResponse.json(
+        { error: 'Failed to update settings section' },
+        { status: response.status }
+      );
+    }
+
+    const data = await response.json();
+    
+    return NextResponse.json(data);
   } catch (error) {
     console.error('設定更新エラー:', error);
     return NextResponse.json(
@@ -438,26 +211,28 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const userId = session.user.email;
-    
-    if (!adminDb) {
+    // バックエンドAPIにリクエストを転送
+    const response = await fetch(`${BACKEND_API_URL}/api/settings`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${session.user.email}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Backend API error:', errorText);
+      
       return NextResponse.json(
-        { error: 'Database not available' },
-        { status: 500 }
+        { error: 'Failed to delete settings' },
+        { status: response.status }
       );
     }
 
-    console.log(`🗑️ Deleting settings for user: ${userId}`);
+    const data = await response.json();
     
-    const docRef = adminDb.collection('user_settings').doc(userId);
-    await docRef.delete();
-    
-    console.log('✅ Settings deleted successfully');
-
-    return NextResponse.json({ 
-      success: true, 
-      message: 'Settings deleted successfully' 
-    });
+    return NextResponse.json(data);
   } catch (error) {
     console.error('設定削除エラー:', error);
     return NextResponse.json(
@@ -465,4 +240,47 @@ export async function DELETE(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+/**
+ * デフォルト設定を生成
+ */
+function getDefaultSettings(userId: string) {
+  const now = new Date().toISOString();
+  
+  return {
+    userId,
+    companyInfo: {
+      companyName: '',
+      industry: '',
+      employeeCount: '',
+      website: '',
+      description: '',
+      contactPerson: '',
+      contactEmail: ''
+    },
+    products: [],
+    negotiationSettings: {
+      preferredTone: 'professional',
+      responseTimeExpectation: '24時間以内',
+      budgetFlexibility: 'medium',
+      decisionMakers: [],
+      communicationPreferences: ['email'],
+      specialInstructions: '',
+      keyPriorities: [],
+      avoidTopics: []
+    },
+    matchingSettings: {
+      priorityCategories: [],
+      minSubscribers: 1000,
+      maxSubscribers: 1000000,
+      minEngagementRate: 2.0,
+      excludeCategories: [],
+      geographicFocus: ['日本'],
+      priorityKeywords: [],
+      excludeKeywords: []
+    },
+    createdAt: now,
+    updatedAt: now
+  };
 }
