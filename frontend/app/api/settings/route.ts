@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { firestoreSettingsService } from '@/lib/firestore';
 
 /**
  * GET: ユーザー設定を取得
@@ -21,19 +20,65 @@ export async function GET(request: NextRequest) {
 
     console.log('👤 User email:', session.user.email);
     
-    // Firestoreから設定を取得
-    const result = await firestoreSettingsService.getUserSettings(session.user.email);
+    // バックエンドAPIから設定を取得
+    const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001';
+    const apiResponse = await fetch(`${backendUrl}/api/v1/user/settings?user_id=${encodeURIComponent(session.user.email)}`);
     
-    if (result.success) {
-      console.log('✅ Settings retrieved successfully');
+    if (apiResponse.ok) {
+      const data = await apiResponse.json();
+      console.log('✅ Settings retrieved from backend successfully');
       return NextResponse.json({
         success: true,
-        data: result.data
+        data: data
+      });
+    } else if (apiResponse.status === 404) {
+      // デフォルト設定を返す
+      const defaultSettings = {
+        userId: session.user.email,
+        companyInfo: {
+          companyName: '',
+          industry: '',
+          employeeCount: '',
+          website: '',
+          description: '',
+          contactPerson: '',
+          contactEmail: ''
+        },
+        products: [],
+        negotiationSettings: {
+          preferredTone: 'professional',
+          responseTimeExpectation: '24時間以内',
+          budgetFlexibility: 'medium',
+          decisionMakers: [],
+          communicationPreferences: ['email'],
+          specialInstructions: '',
+          keyPriorities: [],
+          avoidTopics: []
+        },
+        matchingSettings: {
+          priorityCategories: [],
+          minSubscribers: 1000,
+          maxSubscribers: 1000000,
+          minEngagementRate: 2.0,
+          excludeCategories: [],
+          geographicFocus: ['日本'],
+          priorityKeywords: [],
+          excludeKeywords: []
+        },
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      
+      return NextResponse.json({
+        success: true,
+        data: defaultSettings,
+        fallback: true,
+        message: 'デフォルト設定を使用しています'
       });
     } else {
-      console.error('❌ Failed to get settings:', result.error);
+      console.error('❌ Failed to get settings from backend:', apiResponse.status);
       return NextResponse.json(
-        { error: result.error },
+        { error: 'バックエンドから設定を取得できませんでした' },
         { status: 500 }
       );
     }
@@ -67,20 +112,33 @@ export async function PUT(request: NextRequest) {
     
     console.log('📦 Request body received:', JSON.stringify(body, null, 2));
     
-    // Firestoreに設定を保存
-    const result = await firestoreSettingsService.saveUserSettings(session.user.email, body);
+    // バックエンドAPIに設定を保存
+    const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001';
+    const apiResponse = await fetch(`${backendUrl}/api/v1/user/settings`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        user_id: session.user.email,
+        settings: body
+      })
+    });
     
-    if (result.success) {
-      console.log('✅ Settings saved successfully');
+    if (apiResponse.ok) {
+      const data = await apiResponse.json();
+      console.log('✅ Settings saved to backend successfully');
       return NextResponse.json({ 
         success: true, 
         message: 'Settings saved successfully',
-        data: result.data 
+        data: data 
       });
     } else {
-      console.error('❌ Failed to save settings:', result.error);
+      console.error('❌ Failed to save settings to backend:', apiResponse.status);
+      const errorText = await apiResponse.text();
+      console.error('❌ Backend error details:', errorText);
       return NextResponse.json(
-        { error: result.error },
+        { error: 'バックエンドへの保存に失敗しました' },
         { status: 500 }
       );
     }

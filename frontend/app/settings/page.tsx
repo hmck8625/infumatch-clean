@@ -3,7 +3,49 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
-import { UserSettings, firestoreSettingsService } from '@/lib/firestore';
+// UserSettings型定義を追加
+interface UserSettings {
+  userId: string;
+  companyInfo: {
+    companyName: string;
+    industry: string;
+    employeeCount: string;
+    website: string;
+    description: string;
+    contactPerson?: string;
+    contactEmail?: string;
+  };
+  products: Array<{
+    id: string;
+    name: string;
+    category: string;
+    targetAudience: string;
+    priceRange: string;
+    description: string;
+  }>;
+  negotiationSettings: {
+    preferredTone: string;
+    responseTimeExpectation: string;
+    budgetFlexibility: string;
+    decisionMakers: string[];
+    communicationPreferences: string[];
+    specialInstructions?: string;
+    keyPriorities?: string[];
+    avoidTopics?: string[];
+  };
+  matchingSettings: {
+    priorityCategories: string[];
+    minSubscribers: number;
+    maxSubscribers: number;
+    minEngagementRate: number;
+    excludeCategories: string[];
+    geographicFocus: string[];
+    priorityKeywords?: string[];
+    excludeKeywords?: string[];
+  };
+  createdAt: string;
+  updatedAt: string;
+}
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
