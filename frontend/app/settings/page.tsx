@@ -724,7 +724,7 @@ export default function SettingsPage() {
                     交渉時の特別指示
                   </h4>
                   <Textarea
-                    value={settings.negotiationSettings.specialInstructions}
+                    value={settings.negotiationSettings.specialInstructions || ''}
                     onChange={(e) => setSettings(prev => ({
                       ...prev,
                       negotiationSettings: {
@@ -741,7 +741,7 @@ export default function SettingsPage() {
                 <div>
                   <h4 className="font-semibold mb-4">交渉で重視するポイント</h4>
                   <div className="flex flex-wrap gap-2 mb-2">
-                    {settings.negotiationSettings.keyPriorities.map((priority, index) => (
+                    {(settings.negotiationSettings.keyPriorities || []).map((priority, index) => (
                       <Badge
                         key={index}
                         variant="outline"
@@ -780,7 +780,7 @@ export default function SettingsPage() {
                 <div>
                   <h4 className="font-semibold mb-4">避けるべきトピック</h4>
                   <div className="flex flex-wrap gap-2 mb-2">
-                    {settings.negotiationSettings.avoidTopics.map((topic, index) => (
+                    {(settings.negotiationSettings.avoidTopics || []).map((topic, index) => (
                       <Badge
                         key={index}
                         variant="outline"
@@ -874,12 +874,12 @@ export default function SettingsPage() {
                 <div>
                   <h4 className="font-semibold mb-4">優先チャンネルカテゴリ</h4>
                   <div className="flex flex-wrap gap-2 mb-2">
-                    {settings.matchingSettings.priorityCategories.map((category, index) => (
+                    {(settings.matchingSettings.priorityCategories || []).map((category, index) => (
                       <Badge
                         key={index}
                         variant="outline"
                         className="cursor-pointer hover:bg-red-50"
-                        onClick={() => removeFromArray('matchingPreferences.preferredCategories', category)}
+                        onClick={() => removeFromArray('matchingSettings.priorityCategories', category)}
                       >
                         {category} ×
                       </Badge>
@@ -890,7 +890,7 @@ export default function SettingsPage() {
                       placeholder="優先カテゴリを入力（例：料理、美容、ゲーム）"
                       onKeyPress={(e) => {
                         if (e.key === 'Enter') {
-                          addToArray('matchingPreferences.preferredCategories', e.currentTarget.value);
+                          addToArray('matchingSettings.priorityCategories', e.currentTarget.value);
                           e.currentTarget.value = '';
                         }
                       }}
@@ -900,7 +900,7 @@ export default function SettingsPage() {
                       variant="outline"
                       onClick={(e) => {
                         const input = e.currentTarget.previousElementSibling as HTMLInputElement;
-                        addToArray('matchingPreferences.preferredCategories', input.value);
+                        addToArray('matchingSettings.priorityCategories', input.value);
                         input.value = '';
                       }}
                     >
@@ -913,12 +913,12 @@ export default function SettingsPage() {
                 <div>
                   <h4 className="font-semibold mb-4">優先キーワード</h4>
                   <div className="flex flex-wrap gap-2 mb-2">
-                    {settings.matchingPreferences.priorityKeywords.map((keyword, index) => (
+                    {(settings.matchingSettings.priorityKeywords || []).map((keyword, index) => (
                       <Badge
                         key={index}
                         variant="outline"
                         className="cursor-pointer hover:bg-red-50"
-                        onClick={() => removeFromArray('matchingPreferences.priorityKeywords', keyword)}
+                        onClick={() => removeFromArray('matchingSettings.priorityKeywords', keyword)}
                       >
                         {keyword} ×
                       </Badge>
@@ -929,7 +929,7 @@ export default function SettingsPage() {
                       placeholder="優先キーワードを入力"
                       onKeyPress={(e) => {
                         if (e.key === 'Enter') {
-                          addToArray('matchingPreferences.priorityKeywords', e.currentTarget.value);
+                          addToArray('matchingSettings.priorityKeywords', e.currentTarget.value);
                           e.currentTarget.value = '';
                         }
                       }}
@@ -939,7 +939,7 @@ export default function SettingsPage() {
                       variant="outline"
                       onClick={(e) => {
                         const input = e.currentTarget.previousElementSibling as HTMLInputElement;
-                        addToArray('matchingPreferences.priorityKeywords', input.value);
+                        addToArray('matchingSettings.priorityKeywords', input.value);
                         input.value = '';
                       }}
                     >
@@ -952,12 +952,12 @@ export default function SettingsPage() {
                 <div>
                   <h4 className="font-semibold mb-4">除外キーワード</h4>
                   <div className="flex flex-wrap gap-2 mb-2">
-                    {settings.matchingPreferences.excludeKeywords.map((keyword, index) => (
+                    {(settings.matchingSettings.excludeKeywords || []).map((keyword, index) => (
                       <Badge
                         key={index}
                         variant="outline"
                         className="cursor-pointer hover:bg-red-50"
-                        onClick={() => removeFromArray('matchingPreferences.excludeKeywords', keyword)}
+                        onClick={() => removeFromArray('matchingSettings.excludeKeywords', keyword)}
                       >
                         {keyword} ×
                       </Badge>
@@ -968,7 +968,7 @@ export default function SettingsPage() {
                       placeholder="除外キーワードを入力"
                       onKeyPress={(e) => {
                         if (e.key === 'Enter') {
-                          addToArray('matchingPreferences.excludeKeywords', e.currentTarget.value);
+                          addToArray('matchingSettings.excludeKeywords', e.currentTarget.value);
                           e.currentTarget.value = '';
                         }
                       }}
@@ -978,7 +978,7 @@ export default function SettingsPage() {
                       variant="outline"
                       onClick={(e) => {
                         const input = e.currentTarget.previousElementSibling as HTMLInputElement;
-                        addToArray('matchingPreferences.excludeKeywords', input.value);
+                        addToArray('matchingSettings.excludeKeywords', input.value);
                         input.value = '';
                       }}
                     >
