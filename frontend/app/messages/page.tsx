@@ -360,11 +360,29 @@ function MessagesPageContent() {
       const result = await response.json();
       console.log('📥 API応答:', result);
       
-      if (result.success && result.metadata) {
-        const patterns = result.metadata.reply_patterns || [];
-        const analysis = result.metadata.thread_analysis || {};
+      if (result.success) {
+        // APIから返された単一の返信を複数のパターンとして表示
+        const generatedReply = result.content || 'AI応答が生成されませんでした';
         
-        console.log(`✅ ${patterns.length}個の返信パターンを生成しました`);
+        const patterns = [
+          {
+            pattern_type: 'ai_generated',
+            pattern_name: 'AI生成返信',
+            reply_content: generatedReply,
+            tone: 'professional',
+            key_points: ['AIが生成した適切な返信内容'],
+            reasoning: 'バックエンドの交渉エージェントが会話履歴を分析して生成'
+          }
+        ];
+        
+        const analysis = {
+          thread_summary: 'スレッドの会話履歴を基にAIが分析',
+          conversation_stage: 'AI分析済み',
+          recommended_approach: 'AIが推奨するアプローチ',
+          sentiment: result.metadata?.sentiment || 'neutral'
+        };
+        
+        console.log(`✅ AI返信を生成しました: "${generatedReply.substring(0, 50)}..."`);
         
         setReplyPatterns(patterns);
         setThreadAnalysis(analysis);
