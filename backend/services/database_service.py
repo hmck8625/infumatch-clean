@@ -190,7 +190,7 @@ class DatabaseService:
             "videoCount": firestore_data.get('video_count', 0),
             "category": firestore_data.get('primary_category', 'その他'),
             "description": firestore_data.get('description', ''),
-            "thumbnailUrl": firestore_data.get('thumbnail_url', 'https://via.placeholder.com/120x120'),
+            "thumbnailUrl": firestore_data.get('thumbnail_url', '/images/default-channel.svg'),
             "engagementRate": firestore_data.get('engagement_rate', 0.0),
             "email": firestore_data.get('business_email'),
             # 追加のメタデータ

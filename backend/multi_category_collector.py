@@ -128,6 +128,17 @@ class MultiCategoryYouTubeCollector:
                 # メールアドレス抽出
                 emails = self.extract_emails_from_description(snippet.get('description', ''))
                 
+                # サムネイルURL取得
+                thumbnail_url = original_channel.get('thumbnail')  # 検索時に取得したサムネイル使用
+                if not thumbnail_url:
+                    # フォールバック: 詳細データからサムネイル取得
+                    thumbnails = snippet.get('thumbnails', {})
+                    if thumbnails:
+                        for quality in ['maxres', 'high', 'medium', 'default']:
+                            if quality in thumbnails:
+                                thumbnail_url = thumbnails[quality].get('url')
+                                break
+                
                 channel_data = {
                     'channel_id': item['id'],
                     'channel_title': snippet.get('title', ''),
@@ -137,6 +148,7 @@ class MultiCategoryYouTubeCollector:
                     'view_count': view_count,
                     'country': snippet.get('country', 'JP'),
                     'category': category_name,
+                    'thumbnail_url': thumbnail_url,
                     'emails': emails,
                     'has_contact': len(emails) > 0,
                     'engagement_estimate': round((view_count / video_count / subscriber_count) * 100, 2) if video_count > 0 and subscriber_count > 0 else 0,

@@ -439,11 +439,37 @@ function MessagesPageContent() {
         throw new Error(`API Error: ${response.status} ${response.statusText} - ${errorText}`);
       }
       
-      updateAgentStatus('📥 AI応答受信', 'AIからの返信データを処理しています...', 
-        'AIが生成した基本返信を受信しました。これを基に3つの異なるコミュニケーションスタイルのパターンを作成します');
-      
       const result = await response.json();
       console.log('📥 API応答:', result);
+      
+      // AI思考過程の詳細表示
+      const aiThinking = result.ai_thinking || {};
+      
+      updateAgentStatus('📥 AI応答受信', 'AIからの返信データを処理しています...', 
+        `${aiThinking.message_analysis || 'メッセージ分析完了'} → ${aiThinking.detected_intent || '意図を特定'} → ${aiThinking.strategy_selected || '戦略選択完了'}`);
+      
+      // AI分析の詳細をログ出力
+      console.log('🧠 AI詳細分析結果:', aiThinking);
+      console.log('📄 AI生成基本返信:', result.content);
+      
+      // AI思考過程をユーザーに見せる
+      if (aiThinking.message_analysis) {
+        updateAgentStatus('🔍 メッセージ理解', aiThinking.message_analysis, 
+          aiThinking.detected_intent || 'メッセージの意図を分析しました');
+      }
+      
+      if (aiThinking.sentiment_analysis) {
+        updateAgentStatus('💭 感情・トーン分析', aiThinking.sentiment_analysis, 
+          aiThinking.negotiation_stage || '交渉段階を判定しました');
+      }
+      
+      if (aiThinking.custom_instructions_impact) {
+        updateAgentStatus('⚙️ カスタム指示適用', aiThinking.custom_instructions_impact, 
+          'ユーザーの指示に基づいて応答をカスタマイズしました');
+      }
+      
+      updateAgentStatus('🎯 AI戦略決定', aiThinking.strategy_selected || '応答戦略を決定', 
+        aiThinking.base_response_reasoning || 'AIが最適な応答パターンを生成しました');
       
       if (result.success) {
         // AIから返された基本返信を基に、3つの異なる特徴を持つパターンを生成

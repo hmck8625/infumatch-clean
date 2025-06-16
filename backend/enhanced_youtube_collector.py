@@ -122,6 +122,16 @@ class EnhancedYouTubeCollector:
                     if not (10000 <= subscriber_count <= 500000):
                         continue
                     
+                    # サムネイルURL取得
+                    thumbnail_url = None
+                    thumbnails = snippet.get('thumbnails', {})
+                    if thumbnails:
+                        # 高画質から順に取得を試みる
+                        for quality in ['maxres', 'high', 'medium', 'default']:
+                            if quality in thumbnails:
+                                thumbnail_url = thumbnails[quality].get('url')
+                                break
+                    
                     # 基本チャンネルデータ
                     channel_data = {
                         'channel_id': item['id'],
@@ -131,6 +141,7 @@ class EnhancedYouTubeCollector:
                         'video_count': video_count,
                         'view_count': view_count,
                         'country': snippet.get('country', 'JP'),
+                        'thumbnail_url': thumbnail_url,
                         'emails': self.extract_emails_from_description(snippet.get('description', '')),
                         'has_contact': len(self.extract_emails_from_description(snippet.get('description', ''))) > 0,
                         'engagement_estimate': round((view_count / video_count / subscriber_count) * 100, 2) if video_count > 0 and subscriber_count > 0 else 0,

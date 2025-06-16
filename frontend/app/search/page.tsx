@@ -84,8 +84,29 @@ function InfluencerDetailModal({
         {/* ヘッダー */}
         <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex items-center justify-between">
           <div className="flex items-center space-x-4">
-            <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-blue-500 rounded-full flex items-center justify-center text-2xl">
-              {categoryIcon}
+            <div className="w-16 h-16 rounded-full overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center text-2xl">
+              {influencer.thumbnailUrl && !influencer.thumbnailUrl.includes('/images/default-channel') ? (
+                <>
+                  <img 
+                    src={influencer.thumbnailUrl}
+                    alt={`${influencer.name} チャンネル`}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                      e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                      e.currentTarget.nextElementSibling?.classList.add('flex');
+                    }}
+                  />
+                  {/* フォールバック表示（画像読み込み失敗時） */}
+                  <div className="w-full h-full bg-gradient-to-br from-purple-500 to-blue-500 rounded-full items-center justify-center text-2xl text-white hidden">
+                    {categoryIcon}
+                  </div>
+                </>
+              ) : (
+                <div className="w-full h-full bg-gradient-to-br from-purple-500 to-blue-500 rounded-full flex items-center justify-center text-2xl text-white">
+                  {categoryIcon}
+                </div>
+              )}
             </div>
             <div>
               <h2 className="text-2xl font-bold text-gray-900">{influencer.name}</h2>
@@ -731,11 +752,33 @@ export default function SearchPage() {
                     return (
                       <div key={influencer.id} className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
                         {/* カード画像部分 */}
-                        <div className="h-48 bg-gradient-to-br from-purple-500 to-blue-500 relative overflow-hidden">
-                          <div className="absolute inset-0 bg-black/20"></div>
-                          <div className="absolute inset-0 flex items-center justify-center">
-                            <div className="text-6xl">{categoryIcon}</div>
-                          </div>
+                        <div className="h-48 relative overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200">
+                          {influencer.thumbnailUrl && !influencer.thumbnailUrl.includes('/images/default-channel') ? (
+                            <>
+                              <img 
+                                src={influencer.thumbnailUrl}
+                                alt={`${influencer.name} チャンネル`}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                  e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                                  e.currentTarget.nextElementSibling?.classList.add('flex');
+                                }}
+                              />
+                              {/* フォールバック表示（画像読み込み失敗時） */}
+                              <div className="absolute inset-0 bg-gradient-to-br from-purple-500 to-blue-500 items-center justify-center hidden">
+                                <div className="text-6xl text-white">{categoryIcon}</div>
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <div className="absolute inset-0 bg-gradient-to-br from-purple-500 to-blue-500"></div>
+                              <div className="absolute inset-0 bg-black/20"></div>
+                              <div className="absolute inset-0 flex items-center justify-center">
+                                <div className="text-6xl text-white">{categoryIcon}</div>
+                              </div>
+                            </>
+                          )}
                           
                           {/* ステータスバッジ */}
                           <div className="absolute top-4 left-4">
