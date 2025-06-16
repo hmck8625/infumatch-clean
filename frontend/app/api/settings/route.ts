@@ -137,6 +137,7 @@ async function saveSettingsToFirestore(userId: string, settings: Partial<UserSet
 
   try {
     console.log(`💾 Saving settings for user: ${userId}`);
+    console.log('📦 Settings to save:', JSON.stringify(settings, null, 2));
     
     const docRef = adminDb.collection('user_settings').doc(userId);
     const now = new Date().toISOString();
@@ -144,6 +145,8 @@ async function saveSettingsToFirestore(userId: string, settings: Partial<UserSet
     // 既存設定を取得
     const existing = await getSettingsFromFirestore(userId);
     const baseSettings = existing || getDefaultSettings(userId);
+    
+    console.log('🔄 Existing settings:', existing ? 'Found' : 'Not found, using defaults');
     
     // 更新データをマージ
     const updatedSettings: UserSettings = {
@@ -153,13 +156,16 @@ async function saveSettingsToFirestore(userId: string, settings: Partial<UserSet
       updatedAt: now,
       createdAt: baseSettings.createdAt || now
     };
+    
+    console.log('📤 Final settings to save:', JSON.stringify(updatedSettings, null, 2));
 
     await docRef.set(updatedSettings, { merge: true });
     
-    console.log('✅ Settings saved successfully');
+    console.log('✅ Settings saved successfully to Firestore');
     return updatedSettings;
   } catch (error) {
     console.error('❌ Error saving settings to Firestore:', error);
+    console.error('❌ Error details:', error instanceof Error ? error.stack : 'No stack trace');
     return null;
   }
 }
@@ -295,23 +301,32 @@ export async function GET(request: NextRequest) {
  */
 export async function PUT(request: NextRequest) {
   try {
+    console.log('💾 Settings PUT request received');
     const session = await getServerSession(authOptions);
     
     if (!session?.user?.email) {
+      console.log('❌ No session found for PUT request');
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
       );
     }
 
+    console.log('👤 User email:', session.user.email);
     const body = await request.json();
     const userId = session.user.email;
     
-    // バリデーション
-    if (body.companyInfo && !body.companyInfo.companyName) {
+    console.log('📦 Request body received:', JSON.stringify(body, null, 2));
+    
+    // バリデーション（オプショナル）
+    // 企業名は任意とする（初回保存時は空の可能性があるため）
+
+    // Firebase Adminが初期化されていない場合
+    if (!adminDb) {
+      console.error('❌ Firebase Admin not initialized for save');
       return NextResponse.json(
-        { error: 'Company name is required' },
-        { status: 400 }
+        { error: 'Database not available' },
+        { status: 500 }
       );
     }
 
@@ -319,21 +334,27 @@ export async function PUT(request: NextRequest) {
     const updatedSettings = await saveSettingsToFirestore(userId, body);
     
     if (!updatedSettings) {
+      console.error('❌ saveSettingsToFirestore returned null');
       return NextResponse.json(
         { error: 'Failed to save settings' },
         { status: 500 }
       );
     }
 
+    console.log('✅ Settings saved successfully');
     return NextResponse.json({ 
       success: true, 
       message: 'Settings saved successfully',
       data: updatedSettings 
     });
   } catch (error) {
-    console.error('設定保存エラー:', error);
+    console.error('❌ 設定保存エラー:', error);
+    console.error('❌ Error stack:', error instanceof Error ? error.stack : 'No stack trace');
     return NextResponse.json(
-      { error: 'Failed to save settings' },
+      { 
+        error: 'Failed to save settings',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      },
       { status: 500 }
     );
   }
