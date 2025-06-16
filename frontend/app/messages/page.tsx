@@ -365,6 +365,28 @@ function MessagesPageContent() {
         const baseReply = result.content || 'AI応答が生成されませんでした';
         const contact = getThreadPrimaryContact(currentThread);
         
+        // 多様性を向上させるためのランダム要素を追加
+        const currentTime = new Date();
+        const variations = {
+          greetings: [
+            'いつもお世話になっております。',
+            'お疲れ様です。',
+            'いつもありがとうございます。'
+          ],
+          closings: [
+            'よろしくお願いいたします。',
+            'ご検討のほど、よろしくお願いいたします。',
+            '何かご不明な点がございましたら、お気軽にお声がけください。'
+          ],
+          meetings: [
+            'お電話やビデオ通話でお話しできればと思います',
+            'オンラインミーティングでご相談させていただければと思います',
+            'お時間のあるときにお打ち合わせをお願いできればと思います'
+          ]
+        };
+        
+        const getRandomItem = (arr: string[]) => arr[Math.floor(Math.random() * arr.length)];
+        
         const patterns = [
           {
             pattern_type: 'friendly_enthusiastic',
@@ -372,16 +394,16 @@ function MessagesPageContent() {
             tone: '親しみやすく、前向きで協力的なトーン',
             content: `${contact}様
 
-いつもお世話になっております。InfuMatchの田中です。
+${getRandomItem(variations.greetings)}InfuMatchの田中です。
 
 ${baseReply}
 
 ぜひ詳細についてお話しさせていただければと思います！
-お時間のある際に、お電話やビデオ通話でお話しできればと思いますが、いかがでしょうか？
+${getRandomItem(variations.meetings)}が、いかがでしょうか？
 
 お返事お待ちしております。
 
-よろしくお願いいたします。
+${getRandomItem(variations.closings)}
 田中`,
             reasoning: 'AIが生成した基本内容に、積極的で関係構築を重視するアプローチを追加',
             recommendation_score: 0.85
@@ -403,7 +425,7 @@ ${baseReply}
 ・ご希望のスケジュール  
 ・ご予算の範囲
 
-ご検討のほど、よろしくお願いいたします。
+${getRandomItem(variations.closings)}
 
 田中`,
             reasoning: 'AIが生成した基本内容に、リスクを最小限に抑えた慎重なアプローチを追加',
@@ -418,7 +440,7 @@ ${baseReply}
 ${baseReply}
 
 具体的な提案内容と次のステップについて、
-近日中にお打ち合わせをさせていただければと思います。
+近日中に${getRandomItem(variations.meetings)}。
 
 ご都合の良い日時をお聞かせください。
 
