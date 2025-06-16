@@ -35,6 +35,8 @@ interface UserSettings {
     employeeCount: string;
     website: string;
     description: string;
+    contactPerson?: string;
+    contactEmail?: string;
   };
   products: Array<{
     id: string;
@@ -50,6 +52,9 @@ interface UserSettings {
     budgetFlexibility: string;
     decisionMakers: string[];
     communicationPreferences: string[];
+    specialInstructions?: string;
+    keyPriorities?: string[];
+    avoidTopics?: string[];
   };
   matchingSettings: {
     priorityCategories: string[];
@@ -58,6 +63,8 @@ interface UserSettings {
     minEngagementRate: number;
     excludeCategories: string[];
     geographicFocus: string[];
+    priorityKeywords?: string[];
+    excludeKeywords?: string[];
   };
   createdAt: string;
   updatedAt: string;
@@ -115,7 +122,9 @@ export default function SettingsPage() {
       industry: '',
       employeeCount: '',
       website: '',
-      description: ''
+      description: '',
+      contactPerson: '',
+      contactEmail: ''
     },
     products: [],
     negotiationSettings: {
@@ -123,7 +132,10 @@ export default function SettingsPage() {
       responseTimeExpectation: '24時間以内',
       budgetFlexibility: 'medium',
       decisionMakers: [],
-      communicationPreferences: ['email']
+      communicationPreferences: ['email'],
+      specialInstructions: '',
+      keyPriorities: [],
+      avoidTopics: []
     },
     matchingSettings: {
       priorityCategories: [],
@@ -131,7 +143,9 @@ export default function SettingsPage() {
       maxSubscribers: 1000000,
       minEngagementRate: 2.0,
       excludeCategories: [],
-      geographicFocus: ['日本']
+      geographicFocus: ['日本'],
+      priorityKeywords: [],
+      excludeKeywords: []
     },
     createdAt: '',
     updatedAt: ''
@@ -168,14 +182,18 @@ export default function SettingsPage() {
               maxSubscribers: result.data.matchingSettings?.maxSubscribers || 1000000,
               minEngagementRate: result.data.matchingSettings?.minEngagementRate || 2.0,
               excludeCategories: result.data.matchingSettings?.excludeCategories || [],
-              geographicFocus: result.data.matchingSettings?.geographicFocus || ['日本']
+              geographicFocus: result.data.matchingSettings?.geographicFocus || ['日本'],
+              priorityKeywords: result.data.matchingSettings?.priorityKeywords || [],
+              excludeKeywords: result.data.matchingSettings?.excludeKeywords || []
             },
             companyInfo: {
               companyName: result.data.companyInfo?.companyName || '',
               industry: result.data.companyInfo?.industry || '',
               employeeCount: result.data.companyInfo?.employeeCount || '',
               website: result.data.companyInfo?.website || '',
-              description: result.data.companyInfo?.description || ''
+              description: result.data.companyInfo?.description || '',
+              contactPerson: result.data.companyInfo?.contactPerson || '',
+              contactEmail: result.data.companyInfo?.contactEmail || ''
             },
             products: result.data.products || [],
             negotiationSettings: {
@@ -183,7 +201,10 @@ export default function SettingsPage() {
               responseTimeExpectation: result.data.negotiationSettings?.responseTimeExpectation || '24時間以内',
               budgetFlexibility: result.data.negotiationSettings?.budgetFlexibility || 'medium',
               decisionMakers: result.data.negotiationSettings?.decisionMakers || [],
-              communicationPreferences: result.data.negotiationSettings?.communicationPreferences || ['email']
+              communicationPreferences: result.data.negotiationSettings?.communicationPreferences || ['email'],
+              specialInstructions: result.data.negotiationSettings?.specialInstructions || '',
+              keyPriorities: result.data.negotiationSettings?.keyPriorities || [],
+              avoidTopics: result.data.negotiationSettings?.avoidTopics || []
             }
           };
           
@@ -249,15 +270,13 @@ export default function SettingsPage() {
   const addProduct = () => {
     if (!newProduct.name) return;
     
-    const product: ProductInfo = {
+    const product = {
       id: Date.now().toString(),
       name: newProduct.name || '',
       category: newProduct.category || '',
       description: newProduct.description || '',
       targetAudience: newProduct.targetAudience || '',
-      keyFeatures: newProduct.keyFeatures || [],
-      priceRange: newProduct.priceRange || { min: 0, max: 0, currency: 'JPY' },
-      campaignTypes: newProduct.campaignTypes || []
+      priceRange: newProduct.priceRange || '0円〜10万円'
     };
     
     setSettings(prev => ({
@@ -271,9 +290,7 @@ export default function SettingsPage() {
       category: '',
       description: '',
       targetAudience: '',
-      keyFeatures: [],
-      priceRange: { min: 0, max: 0, currency: 'JPY' },
-      campaignTypes: []
+      priceRange: '0円〜10万円'
     });
   };
 
@@ -428,8 +445,11 @@ export default function SettingsPage() {
                     <Label htmlFor="company-name">企業名 *</Label>
                     <Input
                       id="company-name"
-                      value={settings.companyName}
-                      onChange={(e) => setSettings(prev => ({ ...prev, companyName: e.target.value }))}
+                      value={settings.companyInfo.companyName}
+                      onChange={(e) => setSettings(prev => ({ 
+                        ...prev, 
+                        companyInfo: { ...prev.companyInfo, companyName: e.target.value }
+                      }))}
                       placeholder="株式会社InfuMatch"
                     />
                   </div>
@@ -437,8 +457,11 @@ export default function SettingsPage() {
                     <Label htmlFor="industry">業界</Label>
                     <Input
                       id="industry"
-                      value={settings.industry}
-                      onChange={(e) => setSettings(prev => ({ ...prev, industry: e.target.value }))}
+                      value={settings.companyInfo.industry}
+                      onChange={(e) => setSettings(prev => ({ 
+                        ...prev, 
+                        companyInfo: { ...prev.companyInfo, industry: e.target.value }
+                      }))}
                       placeholder="マーケティング・広告"
                     />
                   </div>
@@ -448,8 +471,11 @@ export default function SettingsPage() {
                   <Label htmlFor="description">企業説明</Label>
                   <Textarea
                     id="description"
-                    value={settings.description}
-                    onChange={(e) => setSettings(prev => ({ ...prev, description: e.target.value }))}
+                    value={settings.companyInfo.description}
+                    onChange={(e) => setSettings(prev => ({ 
+                      ...prev, 
+                      companyInfo: { ...prev.companyInfo, description: e.target.value }
+                    }))}
                     placeholder="YouTubeインフルエンサーマーケティングプラットフォームを提供しています..."
                     rows={4}
                   />
@@ -460,8 +486,11 @@ export default function SettingsPage() {
                     <Label htmlFor="contact-person">担当者名</Label>
                     <Input
                       id="contact-person"
-                      value={settings.contactPerson}
-                      onChange={(e) => setSettings(prev => ({ ...prev, contactPerson: e.target.value }))}
+                      value={settings.companyInfo.contactPerson || ''}
+                      onChange={(e) => setSettings(prev => ({ 
+                        ...prev, 
+                        companyInfo: { ...prev.companyInfo, contactPerson: e.target.value }
+                      }))}
                       placeholder="田中 太郎"
                     />
                   </div>
@@ -470,8 +499,11 @@ export default function SettingsPage() {
                     <Input
                       id="contact-email"
                       type="email"
-                      value={settings.contactEmail}
-                      onChange={(e) => setSettings(prev => ({ ...prev, contactEmail: e.target.value }))}
+                      value={settings.companyInfo.contactEmail || ''}
+                      onChange={(e) => setSettings(prev => ({ 
+                        ...prev, 
+                        companyInfo: { ...prev.companyInfo, contactEmail: e.target.value }
+                      }))}
                       placeholder="contact@infumatch.com"
                     />
                   </div>
@@ -667,11 +699,11 @@ export default function SettingsPage() {
                           ...prev,
                           negotiationSettings: {
                             ...prev.negotiationSettings,
-                            negotiationTone: tone.value as any
+                            preferredTone: tone.value
                           }
                         }))}
                         className={`p-4 border rounded-lg cursor-pointer transition-all ${
-                          settings.negotiationSettings.negotiationTone === tone.value
+                          settings.negotiationSettings.preferredTone === tone.value
                             ? 'border-indigo-500 bg-indigo-50'
                             : 'border-gray-200 hover:border-gray-300'
                         }`}
