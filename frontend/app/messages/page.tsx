@@ -291,7 +291,9 @@ function MessagesPageContent() {
       console.log('🤖 AIエージェントが返信パターンを生成中...');
       
       // バックエンドの交渉エージェントAPIを呼び出し
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://hackathon-backend-462905-269567634217.asia-northeast1.run.app';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://infumatch-backend-fuwvv3ux7q-an.a.run.app';
+      console.log('🔗 使用するAPI URL:', apiUrl);
+      console.log('🔧 環境変数 NEXT_PUBLIC_API_URL:', process.env.NEXT_PUBLIC_API_URL);
       
       // スレッドメッセージを整形
       const threadMessages = currentThread.messages.map(message => ({
@@ -323,7 +325,10 @@ function MessagesPageContent() {
       
       console.log('📤 API送信データ:', JSON.stringify(requestData, null, 2));
       
-      const response = await fetch(`${apiUrl}/negotiation/reply-patterns`, {
+      const fullUrl = `${apiUrl}/negotiation/reply-patterns`;
+      console.log('🌐 リクエスト先URL:', fullUrl);
+      
+      const response = await fetch(fullUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -331,8 +336,16 @@ function MessagesPageContent() {
         body: JSON.stringify(requestData)
       });
       
+      console.log('📊 レスポンス詳細:');
+      console.log('  - ステータス:', response.status);
+      console.log('  - ステータステキスト:', response.statusText);
+      console.log('  - OK:', response.ok);
+      console.log('  - URL:', response.url);
+      
       if (!response.ok) {
-        throw new Error(`API Error: ${response.status} ${response.statusText}`);
+        const errorText = await response.text();
+        console.error('❌ APIエラー詳細:', errorText);
+        throw new Error(`API Error: ${response.status} ${response.statusText} - ${errorText}`);
       }
       
       const result = await response.json();
