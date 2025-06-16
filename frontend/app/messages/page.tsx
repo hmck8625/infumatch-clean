@@ -291,7 +291,14 @@ function MessagesPageContent() {
       console.log('🤖 AIエージェントが返信パターンを生成中...');
       
       // バックエンドの交渉エージェントAPIを呼び出し
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://infumatch-backend-fuwvv3ux7q-an.a.run.app';
+      let apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://infumatch-backend-fuwvv3ux7q-an.a.run.app';
+      
+      // 緊急修正: 古いURLが設定されている場合は強制的に正しいURLに変更
+      if (apiUrl.includes('hackathon-backend-462905-269567634217') || apiUrl.includes('infumatch-backend-269567634217')) {
+        console.warn('⚠️ 古いAPI URLが検出されました。正しいURLに修正します。');
+        apiUrl = 'https://infumatch-backend-fuwvv3ux7q-an.a.run.app';
+      }
+      
       console.log('🔗 使用するAPI URL:', apiUrl);
       console.log('🔧 環境変数 NEXT_PUBLIC_API_URL:', process.env.NEXT_PUBLIC_API_URL);
       
