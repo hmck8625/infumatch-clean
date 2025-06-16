@@ -311,28 +311,30 @@ function MessagesPageContent() {
         subject: getMessageSubject(message)
       }));
       
-      // リクエストデータを準備
+      // リクエストデータを準備（continue negotiation API用）
       const requestData = {
-        email_thread: {
-          id: currentThread.id,
+        conversation_history: threadMessages.map(msg => ({
+          sender: msg.sender,
+          content: msg.content,
+          timestamp: msg.date
+        })),
+        new_message: threadMessages.length > 0 ? threadMessages[threadMessages.length - 1].content : '',
+        context: {
+          platform: 'gmail',
+          agent_role: 'negotiation_agent',
+          campaign_type: 'influencer_collaboration',
+          thread_id: currentThread.id,
           subject: currentThread.messages[0] ? getMessageSubject(currentThread.messages[0]) : 'No Subject',
-          snippet: currentThread.snippet,
           participants: [
             'InfuMatch田中美咲',
             getThreadPrimaryContact(currentThread)
           ]
-        },
-        thread_messages: threadMessages,
-        context: {
-          platform: 'gmail',
-          agent_role: 'negotiation_agent',
-          campaign_type: 'influencer_collaboration'
         }
       };
       
       console.log('📤 API送信データ:', JSON.stringify(requestData, null, 2));
       
-      const fullUrl = `${apiUrl}/negotiation/reply-patterns`;
+      const fullUrl = `${apiUrl}/api/v1/negotiation/continue`;
       console.log('🌐 リクエスト先URL:', fullUrl);
       
       const response = await fetch(fullUrl, {
