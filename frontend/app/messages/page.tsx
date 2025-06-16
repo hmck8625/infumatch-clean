@@ -476,6 +476,10 @@ function MessagesPageContent() {
         const baseReply = result.content || 'AI応答が生成されませんでした';
         const contact = getThreadPrimaryContact(currentThread);
         
+        // AIが既に完成した返信を生成しているかチェック
+        const isCompleteReply = baseReply.includes('田中') || baseReply.includes('InfuMatch') || baseReply.length > 100;
+        console.log(`🤖 AI返信判定: ${isCompleteReply ? '完成版' : '部分版'} (長さ: ${baseReply.length}文字)`);
+        
         // 基本的な分析結果を取得
         const basicMetadata = result.metadata || {};
         console.log('🔍 交渉エージェント分析結果:', basicMetadata);
@@ -534,12 +538,44 @@ function MessagesPageContent() {
         
         const getRandomItem = (arr: string[]) => arr[Math.floor(Math.random() * arr.length)];
         
-        const patterns = [
-          {
-            pattern_type: 'friendly_enthusiastic',
-            pattern_name: '友好的・積極的',
-            tone: '親しみやすく、前向きで協力的なトーン',
-            content: `${contact}様
+        let patterns = [];
+        
+        if (isCompleteReply) {
+          // AIが既に完成した返信を生成している場合は、そのまま使用
+          patterns = [
+            {
+              pattern_type: 'ai_generated_original',
+              pattern_name: 'AI生成オリジナル',
+              tone: 'AIが分析に基づいて最適化したトーン',
+              content: baseReply,
+              reasoning: 'AIが文脈とカスタム指示を理解して生成した完成版の返信',
+              recommendation_score: 0.95
+            },
+            {
+              pattern_type: 'ai_generated_formal',
+              pattern_name: 'AI生成（フォーマル調整）',
+              tone: 'AIベース + より丁寧なフォーマル表現',
+              content: baseReply.replace(/。/g, 'です。').replace(/です。です。/g, 'です。'),
+              reasoning: 'AI生成内容をベースに、より丁寧な表現に微調整',
+              recommendation_score: 0.85
+            },
+            {
+              pattern_type: 'ai_generated_concise',
+              pattern_name: 'AI生成（簡潔版）',
+              tone: 'AIベース + より簡潔な表現',
+              content: baseReply.split('\n').filter(line => line.trim().length > 0).slice(0, -1).join('\n') + '\n\n簡潔にご連絡いたします。よろしくお願いいたします。',
+              reasoning: 'AI生成内容をベースに、より簡潔で効率的な表現に調整',
+              recommendation_score: 0.80
+            }
+          ];
+        } else {
+          // AIが部分的な返信を生成している場合は、従来のパターン生成
+          patterns = [
+            {
+              pattern_type: 'friendly_enthusiastic',
+              pattern_name: '友好的・積極的',
+              tone: '親しみやすく、前向きで協力的なトーン',
+              content: `${contact}様
 
 ${getRandomItem(variations.greetings)}InfuMatchの田中です。
 
@@ -552,14 +588,14 @@ ${getRandomItem(variations.meetings)}が、いかがでしょうか？
 
 ${getRandomItem(variations.closings)}
 田中`,
-            reasoning: 'AIが生成した基本内容に、積極的で関係構築を重視するアプローチを追加',
-            recommendation_score: 0.85
-          },
-          {
-            pattern_type: 'cautious_professional',
-            pattern_name: '慎重・プロフェッショナル',
-            tone: '丁寧で専門的、詳細を重視するトーン',
-            content: `${contact}様
+              reasoning: 'AIが生成した基本内容に、積極的で関係構築を重視するアプローチを追加',
+              recommendation_score: 0.85
+            },
+            {
+              pattern_type: 'cautious_professional',
+              pattern_name: '慎重・プロフェッショナル',
+              tone: '丁寧で専門的、詳細を重視するトーン',
+              content: `${contact}様
 
 お忙しい中、ご連絡いただきありがとうございます。
 InfuMatchの田中と申します。
@@ -575,14 +611,14 @@ ${baseReply}
 ${getRandomItem(variations.closings)}
 
 田中`,
-            reasoning: 'AIが生成した基本内容に、リスクを最小限に抑えた慎重なアプローチを追加',
-            recommendation_score: 0.75
-          },
-          {
-            pattern_type: 'business_focused',
-            pattern_name: 'ビジネス重視・効率的',
-            tone: '簡潔で要点を押さえた、効率を重視するトーン',
-            content: `${contact}様
+              reasoning: 'AIが生成した基本内容に、リスクを最小限に抑えた慎重なアプローチを追加',
+              recommendation_score: 0.75
+            },
+            {
+              pattern_type: 'business_focused',
+              pattern_name: 'ビジネス重視・効率的',
+              tone: '簡潔で要点を押さえた、効率を重視するトーン',
+              content: `${contact}様
 
 ${baseReply}
 
@@ -592,10 +628,11 @@ ${baseReply}
 ご都合の良い日時をお聞かせください。
 
 田中（InfuMatch）`,
-            reasoning: 'AIが生成した基本内容を簡潔にまとめ、効率的な進行を重視したアプローチ',
-            recommendation_score: 0.70
-          }
-        ];
+              reasoning: 'AIが生成した基本内容を簡潔にまとめ、効率的な進行を重視したアプローチ',
+              recommendation_score: 0.70
+            }
+          ];
+        }
         
         const analysis = {
           thread_summary: `AIが会話履歴を分析: "${baseReply.substring(0, 50)}..."`,
