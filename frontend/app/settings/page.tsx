@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useSession } from 'next-auth/react';
+import { useSession, signOut } from 'next-auth/react';
 // UserSettings型定義を追加
 interface UserSettings {
   userId: string;
@@ -67,7 +67,8 @@ import {
   Target,
   MessageSquare,
   CheckCircle,
-  Info
+  Info,
+  LogOut
 } from 'lucide-react';
 
 
@@ -111,7 +112,7 @@ interface MatchingPreferences {
 }
 
 export default function SettingsPage() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
@@ -161,8 +162,16 @@ export default function SettingsPage() {
   });
 
   useEffect(() => {
-    loadSettings();
-  }, []);
+    if (status === 'authenticated') {
+      loadSettings();
+    } else if (status === 'loading') {
+      // まだ読み込み中
+      return;
+    } else {
+      // 未認証の場合はローディングを停止
+      setIsLoading(false);
+    }
+  }, [status]);
 
   const loadSettings = async () => {
     try {
@@ -340,12 +349,34 @@ export default function SettingsPage() {
     });
   };
 
-  if (isLoading) {
+  // 認証状態のローディング中
+  if (status === 'loading' || (status === 'authenticated' && isLoading)) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin h-8 w-8 border-4 border-indigo-600 border-t-transparent rounded-full mx-auto mb-4"></div>
-          <p className="text-gray-600">設定を読み込み中...</p>
+          <p className="text-gray-600">{status === 'loading' ? '認証状態を確認中...' : '設定を読み込み中...'}</p>
+        </div>
+      </div>
+    );
+  }
+
+  // 未認証の場合はログインページへのリダイレクト案内
+  if (status === 'unauthenticated') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
+        <div className="text-center max-w-md mx-auto p-8">
+          <div className="flex items-center justify-center w-16 h-16 bg-red-100 rounded-full mx-auto mb-4">
+            <User className="w-8 h-8 text-red-600" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">ログインが必要です</h2>
+          <p className="text-gray-600 mb-6">
+            設定ページにアクセスするには、まずログインしてください。
+          </p>
+          <Link href="/auth/signin" className="inline-flex items-center px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors">
+            <User className="w-4 h-4 mr-2" />
+            ログインページに移動
+          </Link>
         </div>
       </div>
     );
@@ -375,6 +406,9 @@ export default function SettingsPage() {
               </Link>
             </nav>
             <div className="flex items-center space-x-4">
+              <span className="text-sm text-gray-600">
+                {session?.user?.email || 'ユーザー情報なし'}
+              </span>
               <Button onClick={saveSettings} disabled={isSaving} className="btn-primary">
                 {isSaving ? (
                   <>
@@ -387,6 +421,14 @@ export default function SettingsPage() {
                     設定を保存
                   </>
                 )}
+              </Button>
+              <Button 
+                onClick={() => signOut({ callbackUrl: '/' })} 
+                variant="outline"
+                className="text-gray-600 hover:text-red-600 hover:border-red-600"
+              >
+                <LogOut className="w-4 h-4 mr-2" />
+                ログアウト
               </Button>
             </div>
           </div>
