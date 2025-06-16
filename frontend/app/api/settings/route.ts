@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-
-// バックエンドAPIのURL
-const BACKEND_API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+import { firestoreSettingsService } from '@/lib/firestore';
 
 /**
  * GET: ユーザー設定を取得
@@ -23,58 +21,24 @@ export async function GET(request: NextRequest) {
 
     console.log('👤 User email:', session.user.email);
     
-    // バックエンドAPIにリクエストを転送
-    const response = await fetch(`${BACKEND_API_URL}/api/settings`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${session.user.email}`,
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      console.error('❌ Backend API error:', response.status);
-      const errorText = await response.text();
-      console.error('❌ Error details:', errorText);
-      
-      // エラーでもデフォルト設定を返す
-      const defaultSettings = getDefaultSettings(session.user.email);
+    // Firestoreから設定を取得
+    const result = await firestoreSettingsService.getUserSettings(session.user.email);
+    
+    if (result.success) {
+      console.log('✅ Settings retrieved successfully');
       return NextResponse.json({
         success: true,
-        data: defaultSettings,
-        fallback: true,
-        message: 'Using default settings - backend not available'
+        data: result.data
       });
+    } else {
+      console.error('❌ Failed to get settings:', result.error);
+      return NextResponse.json(
+        { error: result.error },
+        { status: 500 }
+      );
     }
-
-    const data = await response.json();
-    console.log('✅ Settings retrieved successfully from backend');
-    
-    return NextResponse.json({
-      success: true,
-      data: data
-    });
   } catch (error) {
     console.error('❌ 設定取得エラー:', error);
-    
-    // エラーが発生した場合もデフォルト設定を返す
-    try {
-      const session = await getServerSession(authOptions);
-      if (session?.user?.email) {
-        const defaultSettings = getDefaultSettings(session.user.email);
-        
-        return NextResponse.json({
-          success: true,
-          data: defaultSettings,
-          fallback: true,
-          message: 'Using default settings due to error',
-          error: error instanceof Error ? error.message : 'Unknown error'
-        });
-      }
-    } catch (fallbackError) {
-      console.error('❌ Fallback also failed:', fallbackError);
-    }
-    
     return NextResponse.json(
       { error: 'Failed to get settings', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
@@ -103,35 +67,23 @@ export async function PUT(request: NextRequest) {
     
     console.log('📦 Request body received:', JSON.stringify(body, null, 2));
     
-    // バックエンドAPIにリクエストを転送
-    const response = await fetch(`${BACKEND_API_URL}/api/settings`, {
-      method: 'PUT',
-      headers: {
-        'Authorization': `Bearer ${session.user.email}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(body)
-    });
-
-    if (!response.ok) {
-      console.error('❌ Backend API error:', response.status);
-      const errorText = await response.text();
-      console.error('❌ Error details:', errorText);
-      
+    // Firestoreに設定を保存
+    const result = await firestoreSettingsService.saveUserSettings(session.user.email, body);
+    
+    if (result.success) {
+      console.log('✅ Settings saved successfully');
+      return NextResponse.json({ 
+        success: true, 
+        message: 'Settings saved successfully',
+        data: result.data 
+      });
+    } else {
+      console.error('❌ Failed to save settings:', result.error);
       return NextResponse.json(
-        { error: 'Failed to save settings' },
-        { status: response.status }
+        { error: result.error },
+        { status: 500 }
       );
     }
-
-    const data = await response.json();
-    console.log('✅ Settings saved successfully to backend');
-    
-    return NextResponse.json({ 
-      success: true, 
-      message: 'Settings saved successfully',
-      data: data 
-    });
   } catch (error) {
     console.error('❌ 設定保存エラー:', error);
     console.error('❌ Error stack:', error instanceof Error ? error.stack : 'No stack trace');
@@ -165,29 +117,34 @@ export async function POST(request: NextRequest) {
     
     const body = await request.json();
     
-    // バックエンドAPIにリクエストを転送
-    const response = await fetch(`${BACKEND_API_URL}/api/settings/section/${section}`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${session.user.email}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(body)
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('❌ Backend API error:', errorText);
-      
+    // 有効なセクションをチェック
+    const validSections = ['companyInfo', 'products', 'negotiationSettings', 'matchingSettings'];
+    if (!validSections.includes(section)) {
       return NextResponse.json(
-        { error: 'Failed to update settings section' },
-        { status: response.status }
+        { error: 'Invalid section' },
+        { status: 400 }
       );
     }
-
-    const data = await response.json();
     
-    return NextResponse.json(data);
+    // Firestoreの設定セクションを更新
+    const result = await firestoreSettingsService.updateSettingsSection(
+      session.user.email, 
+      section as any, 
+      body
+    );
+    
+    if (result.success) {
+      return NextResponse.json({
+        success: true,
+        message: `${section} updated successfully`,
+        data: result.data
+      });
+    } else {
+      return NextResponse.json(
+        { error: result.error },
+        { status: 500 }
+      );
+    }
   } catch (error) {
     console.error('設定更新エラー:', error);
     return NextResponse.json(
@@ -211,28 +168,20 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // バックエンドAPIにリクエストを転送
-    const response = await fetch(`${BACKEND_API_URL}/api/settings`, {
-      method: 'DELETE',
-      headers: {
-        'Authorization': `Bearer ${session.user.email}`,
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('❌ Backend API error:', errorText);
-      
+    // Firestoreから設定を削除
+    const result = await firestoreSettingsService.deleteUserSettings(session.user.email);
+    
+    if (result.success) {
+      return NextResponse.json({ 
+        success: true, 
+        message: 'Settings deleted successfully' 
+      });
+    } else {
       return NextResponse.json(
-        { error: 'Failed to delete settings' },
-        { status: response.status }
+        { error: result.error },
+        { status: 500 }
       );
     }
-
-    const data = await response.json();
-    
-    return NextResponse.json(data);
   } catch (error) {
     console.error('設定削除エラー:', error);
     return NextResponse.json(
@@ -240,47 +189,4 @@ export async function DELETE(request: NextRequest) {
       { status: 500 }
     );
   }
-}
-
-/**
- * デフォルト設定を生成
- */
-function getDefaultSettings(userId: string) {
-  const now = new Date().toISOString();
-  
-  return {
-    userId,
-    companyInfo: {
-      companyName: '',
-      industry: '',
-      employeeCount: '',
-      website: '',
-      description: '',
-      contactPerson: '',
-      contactEmail: ''
-    },
-    products: [],
-    negotiationSettings: {
-      preferredTone: 'professional',
-      responseTimeExpectation: '24時間以内',
-      budgetFlexibility: 'medium',
-      decisionMakers: [],
-      communicationPreferences: ['email'],
-      specialInstructions: '',
-      keyPriorities: [],
-      avoidTopics: []
-    },
-    matchingSettings: {
-      priorityCategories: [],
-      minSubscribers: 1000,
-      maxSubscribers: 1000000,
-      minEngagementRate: 2.0,
-      excludeCategories: [],
-      geographicFocus: ['日本'],
-      priorityKeywords: [],
-      excludeKeywords: []
-    },
-    createdAt: now,
-    updatedAt: now
-  };
 }

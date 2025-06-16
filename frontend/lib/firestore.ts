@@ -61,6 +61,8 @@ export interface UserSettings {
     employeeCount: string;
     website: string;
     description: string;
+    contactPerson?: string;
+    contactEmail?: string;
   };
   products: Array<{
     id: string;
@@ -76,6 +78,9 @@ export interface UserSettings {
     budgetFlexibility: string;
     decisionMakers: string[];
     communicationPreferences: string[];
+    specialInstructions?: string;
+    keyPriorities?: string[];
+    avoidTopics?: string[];
   };
   matchingSettings: {
     priorityCategories: string[];
@@ -84,6 +89,8 @@ export interface UserSettings {
     minEngagementRate: number;
     excludeCategories: string[];
     geographicFocus: string[];
+    priorityKeywords?: string[];
+    excludeKeywords?: string[];
   };
   createdAt: string;
   updatedAt: string;
@@ -258,7 +265,9 @@ export class FirestoreSettingsService {
         industry: '',
         employeeCount: '',
         website: '',
-        description: ''
+        description: '',
+        contactPerson: '',
+        contactEmail: ''
       },
       products: [],
       negotiationSettings: {
@@ -266,7 +275,10 @@ export class FirestoreSettingsService {
         responseTimeExpectation: '24時間以内',
         budgetFlexibility: 'medium',
         decisionMakers: [],
-        communicationPreferences: ['email']
+        communicationPreferences: ['email'],
+        specialInstructions: '',
+        keyPriorities: [],
+        avoidTopics: []
       },
       matchingSettings: {
         priorityCategories: [],
@@ -274,7 +286,9 @@ export class FirestoreSettingsService {
         maxSubscribers: 1000000,
         minEngagementRate: 2.0,
         excludeCategories: [],
-        geographicFocus: ['日本']
+        geographicFocus: ['日本'],
+        priorityKeywords: [],
+        excludeKeywords: []
       },
       createdAt: now,
       updatedAt: now
