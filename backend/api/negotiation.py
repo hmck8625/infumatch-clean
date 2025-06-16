@@ -14,6 +14,11 @@ from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from pydantic import BaseModel, Field
 
 from services.ai_agents.negotiation_agent import NegotiationAgent
+from services.ai_agents.advanced_negotiation_analyzer import (
+    AdvancedNegotiationAnalyzer, 
+    NegotiationContext,
+    NegotiationStrategy
+)
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +69,13 @@ class ReplyPatternsRequest(BaseModel):
     email_thread: Dict[str, Any] = Field(..., description="メールスレッド情報")
     thread_messages: list = Field(..., description="スレッドメッセージ履歴")
     context: Dict[str, Any] = Field(default_factory=dict, description="追加コンテキスト")
+
+
+class AdvancedAnalysisRequest(BaseModel):
+    """高度な交渉分析リクエスト"""
+    thread_messages: list = Field(..., description="スレッドメッセージ履歴")
+    company_settings: Dict[str, Any] = Field(..., description="企業設定情報")
+    include_strategy: bool = Field(default=True, description="戦略生成を含むか")
     
     class Config:
         schema_extra = {
@@ -99,6 +111,7 @@ class NegotiationResponse(BaseModel):
 
 # グローバルエージェントインスタンス
 negotiation_agent = None
+advanced_analyzer = None
 
 
 def get_negotiation_agent() -> NegotiationAgent:
@@ -107,6 +120,14 @@ def get_negotiation_agent() -> NegotiationAgent:
     if negotiation_agent is None:
         negotiation_agent = NegotiationAgent()
     return negotiation_agent
+
+
+def get_advanced_analyzer() -> AdvancedNegotiationAnalyzer:
+    """高度な交渉分析器インスタンスを取得"""
+    global advanced_analyzer
+    if advanced_analyzer is None:
+        advanced_analyzer = AdvancedNegotiationAnalyzer()
+    return advanced_analyzer
 
 
 @router.post("/initial-contact", response_model=NegotiationResponse)
@@ -388,4 +409,155 @@ async def generate_reply_patterns(
             
     except Exception as e:
         logger.error(f"❌ Reply patterns API error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/analyze-advanced", response_model=NegotiationResponse)
+async def analyze_negotiation_advanced(
+    request: AdvancedAnalysisRequest,
+    analyzer: AdvancedNegotiationAnalyzer = Depends(get_advanced_analyzer),
+    agent: NegotiationAgent = Depends(get_negotiation_agent)
+) -> NegotiationResponse:
+    """
+    高度な交渉分析を実行
+    
+    メールスレッドと企業設定を詳細に分析し、
+    交渉段階、感情推移、機会とリスク、戦略提案を含む
+    包括的な分析結果を返します。
+    """
+    try:
+        logger.info(f"🔍 Advanced negotiation analysis for {len(request.thread_messages)} messages")
+        
+        # 高度な分析を実行
+        negotiation_context = analyzer.analyze_negotiation_state(
+            request.thread_messages,
+            request.company_settings
+        )
+        
+        # 戦略を生成（オプション）
+        strategy = None
+        if request.include_strategy:
+            strategy = analyzer.generate_negotiation_strategy(negotiation_context)
+        
+        # 結果をシリアライズ可能な形式に変換
+        context_dict = {
+            "current_stage": negotiation_context.current_stage.value,
+            "sentiment_trend": negotiation_context.sentiment_trend,
+            "key_concerns": negotiation_context.key_concerns,
+            "opportunities": negotiation_context.opportunities,
+            "risks": negotiation_context.risks,
+            "influencer_profile": negotiation_context.influencer_profile,
+            "company_goals": negotiation_context.company_goals,
+            "message_count": len(negotiation_context.negotiation_history)
+        }
+        
+        strategy_dict = None
+        if strategy:
+            strategy_dict = {
+                "approach": strategy.approach,
+                "key_messages": strategy.key_messages,
+                "tone": strategy.tone,
+                "urgency_level": strategy.urgency_level,
+                "next_steps": strategy.next_steps,
+                "avoid_topics": strategy.avoid_topics,
+                "success_probability": strategy.success_probability
+            }
+        
+        return NegotiationResponse(
+            success=True,
+            content=f"分析完了: {negotiation_context.current_stage.value}段階",
+            metadata={
+                "analysis": context_dict,
+                "strategy": strategy_dict,
+                "analyzer": "advanced_negotiation_analyzer",
+                "action": "analyze_advanced"
+            }
+        )
+        
+    except Exception as e:
+        logger.error(f"❌ Advanced analysis error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/generate-strategic-reply", response_model=NegotiationResponse)
+async def generate_strategic_reply(
+    request: ContinueNegotiationRequest,
+    analyzer: AdvancedNegotiationAnalyzer = Depends(get_advanced_analyzer),
+    agent: NegotiationAgent = Depends(get_negotiation_agent)
+) -> NegotiationResponse:
+    """
+    戦略的な返信を生成
+    
+    高度な分析結果に基づいて、最適な戦略を用いた
+    返信メールを生成します。交渉の段階、感情状態、
+    企業ゴールを考慮した戦略的な内容になります。
+    """
+    try:
+        logger.info(f"🎯 Generating strategic reply based on advanced analysis")
+        
+        # 企業設定を取得（コンテキストから）
+        company_settings = request.context.get("company_settings", {})
+        
+        # 高度な分析を実行
+        negotiation_context = analyzer.analyze_negotiation_state(
+            request.conversation_history,
+            company_settings
+        )
+        
+        # 戦略を生成
+        strategy = analyzer.generate_negotiation_strategy(negotiation_context)
+        
+        # 分析結果と戦略をエージェントに渡して返信生成
+        enhanced_context = {
+            **request.context,
+            "negotiation_stage": negotiation_context.current_stage.value,
+            "sentiment_analysis": {
+                "current": negotiation_context.sentiment_trend[-1] if negotiation_context.sentiment_trend else 0.0,
+                "trend": "improving" if len(negotiation_context.sentiment_trend) > 1 and negotiation_context.sentiment_trend[-1] > negotiation_context.sentiment_trend[-2] else "stable"
+            },
+            "strategy": {
+                "approach": strategy.approach,
+                "tone": strategy.tone,
+                "key_messages": strategy.key_messages,
+                "avoid_topics": strategy.avoid_topics
+            },
+            "opportunities": negotiation_context.opportunities,
+            "risks": negotiation_context.risks
+        }
+        
+        # エージェントに戦略的な返信を生成させる
+        result = await agent.process({
+            "action": "continue_negotiation",
+            "conversation_history": request.conversation_history,
+            "new_message": request.new_message,
+            "context": enhanced_context
+        })
+        
+        if result.get("success"):
+            return NegotiationResponse(
+                success=True,
+                content=result.get("reply_content"),
+                metadata={
+                    "relationship_stage": negotiation_context.current_stage.value,
+                    "strategy_used": strategy.approach,
+                    "success_probability": strategy.success_probability,
+                    "sentiment_score": negotiation_context.sentiment_trend[-1] if negotiation_context.sentiment_trend else 0.0,
+                    "key_concerns_addressed": negotiation_context.key_concerns,
+                    "opportunities_leveraged": negotiation_context.opportunities,
+                    "risks_mitigated": negotiation_context.risks,
+                    "next_steps": strategy.next_steps,
+                    "agent": result.get("agent"),
+                    "analyzer": "advanced_negotiation_analyzer",
+                    "action": "generate_strategic_reply"
+                }
+            )
+        else:
+            logger.error(f"❌ Strategic reply generation failed: {result.get('error')}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to generate strategic reply: {result.get('error')}"
+            )
+            
+    except Exception as e:
+        logger.error(f"❌ Strategic reply API error: {e}")
         raise HTTPException(status_code=500, detail=str(e))

@@ -328,14 +328,33 @@ function MessagesPageContent() {
           participants: [
             'InfuMatch田中美咲',
             getThreadPrimaryContact(currentThread)
-          ]
+          ],
+          company_settings: {}  // 後で更新
         }
       };
       
       console.log('📤 API送信データ:', JSON.stringify(requestData, null, 2));
       
-      const fullUrl = `${apiUrl}/api/v1/negotiation/continue`;
+      // 企業設定を取得（settingsから）
+      let companySettings = {};
+      try {
+        const settingsResponse = await fetch('/api/settings');
+        if (settingsResponse.ok) {
+          const settingsData = await settingsResponse.json();
+          companySettings = settingsData.settings || {};
+          console.log('🏢 企業設定を取得:', companySettings);
+        }
+      } catch (e) {
+        console.warn('⚠️ 企業設定の取得に失敗:', e);
+      }
+      
+      // 企業設定をコンテキストに追加
+      requestData.context.company_settings = companySettings;
+      
+      // 高度な分析APIを使用
+      const fullUrl = `${apiUrl}/api/v1/negotiation/generate-strategic-reply`;
       console.log('🌐 リクエスト先URL:', fullUrl);
+      console.log('🎯 戦略的返信生成を開始します');
       
       const response = await fetch(fullUrl, {
         method: 'POST',
@@ -364,6 +383,18 @@ function MessagesPageContent() {
         // AIから返された基本返信を基に、3つの異なる特徴を持つパターンを生成
         const baseReply = result.content || 'AI応答が生成されませんでした';
         const contact = getThreadPrimaryContact(currentThread);
+        
+        // 高度な分析結果を取得
+        const advancedMetadata = result.metadata || {};
+        console.log('🔍 高度な分析結果:', advancedMetadata);
+        
+        // 戦略情報をUI用に整形
+        if (advancedMetadata.relationship_stage) {
+          console.log(`📊 交渉段階: ${advancedMetadata.relationship_stage}`);
+          console.log(`📈 成功確率: ${(advancedMetadata.success_probability * 100).toFixed(1)}%`);
+          console.log(`💭 感情スコア: ${advancedMetadata.sentiment_score?.toFixed(2) || 'N/A'}`);
+          console.log(`🎯 戦略: ${advancedMetadata.strategy_used}`);
+        }
         
         // 多様性を向上させるためのランダム要素を追加
         const currentTime = new Date();
@@ -452,9 +483,14 @@ ${baseReply}
         
         const analysis = {
           thread_summary: `AIが会話履歴を分析: "${baseReply.substring(0, 50)}..."`,
-          conversation_stage: '交渉エージェントによる分析完了',
-          recommended_approach: 'AIが推奨する3つの異なるアプローチパターン',
-          sentiment: result.metadata?.sentiment || 'neutral'
+          conversation_stage: advancedMetadata.relationship_stage || '交渉エージェントによる分析完了',
+          recommended_approach: advancedMetadata.strategy_used || 'AIが推奨する3つの異なるアプローチパターン',
+          sentiment: advancedMetadata.sentiment_score || 'neutral',
+          success_probability: advancedMetadata.success_probability || 0.5,
+          key_concerns: advancedMetadata.key_concerns_addressed || [],
+          opportunities: advancedMetadata.opportunities_leveraged || [],
+          risks: advancedMetadata.risks_mitigated || [],
+          next_steps: advancedMetadata.next_steps || []
         };
         
         console.log(`✅ AI返信を基に3つのパターンを生成しました: "${baseReply.substring(0, 50)}..."`);
@@ -1395,40 +1431,81 @@ InfuMatchの田中です。
               {/* スレッド分析結果 */}
               {threadAnalysis && (
                 <div className="bg-gray-50 rounded-lg p-4 mb-6">
-                  <h4 className="font-semibold text-gray-800 mb-3">📊 スレッド分析結果</h4>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                  <h4 className="font-semibold text-gray-800 mb-3">📊 高度な交渉分析結果</h4>
+                  
+                  {/* 基本分析 */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-4">
                     <div className="text-center">
-                      <div className="text-gray-500">関係性段階</div>
+                      <div className="text-gray-500">交渉段階</div>
                       <div className="font-medium text-blue-600">
-                        {threadAnalysis.relationship_stage === 'initial_contact' && '初回コンタクト'}
-                        {threadAnalysis.relationship_stage === 'warming_up' && '関係構築期'}
-                        {threadAnalysis.relationship_stage === 'price_negotiation' && '価格交渉期'}
-                        {threadAnalysis.relationship_stage === 'relationship_building' && '関係深化期'}
+                        {threadAnalysis.conversation_stage || '分析中'}
                       </div>
                     </div>
                     <div className="text-center">
-                      <div className="text-gray-500">感情トーン</div>
-                      <div className="font-medium text-green-600">
-                        {threadAnalysis.emotional_tone === 'positive' && '好意的'}
-                        {threadAnalysis.emotional_tone === 'negative' && '慎重'}
-                        {threadAnalysis.emotional_tone === 'neutral' && '中性的'}
-                        {threadAnalysis.emotional_tone === 'urgent' && '緊急'}
+                      <div className="text-gray-500">成功確率</div>
+                      <div className={`font-medium ${
+                        (threadAnalysis.success_probability || 0) > 0.7 ? 'text-green-600' :
+                        (threadAnalysis.success_probability || 0) > 0.4 ? 'text-yellow-600' : 'text-red-600'
+                      }`}>
+                        {threadAnalysis.success_probability ? 
+                          `${(threadAnalysis.success_probability * 100).toFixed(1)}%` : 'N/A'}
                       </div>
                     </div>
                     <div className="text-center">
-                      <div className="text-gray-500">緊急度</div>
-                      <div className="font-medium text-orange-600">
-                        {threadAnalysis.urgency_level === 'high' && '高'}
-                        {threadAnalysis.urgency_level === 'medium' && '中'}
-                        {threadAnalysis.urgency_level === 'normal' && '通常'}
+                      <div className="text-gray-500">感情スコア</div>
+                      <div className={`font-medium ${
+                        (threadAnalysis.sentiment || 0) > 0.3 ? 'text-green-600' :
+                        (threadAnalysis.sentiment || 0) < -0.3 ? 'text-red-600' : 'text-gray-600'
+                      }`}>
+                        {typeof threadAnalysis.sentiment === 'number' ? 
+                          threadAnalysis.sentiment.toFixed(2) : '中立'}
                       </div>
                     </div>
                     <div className="text-center">
-                      <div className="text-gray-500">主要トピック</div>
+                      <div className="text-gray-500">推奨戦略</div>
                       <div className="font-medium text-purple-600">
-                        {threadAnalysis.main_topics?.join(', ') || 'なし'}
+                        {threadAnalysis.recommended_approach || '戦略分析中'}
                       </div>
                     </div>
+                  </div>
+                  
+                  {/* 詳細分析 */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                    {/* 懸念事項 */}
+                    {threadAnalysis.key_concerns && threadAnalysis.key_concerns.length > 0 && (
+                      <div className="bg-red-50 rounded p-3">
+                        <div className="font-medium text-red-800 mb-1">⚠️ 懸念事項</div>
+                        <ul className="text-red-700 text-xs space-y-1">
+                          {threadAnalysis.key_concerns.map((concern, idx) => (
+                            <li key={idx}>• {concern}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    
+                    {/* 機会 */}
+                    {threadAnalysis.opportunities && threadAnalysis.opportunities.length > 0 && (
+                      <div className="bg-green-50 rounded p-3">
+                        <div className="font-medium text-green-800 mb-1">💡 機会</div>
+                        <ul className="text-green-700 text-xs space-y-1">
+                          {threadAnalysis.opportunities.map((opportunity, idx) => (
+                            <li key={idx}>• {opportunity}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    
+                    {/* 次のステップ */}
+                    {threadAnalysis.next_steps && threadAnalysis.next_steps.length > 0 && (
+                      <div className="bg-blue-50 rounded p-3">
+                        <div className="font-medium text-blue-800 mb-1">🎯 次のステップ</div>
+                        <ul className="text-blue-700 text-xs space-y-1">
+                          {threadAnalysis.next_steps.map((step, idx) => (
+                            <li key={idx}>• {step}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
