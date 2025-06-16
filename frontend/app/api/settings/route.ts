@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { firestoreSettingsService } from '@/lib/firestore';
 
 /**
  * GET: ユーザー設定を取得
@@ -20,51 +21,22 @@ export async function GET(request: NextRequest) {
 
     console.log('👤 User email:', session.user.email);
     
-    // バックエンドが利用できない場合はデフォルト設定を返す
-    console.log('⚠️ Backend not available, returning default settings');
-    // デフォルト設定を返す
-      const defaultSettings = {
-        userId: session.user.email,
-        companyInfo: {
-          companyName: '',
-          industry: '',
-          employeeCount: '',
-          website: '',
-          description: '',
-          contactPerson: '',
-          contactEmail: ''
-        },
-        products: [],
-        negotiationSettings: {
-          preferredTone: 'professional',
-          responseTimeExpectation: '24時間以内',
-          budgetFlexibility: 'medium',
-          decisionMakers: [],
-          communicationPreferences: ['email'],
-          specialInstructions: '',
-          keyPriorities: [],
-          avoidTopics: []
-        },
-        matchingSettings: {
-          priorityCategories: [],
-          minSubscribers: 1000,
-          maxSubscribers: 1000000,
-          minEngagementRate: 2.0,
-          excludeCategories: [],
-          geographicFocus: ['日本'],
-          priorityKeywords: [],
-          excludeKeywords: []
-        },
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
-      
+    // Firestoreから設定を取得
+    const result = await firestoreSettingsService.getUserSettings(session.user.email);
+    
+    if (result.success) {
+      console.log('✅ Settings retrieved successfully');
       return NextResponse.json({
         success: true,
-        data: defaultSettings,
-        fallback: true,
-        message: 'デフォルト設定を使用しています（バックエンド接続なし）'
+        data: result.data
       });
+    } else {
+      console.error('❌ Failed to get settings:', result.error);
+      return NextResponse.json(
+        { error: result.error },
+        { status: 500 }
+      );
+    }
   } catch (error) {
     console.error('❌ 設定取得エラー:', error);
     return NextResponse.json(
@@ -95,21 +67,23 @@ export async function PUT(request: NextRequest) {
     
     console.log('📦 Request body received:', JSON.stringify(body, null, 2));
     
-    // バックエンドが利用できないため、成功レスポンスのみ返す（実際には保存されない）
-    console.log('⚠️ Backend not available, simulating save success');
+    // Firestoreに設定を保存
+    const result = await firestoreSettingsService.saveUserSettings(session.user.email, body);
     
-    // リクエストボディに更新日時を追加
-    const updatedSettings = {
-      ...body,
-      userId: session.user.email,
-      updatedAt: new Date().toISOString()
-    };
-    
-    return NextResponse.json({ 
-      success: true, 
-      message: 'Settings saved successfully (frontend-only)',
-      data: updatedSettings 
-    });
+    if (result.success) {
+      console.log('✅ Settings saved successfully');
+      return NextResponse.json({ 
+        success: true, 
+        message: 'Settings saved successfully',
+        data: result.data 
+      });
+    } else {
+      console.error('❌ Failed to save settings:', result.error);
+      return NextResponse.json(
+        { error: result.error },
+        { status: 500 }
+      );
+    }
   } catch (error) {
     console.error('❌ 設定保存エラー:', error);
     console.error('❌ Error stack:', error instanceof Error ? error.stack : 'No stack trace');
