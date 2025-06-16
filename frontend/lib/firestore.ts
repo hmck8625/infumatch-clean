@@ -39,14 +39,34 @@ let db: any;
 let auth: any;
 
 try {
-  // ビルド時やテスト時はFirebaseを初期化しない
-  if (typeof window !== 'undefined' || process.env.NODE_ENV === 'development') {
+  // 必要な環境変数をチェック
+  const requiredVars = {
+    projectId: firebaseConfig.projectId,
+    apiKey: firebaseConfig.apiKey,
+    authDomain: firebaseConfig.authDomain
+  };
+  
+  console.log('🔍 Firebase config check:', {
+    hasProjectId: !!requiredVars.projectId,
+    hasApiKey: !!requiredVars.apiKey && requiredVars.apiKey !== 'AIzaSyDk1Lm3a9_sampleApiKey_Replace_With_Real_One',
+    hasAuthDomain: !!requiredVars.authDomain,
+    environment: process.env.NODE_ENV
+  });
+  
+  // 本番環境では常に初期化を試行
+  if (process.env.NODE_ENV === 'production' || typeof window !== 'undefined' || process.env.NODE_ENV === 'development') {
+    if (!requiredVars.apiKey || requiredVars.apiKey.includes('sample')) {
+      throw new Error('Firebase API key is missing or invalid');
+    }
+    
     app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
     db = getFirestore(app);
     auth = getAuth(app);
+    console.log('✅ Firebase initialized successfully');
   }
 } catch (error) {
-  console.warn('Firebase initialization warning:', error);
+  console.error('❌ Firebase initialization failed:', error);
+  console.error('❌ Config used:', firebaseConfig);
   // フォールバック - ダミーオブジェクトを作成
   app = null;
   db = null;
