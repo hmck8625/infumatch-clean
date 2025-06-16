@@ -27,10 +27,10 @@ import { getAuth, connectAuthEmulator } from 'firebase/auth';
 const firebaseConfig = {
   projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'hackathon-462905',
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || 'hackathon-462905.firebaseapp.com',
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || 'hackathon-462905.appspot.com',
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || 'hackathon-462905.firebasestorage.app',
   messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || '269567634217',
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || '1:269567634217:web:a1b2c3d4e5f6g7h8i9j0k1l2',
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || 'AIzaSyBxxxYourActualFirebaseAPIKeyHerexxxx'
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || '1:269567634217:web:72033f3a5efc54bd122538',
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || 'AIzaSyAjc-oAaV_GG2VTy4Peeyw2Itn_muBJlNk'
 };
 
 // Firebase初期化 - ビルド時エラー回避
