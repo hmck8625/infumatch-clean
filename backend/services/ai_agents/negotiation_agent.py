@@ -277,11 +277,52 @@ class NegotiationAgent(BaseAgent):
             new_message = data.get("new_message", "")
             context = data.get("context", {})
             
+            # コンテキストから追加情報を取得
+            company_settings = context.get("company_settings", {})
+            custom_instructions = context.get("custom_instructions", "")
+            
+            logger.info(f"🔍 カスタム指示: {custom_instructions if custom_instructions else '設定なし'}")
+            logger.info(f"🏢 企業設定: {len(company_settings)} 項目")
+            
             # 関係性の段階を判定
             relationship_stage = self._analyze_relationship_stage(conversation_history)
             
             # レスポンス時間をシミュレート（人間らしさのため）
             await self._simulate_human_response_time()
+            
+            # 企業情報の整理
+            company_info = company_settings.get("companyInfo", {})
+            products = company_settings.get("products", [])
+            negotiation_settings = company_settings.get("negotiationSettings", {})
+            
+            company_context = ""
+            if company_info or products:
+                company_context = f"""
+            ## 企業情報:
+            - 企業名: {company_info.get('companyName', 'InfuMatch')}
+            - 事業内容: {company_info.get('businessType', 'インフルエンサーマーケティング')}
+            """
+                
+                if products:
+                    company_context += f"""
+            ## 商材情報:
+            {self._format_products_info(products)}
+            """
+                
+                if negotiation_settings.get('keyPriorities'):
+                    company_context += f"""
+            ## 交渉重視ポイント:
+            {', '.join(negotiation_settings['keyPriorities'])}
+            """
+            
+            # カスタム指示の追加
+            custom_context = ""
+            if custom_instructions:
+                custom_context = f"""
+            ## 特別指示（最優先）:
+            {custom_instructions}
+            ※この指示を最優先で考慮し、返信内容に反映してください。
+            """
             
             prompt = f"""
             以下の会話履歴を踏まえて、自然な返信メールを作成してください:
@@ -293,11 +334,15 @@ class NegotiationAgent(BaseAgent):
             
             ## 新着メッセージ:
             {new_message}
+            {company_context}
+            {custom_context}
             
             ## 返信作成の指示:
             - 関係性段階に応じた適切なトーンで
             - 過去の話題を自然に織り交ぜる
             - {self._get_stage_specific_instructions(relationship_stage)}
+            - 企業情報や商材情報を適切に活用
+            - カスタム指示がある場合は最優先で反映
             - 人間らしい思考過程を示す
             """
             
@@ -403,7 +448,13 @@ class NegotiationAgent(BaseAgent):
             thread_messages = data.get("thread_messages", [])
             context = data.get("context", {})
             
+            # コンテキストから追加情報を取得
+            company_settings = context.get("company_settings", {})
+            custom_instructions = context.get("custom_instructions", "")
+            
             logger.info(f"🤖 Generating reply patterns for thread: {email_thread.get('id', 'unknown')}")
+            logger.info(f"🔍 カスタム指示（パターン生成）: {custom_instructions if custom_instructions else '設定なし'}")
+            logger.info(f"🏢 企業設定（パターン生成）: {len(company_settings)} 項目")
             
             # スレッドの分析
             thread_analysis = self._analyze_email_thread(thread_messages)
@@ -415,7 +466,9 @@ class NegotiationAgent(BaseAgent):
             friendly_pattern = await self._generate_single_reply_pattern(
                 thread_messages, 
                 "friendly_enthusiastic",
-                thread_analysis
+                thread_analysis,
+                company_settings,
+                custom_instructions
             )
             if friendly_pattern:
                 patterns.append(friendly_pattern)
@@ -424,7 +477,9 @@ class NegotiationAgent(BaseAgent):
             cautious_pattern = await self._generate_single_reply_pattern(
                 thread_messages,
                 "cautious_professional", 
-                thread_analysis
+                thread_analysis,
+                company_settings,
+                custom_instructions
             )
             if cautious_pattern:
                 patterns.append(cautious_pattern)
@@ -433,7 +488,9 @@ class NegotiationAgent(BaseAgent):
             business_pattern = await self._generate_single_reply_pattern(
                 thread_messages,
                 "business_focused",
-                thread_analysis
+                thread_analysis,
+                company_settings,
+                custom_instructions
             )
             if business_pattern:
                 patterns.append(business_pattern)
@@ -457,7 +514,9 @@ class NegotiationAgent(BaseAgent):
         self, 
         thread_messages: List[Dict], 
         pattern_type: str,
-        thread_analysis: Dict[str, Any]
+        thread_analysis: Dict[str, Any],
+        company_settings: Dict[str, Any] = None,
+        custom_instructions: str = ""
     ) -> Optional[Dict[str, Any]]:
         """
         単一の返信パターンを生成
@@ -466,6 +525,8 @@ class NegotiationAgent(BaseAgent):
             thread_messages: スレッドメッセージ
             pattern_type: パターンタイプ
             thread_analysis: スレッド分析結果
+            company_settings: 企業設定情報
+            custom_instructions: カスタム指示
             
         Returns:
             Dict: 返信パターン
@@ -476,6 +537,41 @@ class NegotiationAgent(BaseAgent):
             
             # 最新メッセージを取得
             latest_message = thread_messages[-1] if thread_messages else {}
+            
+            # 企業情報の整理
+            company_context = ""
+            if company_settings:
+                company_info = company_settings.get("companyInfo", {})
+                products = company_settings.get("products", [])
+                negotiation_settings = company_settings.get("negotiationSettings", {})
+                
+                if company_info or products:
+                    company_context = f"""
+            ## 企業情報
+            - 企業名: {company_info.get('companyName', 'InfuMatch')}
+            - 事業内容: {company_info.get('businessType', 'インフルエンサーマーケティング')}
+            """
+                    
+                    if products:
+                        company_context += f"""
+            ## 商材情報
+            {self._format_products_info(products)}
+            """
+                    
+                    if negotiation_settings.get('keyPriorities'):
+                        company_context += f"""
+            ## 交渉重視ポイント
+            {', '.join(negotiation_settings['keyPriorities'])}
+            """
+            
+            # カスタム指示の追加
+            custom_context = ""
+            if custom_instructions:
+                custom_context = f"""
+            ## 🔥 特別指示（最優先適用）
+            {custom_instructions}
+            ※この指示を必ず優先して返信内容に反映してください。
+            """
             
             # プロンプト構築
             prompt = f"""
@@ -490,9 +586,13 @@ class NegotiationAgent(BaseAgent):
             ## 最新受信メッセージ
             送信者: {latest_message.get('sender', '不明')}
             内容: {latest_message.get('content', '')}
+            {company_context}
+            {custom_context}
             
             ## 返信スタイル指示
             {pattern_instructions['style_guide']}
+            - 企業情報や商材情報を自然に織り込む
+            - カスタム指示がある場合は最優先で反映
             
             ## 会話履歴（最新5件）
             {self._format_conversation_history(thread_messages[-5:])}
@@ -762,6 +862,30 @@ class NegotiationAgent(BaseAgent):
                 base_score += 0.1
         
         return min(base_score, 1.0)
+    
+    def _format_products_info(self, products: List[Dict]) -> str:
+        """
+        商材情報を整形してプロンプトに含める形式にする
+        
+        Args:
+            products: 商材情報のリスト
+            
+        Returns:
+            str: 整形された商材情報
+        """
+        if not products:
+            return "- 商材情報は設定されていません"
+        
+        formatted_products = []
+        for i, product in enumerate(products[:3], 1):  # 最大3つまで表示
+            product_info = f"  {i}. {product.get('name', '商品名不明')}"
+            if product.get('description'):
+                product_info += f" - {product.get('description')}"
+            if product.get('price'):
+                product_info += f" (価格: {product.get('price')}円)"
+            formatted_products.append(product_info)
+        
+        return "\n".join(formatted_products)
     
     def _get_time_based_greeting(self, hour: int) -> str:
         """時間帯に応じた挨拶を取得"""
