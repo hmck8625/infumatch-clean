@@ -22,7 +22,12 @@ export async function GET(request: NextRequest) {
     
     // バックエンドAPIから設定を取得
     const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001';
-    const apiResponse = await fetch(`${backendUrl}/api/v1/user/settings?user_id=${encodeURIComponent(session.user.email)}`);
+    const apiResponse = await fetch(`${backendUrl}/api/settings`, {
+      headers: {
+        'Authorization': `Bearer ${session.user.email}`,
+        'Content-Type': 'application/json'
+      }
+    });
     
     if (apiResponse.ok) {
       const data = await apiResponse.json();
@@ -114,15 +119,13 @@ export async function PUT(request: NextRequest) {
     
     // バックエンドAPIに設定を保存
     const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001';
-    const apiResponse = await fetch(`${backendUrl}/api/v1/user/settings`, {
-      method: 'POST',
+    const apiResponse = await fetch(`${backendUrl}/api/settings`, {
+      method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.user.email}`
       },
-      body: JSON.stringify({
-        user_id: session.user.email,
-        settings: body
-      })
+      body: JSON.stringify(body)
     });
     
     if (apiResponse.ok) {
