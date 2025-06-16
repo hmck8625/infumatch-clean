@@ -149,11 +149,12 @@ function MessagesPageContent() {
     }
   }, [selectedThread]);
 
-  useEffect(() => {
-    if (currentThread && currentThread.messages && currentThread.messages.length > 0) {
-      generateReplyPatterns();
-    }
-  }, [currentThread]);
+  // 自動生成は削除 - 手動でのみAI返信候補を生成するように変更
+  // useEffect(() => {
+  //   if (currentThread && currentThread.messages && currentThread.messages.length > 0) {
+  //     generateReplyPatterns();
+  //   }
+  // }, [currentThread]);
 
   const checkAuth = async () => {
     try {
@@ -287,8 +288,75 @@ function MessagesPageContent() {
     setThreadAnalysis(null);
     
     try {
-      // AI返信パターンのモックデータを生成（バックエンドAPIが利用できない場合）
-      const mockPatterns = [
+      console.log('🤖 AIエージェントが返信パターンを生成中...');
+      
+      // バックエンドの交渉エージェントAPIを呼び出し
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://hackathon-backend-462905-269567634217.asia-northeast1.run.app';
+      
+      // スレッドメッセージを整形
+      const threadMessages = currentThread.messages.map(message => ({
+        id: message.id,
+        sender: getMessageSender(message),
+        content: getMessagePlainText(message),
+        date: new Date(parseInt(message.internalDate)).toISOString(),
+        subject: getMessageSubject(message)
+      }));
+      
+      // リクエストデータを準備
+      const requestData = {
+        email_thread: {
+          id: currentThread.id,
+          subject: currentThread.messages[0] ? getMessageSubject(currentThread.messages[0]) : 'No Subject',
+          snippet: currentThread.snippet,
+          participants: [
+            'InfuMatch田中美咲',
+            getThreadPrimaryContact(currentThread)
+          ]
+        },
+        thread_messages: threadMessages,
+        context: {
+          platform: 'gmail',
+          agent_role: 'negotiation_agent',
+          campaign_type: 'influencer_collaboration'
+        }
+      };
+      
+      console.log('📤 API送信データ:', JSON.stringify(requestData, null, 2));
+      
+      const response = await fetch(`${apiUrl}/negotiation/reply-patterns`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestData)
+      });
+      
+      if (!response.ok) {
+        throw new Error(`API Error: ${response.status} ${response.statusText}`);
+      }
+      
+      const result = await response.json();
+      console.log('📥 API応答:', result);
+      
+      if (result.success && result.metadata) {
+        const patterns = result.metadata.reply_patterns || [];
+        const analysis = result.metadata.thread_analysis || {};
+        
+        console.log(`✅ ${patterns.length}個の返信パターンを生成しました`);
+        
+        setReplyPatterns(patterns);
+        setThreadAnalysis(analysis);
+      } else {
+        throw new Error(result.error || 'API返信が不正な形式です');
+      }
+      
+    } catch (error) {
+      console.error('❌ 返信パターン生成エラー:', error);
+      
+      // フォールバック: エラー時はモックデータを使用
+      console.log('🔄 フォールバック: モックデータを使用します');
+      
+      const fallbackPatterns = [
         {
           pattern_type: 'friendly_enthusiastic',
           pattern_name: '友好的・積極的',
@@ -356,20 +424,16 @@ InfuMatchの田中です。
           recommendation_score: 0.90
         }
       ];
-
-      // 少し待機してリアルな感じを演出
-      await new Promise(resolve => setTimeout(resolve, 2000));
       
-      setReplyPatterns(mockPatterns);
+      setReplyPatterns(fallbackPatterns);
       setThreadAnalysis({
         relationship_stage: 'initial_contact',
         emotional_tone: 'positive',
         urgency_level: 'normal',
-        main_topics: ['コラボレーション', '商品紹介', 'プロモーション']
+        main_topics: ['コラボレーション', '商品紹介', 'プロモーション'],
+        note: 'フォールバックモードで生成（AI分析は利用できませんでした）'
       });
       
-    } catch (error) {
-      console.error('返信パターン生成エラー:', error);
     } finally {
       setIsGeneratingPatterns(false);
     }
@@ -610,6 +674,23 @@ InfuMatchの田中です。
     const fromHeader = getHeader(message, 'from');
     const emailMatch = fromHeader.match(/^(.+)<(.+)>$/);
     return emailMatch ? emailMatch[1].trim() : fromHeader;
+  };
+
+  // AI返信パターン生成用のヘルパー関数
+  const getMessageSender = (message: GmailMessage): string => {
+    const fromHeader = getHeader(message, 'from');
+    const emailMatch = fromHeader.match(/^(.+?)\s*<(.+)>$/);
+    return emailMatch ? emailMatch[1].trim().replace(/['"]/g, '') : fromHeader;
+  };
+
+  const getMessagePlainText = (message: GmailMessage): string => {
+    const emailBody = getEmailBody(message);
+    // HTMLタグを除去してプレーンテキストにする
+    return emailBody.replace(/<[^>]*>/g, '').replace(/&[^;]+;/g, ' ').trim();
+  };
+
+  const getMessageSubject = (message: GmailMessage): string => {
+    return getHeader(message, 'subject');
   };
 
   const isFromUser = (message: GmailMessage) => {
@@ -1257,7 +1338,7 @@ InfuMatchの田中です。
                       <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.847a4.5 4.5 0 003.09 3.09L15.75 12l-2.847.813a4.5 4.5 0 00-3.09 3.09z" />
                       </svg>
-                      返信パターンを再生成
+                      🤖 AI返信候補を生成
                     </>
                   )}
                 </button>
