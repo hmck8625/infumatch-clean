@@ -79,45 +79,14 @@ function InfluencerDetailModal({
   onCollaborationProposal: (influencer: Influencer) => void;
   isGeneratingProposal: boolean;
 }) {
-  const [researchResult, setResearchResult] = useState<ChannelResearchResponse | null>(null);
-  const [isResearching, setIsResearching] = useState(false);
-  const [activeTab, setActiveTab] = useState('basic');
-
-  const handleChannelResearch = async () => {
-    try {
-      setIsResearching(true);
-      
-      const request: ChannelResearchRequest = {
-        channel_id: influencer.channelId,
-        channel_title: influencer.name,
-        channel_data: {
-          category: influencer.category,
-          subscriber_count: influencer.subscriberCount,
-          description: influencer.description,
-          engagement_rate: influencer.engagementRate
-        }
-      };
-
-      const result = await researchChannel(request);
-      setResearchResult(result);
-      setActiveTab('research'); // 調査結果タブに切り替え
-      
-    } catch (error) {
-      console.error('チャンネル調査エラー:', error);
-      // エラーハンドリング（後で実装）
-    } finally {
-      setIsResearching(false);
-    }
-  };
-
   if (!isOpen || !influencer) return null;
 
-  const hasEmail = influencer.email && influencer.email !== 'null' && influencer.email.trim() !== '';
-  const categoryIcon = getCategoryIcon(influencer.category);
-
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto relative">
+    <div>Modal placeholder</div>
+  );
+}
+
+export default function SearchPage() {
         {/* ヘッダー */}
         <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex items-center justify-between">
           <div className="flex items-center space-x-4">
