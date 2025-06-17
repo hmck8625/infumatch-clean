@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { searchInfluencers, getAIRecommendations, generateCollaborationProposal, researchChannel, Influencer, APIError, CampaignRequest, AIRecommendationResponse, ChannelResearchRequest, ChannelResearchResponse } from '@/lib/api';
+import { searchInfluencers, getAIRecommendations, generateCollaborationProposal, Influencer, APIError, CampaignRequest, AIRecommendationResponse } from '@/lib/api';
 import Header from '@/components/Header';
 import { 
   Search, 
@@ -81,12 +81,12 @@ function InfluencerDetailModal({
 }) {
   if (!isOpen || !influencer) return null;
 
-  return (
-    <div>Modal placeholder</div>
-  );
-}
+  const hasEmail = influencer.email && influencer.email !== 'null' && influencer.email.trim() !== '';
+  const categoryIcon = getCategoryIcon(influencer.category);
 
-export default function SearchPage() {
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto relative">
         {/* ヘッダー */}
         <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex items-center justify-between">
           <div className="flex items-center space-x-4">
@@ -127,42 +127,8 @@ export default function SearchPage() {
           </button>
         </div>
 
-        {/* タブナビゲーション */}
-        <div className="border-b border-gray-200">
-          <nav className="flex space-x-8 px-6">
-            <button
-              onClick={() => setActiveTab('basic')}
-              className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                activeTab === 'basic'
-                  ? 'border-purple-500 text-purple-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              基本情報
-            </button>
-            <button
-              onClick={() => setActiveTab('research')}
-              className={`py-4 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 ${
-                activeTab === 'research'
-                  ? 'border-purple-500 text-purple-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              <SearchCheck className="w-4 h-4" />
-              <span>AI調査</span>
-              {researchResult && (
-                <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">
-                  完了
-                </span>
-              )}
-            </button>
-          </nav>
-        </div>
-
         {/* コンテンツ */}
         <div className="p-6 space-y-6">
-          {activeTab === 'basic' && (
-            <div className="space-y-6">
           {/* 基本情報 */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4">
@@ -312,18 +278,6 @@ export default function SearchPage() {
               <span>{isGeneratingProposal ? 'AI生成中...' : 'コラボ提案'}</span>
             </button>
             <button 
-              onClick={handleChannelResearch}
-              disabled={isResearching}
-              className="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 text-white py-3 px-4 rounded-xl font-medium hover:from-green-700 hover:to-emerald-700 transition-all duration-200 flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isResearching ? (
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-              ) : (
-                <SearchCheck className="w-4 h-4" />
-              )}
-              <span>{isResearching ? 'AI調査中...' : 'AI調査開始'}</span>
-            </button>
-            <button 
               onClick={() => window.open(`https://www.youtube.com/channel/${influencer.channelId}`, '_blank')}
               className="flex-1 border border-gray-300 text-gray-700 py-3 px-4 rounded-xl font-medium hover:bg-gray-50 transition-colors flex items-center justify-center space-x-2"
             >
@@ -331,12 +285,13 @@ export default function SearchPage() {
               <span>チャンネル確認</span>
             </button>
           </div>
-            </div>
-          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
-          {/* AI調査結果 */}
-          {activeTab === 'research' && (
-            <div className="space-y-6">
+export default function SearchPage() {
               {!researchResult && !isResearching && (
                 <div className="text-center py-12 bg-gray-50 rounded-xl">
                   <SearchCheck className="w-16 h-16 text-gray-400 mx-auto mb-4" />
