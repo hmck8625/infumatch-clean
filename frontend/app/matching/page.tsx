@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { AuthGuard } from '@/components/auth-guard';
 import Header from '@/components/Header';
-import { apiClient, CampaignRequest, AIRecommendationResponse } from '@/lib/api';
+import { apiClient, CampaignRequest, AIRecommendationResponse, searchInfluencers, Influencer } from '@/lib/api';
 
 // マッチング結果の型定義
 interface MatchingResult {
@@ -81,6 +81,9 @@ export default function MatchingPage() {
   const [matchingResults, setMatchingResults] = useState<MatchingResult[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isLoadingSettings, setIsLoadingSettings] = useState(true);
+  const [selectedChannelDetail, setSelectedChannelDetail] = useState<Influencer | null>(null);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [isLoadingDetail, setIsLoadingDetail] = useState(false);
 
   useEffect(() => {
     setIsVisible(true);
@@ -249,6 +252,28 @@ export default function MatchingPage() {
       return (num / 10000).toFixed(1) + '万';
     }
     return num.toLocaleString();
+  };
+
+  const handleShowDetail = async (channelId: string) => {
+    try {
+      setIsLoadingDetail(true);
+      setError(null);
+      
+      // データベースから詳細情報を取得
+      const results = await searchInfluencers({ channel_id: channelId });
+      
+      if (results && results.length > 0) {
+        setSelectedChannelDetail(results[0]);
+        setIsDetailModalOpen(true);
+      } else {
+        setError('チャンネルの詳細情報が見つかりませんでした');
+      }
+    } catch (error) {
+      console.error('❌ チャンネル詳細取得エラー:', error);
+      setError('チャンネル詳細の取得に失敗しました');
+    } finally {
+      setIsLoadingDetail(false);
+    }
   };
 
   return (
@@ -546,16 +571,29 @@ export default function MatchingPage() {
                           </svg>
                           {result.email ? 'コンタクト開始' : 'メッセージ'}
                         </Link>
-                        <Link 
-                          href={`/search?channel_id=${result.id}`} 
+                        <button 
+                          onClick={() => handleShowDetail(result.id)}
+                          disabled={isLoadingDetail}
                           className="btn btn-outline flex-1 text-center"
                         >
-                          <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                          </svg>
-                          詳細表示
-                        </Link>
+                          {isLoadingDetail ? (
+                            <>
+                              <svg className="animate-spin h-4 w-4 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                              </svg>
+                              読み込み中...
+                            </>
+                          ) : (
+                            <>
+                              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                              </svg>
+                              詳細表示
+                            </>
+                          )}
+                        </button>
                         <button 
                           className="btn btn-ghost px-3"
                           title="お気に入りに追加"
@@ -574,6 +612,163 @@ export default function MatchingPage() {
         </div>
       </main>
       </div>
+
+      {/* 詳細表示モーダル */}
+      {isDetailModalOpen && selectedChannelDetail && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            {/* ヘッダー */}
+            <div className="flex items-start justify-between mb-6">
+              <div className="flex items-start space-x-4">
+                <div className="relative">
+                  {selectedChannelDetail.thumbnailUrl ? (
+                    <img 
+                      src={selectedChannelDetail.thumbnailUrl} 
+                      alt={`${selectedChannelDetail.name}のサムネイル`}
+                      className="w-20 h-20 rounded-full object-cover border-2 border-gray-200"
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none';
+                        e.currentTarget.nextElementSibling.style.display = 'flex';
+                      }}
+                    />
+                  ) : null}
+                  <div 
+                    className="w-20 h-20 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-3xl text-white font-bold"
+                    style={{ display: selectedChannelDetail.thumbnailUrl ? 'none' : 'flex' }}
+                  >
+                    {selectedChannelDetail.name[0]}
+                  </div>
+                  {selectedChannelDetail.email && (
+                    <div className="absolute -bottom-1 -right-1 bg-green-500 rounded-full p-1.5">
+                      <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900 mb-2">{selectedChannelDetail.name}</h2>
+                  <div className="flex items-center space-x-2 mb-2">
+                    <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-purple-100 text-purple-800">
+                      {selectedChannelDetail.category}
+                    </span>
+                  </div>
+                  {selectedChannelDetail.email && (
+                    <div className="flex items-center text-sm text-green-600">
+                      <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                      </svg>
+                      連絡可能
+                    </div>
+                  )}
+                </div>
+              </div>
+              <button 
+                onClick={() => setIsDetailModalOpen(false)} 
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* 統計情報 */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+              <div className="text-center p-4 bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl">
+                <svg className="w-6 h-6 text-purple-600 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+                <div className="text-lg font-bold text-gray-900">
+                  {selectedChannelDetail.subscriberCount ? formatNumber(selectedChannelDetail.subscriberCount) : 'N/A'}
+                </div>
+                <div className="text-xs text-gray-600">登録者数</div>
+              </div>
+              
+              <div className="text-center p-4 bg-gradient-to-br from-green-50 to-green-100 rounded-xl">
+                <svg className="w-6 h-6 text-green-600 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                </svg>
+                <div className="text-lg font-bold text-gray-900">
+                  {selectedChannelDetail.engagementRate ? `${selectedChannelDetail.engagementRate.toFixed(1)}%` : 'N/A'}
+                </div>
+                <div className="text-xs text-gray-600">エンゲージメント率</div>
+              </div>
+              
+              <div className="text-center p-4 bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl">
+                <svg className="w-6 h-6 text-blue-600 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1.5a1.5 1.5 0 000-3H9v3zM7 21L3 17m0 0l4-4m-4 4l4 4M7 3l4 4-4 4" />
+                </svg>
+                <div className="text-lg font-bold text-gray-900">
+                  {selectedChannelDetail.videoCount ? formatNumber(selectedChannelDetail.videoCount) : 'N/A'}
+                </div>
+                <div className="text-xs text-gray-600">動画数</div>
+              </div>
+              
+              <div className="text-center p-4 bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl">
+                <svg className="w-6 h-6 text-orange-600 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+                <div className="text-lg font-bold text-gray-900">
+                  {selectedChannelDetail.viewCount ? formatNumber(Math.floor(selectedChannelDetail.viewCount / 1000000)) + 'M' : 'N/A'}
+                </div>
+                <div className="text-xs text-gray-600">総再生回数</div>
+              </div>
+            </div>
+
+            {/* 説明 */}
+            {selectedChannelDetail.description && (
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-3">チャンネル紹介</h3>
+                <p className="text-gray-600 leading-relaxed bg-gray-50 p-4 rounded-xl">
+                  {selectedChannelDetail.description}
+                </p>
+              </div>
+            )}
+
+            {/* チャンネルIDと作成日 */}
+            <div className="mb-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-3">チャンネル詳細</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-gray-50 p-4 rounded-xl">
+                  <div className="text-xs text-gray-500 mb-1">チャンネルID</div>
+                  <div className="text-sm font-mono text-gray-800 break-all">{selectedChannelDetail.id}</div>
+                </div>
+                {selectedChannelDetail.createdAt && (
+                  <div className="bg-gray-50 p-4 rounded-xl">
+                    <div className="text-xs text-gray-500 mb-1">登録日時</div>
+                    <div className="text-sm text-gray-800">
+                      {new Date(selectedChannelDetail.createdAt).toLocaleDateString('ja-JP')}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* アクションボタン */}
+            <div className="flex space-x-3">
+              <button 
+                onClick={() => setIsDetailModalOpen(false)} 
+                className="flex-1 px-6 py-3 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200 transition-colors"
+              >
+                閉じる
+              </button>
+              {selectedChannelDetail.email && (
+                <Link 
+                  href={`/messages?to=${encodeURIComponent(selectedChannelDetail.email)}&subject=${encodeURIComponent(`【コラボ提案】${selectedChannelDetail.name}様へ`)}&influencer=${encodeURIComponent(selectedChannelDetail.name)}`}
+                  className="flex-1 flex items-center justify-center space-x-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl font-medium hover:from-purple-700 hover:to-blue-700 transition-all duration-200"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                  </svg>
+                  <span>コンタクト開始</span>
+                </Link>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </AuthGuard>
   );
 }
