@@ -508,7 +508,6 @@ export default function MatchingPage() {
                           </p>
                         </div>
                       )}
-                      </div>
 
                       {/* 互換性スコア */}
                       <div className="mb-6">
