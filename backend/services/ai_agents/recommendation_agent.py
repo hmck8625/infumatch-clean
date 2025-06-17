@@ -189,8 +189,9 @@ class RecommendationAgent(BaseAgent):
             # スコア順でソート
             scored_influencers.sort(key=lambda x: x.overall_score, reverse=True)
             
-            # トップN選択
-            top_recommendations = scored_influencers[:max_recommendations]
+            # トップN選択（最低3件、最大max_recommendations件）
+            actual_max = max(min(max_recommendations, 5), 3)  # 3-5件の範囲で推薦
+            top_recommendations = scored_influencers[:actual_max]
             
             # AI による最終評価
             ai_evaluation = await self._ai_final_evaluation(top_recommendations, campaign)
@@ -205,6 +206,18 @@ class RecommendationAgent(BaseAgent):
                 "recommendations": [
                     {
                         "channel_id": rec.channel_id,
+                        "channel_name": self._find_influencer_data(rec.channel_id, available_influencers, "name") or 
+                                       self._find_influencer_data(rec.channel_id, available_influencers, "channel_name") or 
+                                       f"推薦チャンネル {idx + 1}",
+                        "category": self._find_influencer_data(rec.channel_id, available_influencers, "category") or "総合",
+                        "thumbnail_url": self._find_influencer_data(rec.channel_id, available_influencers, "thumbnailUrl") or 
+                                        self._find_influencer_data(rec.channel_id, available_influencers, "thumbnail_url"),
+                        "subscriber_count": self._find_influencer_data(rec.channel_id, available_influencers, "subscriberCount") or 
+                                           self._find_influencer_data(rec.channel_id, available_influencers, "subscriber_count") or 0,
+                        "engagement_rate": self._find_influencer_data(rec.channel_id, available_influencers, "engagementRate") or 
+                                          self._find_influencer_data(rec.channel_id, available_influencers, "engagement_rate") or 0,
+                        "description": self._find_influencer_data(rec.channel_id, available_influencers, "description") or "",
+                        "email": self._find_influencer_data(rec.channel_id, available_influencers, "email"),
                         "overall_score": rec.overall_score,
                         "detailed_scores": {
                             "category_match": rec.category_match_score,
@@ -215,7 +228,9 @@ class RecommendationAgent(BaseAgent):
                             "risk": rec.risk_score
                         },
                         "explanation": rec.explanation,
-                        "rank": idx + 1
+                        "rank": idx + 1,
+                        "estimated_reach": int(self._estimate_reach(rec.channel_id, available_influencers)),
+                        "estimated_cost": int(self._estimate_cost(rec.channel_id, available_influencers))
                     }
                     for idx, rec in enumerate(top_recommendations)
                 ],
@@ -992,6 +1007,41 @@ class RecommendationAgent(BaseAgent):
             "agent": self.config.name,
             "timestamp": datetime.utcnow().isoformat()
         }
+    
+    def _find_influencer_data(self, channel_id: str, influencers: List[Dict[str, Any]], field: str) -> Any:
+        """チャンネルIDから指定フィールドのデータを取得"""
+        for influencer in influencers:
+            inf_dict = influencer.__dict__ if hasattr(influencer, '__dict__') else influencer
+            # 複数のID形式に対応
+            inf_channel_id = inf_dict.get("channel_id") or inf_dict.get("channelId") or inf_dict.get("id")
+            if inf_channel_id == channel_id:
+                return inf_dict.get(field)
+        return None
+    
+    def _estimate_reach(self, channel_id: str, influencers: List[Dict[str, Any]]) -> float:
+        """リーチ推定"""
+        subscriber_count = self._find_influencer_data(channel_id, influencers, "subscriberCount") or \
+                          self._find_influencer_data(channel_id, influencers, "subscriber_count") or 0
+        engagement_rate = self._find_influencer_data(channel_id, influencers, "engagementRate") or \
+                         self._find_influencer_data(channel_id, influencers, "engagement_rate") or 0
+        
+        # リーチ = 登録者数 × エンゲージメント率 × 2.5 (想定表示倍率)
+        estimated_reach = subscriber_count * (engagement_rate / 100) * 2.5
+        return max(estimated_reach, subscriber_count * 0.1)  # 最低10%は表示される想定
+    
+    def _estimate_cost(self, channel_id: str, influencers: List[Dict[str, Any]]) -> float:
+        """コスト推定"""
+        subscriber_count = self._find_influencer_data(channel_id, influencers, "subscriberCount") or \
+                          self._find_influencer_data(channel_id, influencers, "subscriber_count") or 0
+        engagement_rate = self._find_influencer_data(channel_id, influencers, "engagementRate") or \
+                         self._find_influencer_data(channel_id, influencers, "engagement_rate") or 0
+        
+        # 基本料金: 登録者数 × 0.3-1.0円 + エンゲージメント補正
+        base_rate = 0.5  # 基本単価（円/登録者）
+        engagement_multiplier = min(max(engagement_rate / 3.0, 0.5), 2.0)  # 0.5-2.0倍
+        
+        estimated_cost = subscriber_count * base_rate * engagement_multiplier
+        return max(estimated_cost, 30000)  # 最低3万円
     
     def get_capabilities(self) -> List[str]:
         """エージェントの機能一覧"""

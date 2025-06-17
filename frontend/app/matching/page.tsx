@@ -15,6 +15,11 @@ interface MatchingResult {
   reason: string;
   estimatedReach: number;
   estimatedCost: number;
+  thumbnailUrl?: string;
+  subscriberCount?: number;
+  engagementRate?: number;
+  description?: string;
+  email?: string;
   compatibility: {
     audience: number;
     content: number;
@@ -220,12 +225,17 @@ export default function MatchingPage() {
     
     return aiResponse.recommendations.map((rec: any, index: number) => ({
       id: rec.channel_id || `ai-rec-${index}`,
-      influencerName: rec.channel_name || `AI推薦 ${index + 1}`,
+      influencerName: rec.channel_name || `推薦チャンネル ${index + 1}`,
       score: Math.round((rec.overall_score || 0.5) * 100),
-      category: rec.category || "AI分析",
+      category: rec.category || "総合",
       reason: rec.explanation || "AI分析による推薦",
       estimatedReach: rec.estimated_reach || Math.floor(Math.random() * 100000) + 50000,
       estimatedCost: rec.estimated_cost || Math.floor(Math.random() * 200000) + 80000,
+      thumbnailUrl: rec.thumbnail_url,
+      subscriberCount: rec.subscriber_count || 0,
+      engagementRate: rec.engagement_rate || 0,
+      description: rec.description || "",
+      email: rec.email,
       compatibility: {
         audience: Math.round((rec.detailed_scores?.audience_fit || 0.7) * 100),
         content: Math.round((rec.detailed_scores?.category_match || 0.8) * 100),
@@ -383,7 +393,21 @@ export default function MatchingPage() {
                       <div className="flex items-start justify-between mb-6">
                         <div className="flex items-center space-x-4">
                           <div className="relative">
-                            <div className="w-16 h-16 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full flex items-center justify-center text-white text-xl font-bold">
+                            {result.thumbnailUrl ? (
+                              <img 
+                                src={result.thumbnailUrl} 
+                                alt={`${result.influencerName}のサムネイル`}
+                                className="w-16 h-16 rounded-full object-cover border-2 border-gray-200"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                  e.currentTarget.nextElementSibling.style.display = 'flex';
+                                }}
+                              />
+                            ) : null}
+                            <div 
+                              className="w-16 h-16 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full flex items-center justify-center text-white text-xl font-bold"
+                              style={{ display: result.thumbnailUrl ? 'none' : 'flex' }}
+                            >
                               {result.influencerName[0]}
                             </div>
                             <div className="absolute -top-1 -right-1 w-6 h-6 bg-green-500 rounded-full border-2 border-white flex items-center justify-center">
@@ -421,40 +445,69 @@ export default function MatchingPage() {
                       </div>
 
                       {/* 詳細メトリクス */}
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-                        {/* 推定リーチ */}
-                        <div className="text-center">
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                        {/* 登録者数 */}
+                        <div className="text-center p-3 bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg">
                           <div className="flex items-center justify-center mb-2">
-                            <svg className="w-5 h-5 text-blue-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="w-5 h-5 text-blue-600 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                            </svg>
+                          </div>
+                          <p className="text-xs text-gray-600 mb-1">登録者数</p>
+                          <p className="text-lg font-bold text-gray-900">
+                            {result.subscriberCount ? formatNumber(result.subscriberCount) : 'N/A'}
+                          </p>
+                        </div>
+
+                        {/* エンゲージメント率 */}
+                        <div className="text-center p-3 bg-gradient-to-br from-green-50 to-green-100 rounded-lg">
+                          <div className="flex items-center justify-center mb-2">
+                            <svg className="w-5 h-5 text-green-600 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                            </svg>
+                          </div>
+                          <p className="text-xs text-gray-600 mb-1">エンゲージメント</p>
+                          <p className="text-lg font-bold text-gray-900">
+                            {result.engagementRate ? `${result.engagementRate.toFixed(1)}%` : 'N/A'}
+                          </p>
+                        </div>
+
+                        {/* 推定リーチ */}
+                        <div className="text-center p-3 bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg">
+                          <div className="flex items-center justify-center mb-2">
+                            <svg className="w-5 h-5 text-purple-600 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                             </svg>
                           </div>
-                          <p className="text-sm text-gray-500">推定リーチ</p>
+                          <p className="text-xs text-gray-600 mb-1">推定リーチ</p>
                           <p className="text-lg font-bold text-gray-900">{formatNumber(result.estimatedReach)}</p>
                         </div>
 
                         {/* 推定コスト */}
-                        <div className="text-center">
+                        <div className="text-center p-3 bg-gradient-to-br from-orange-50 to-orange-100 rounded-lg">
                           <div className="flex items-center justify-center mb-2">
-                            <svg className="w-5 h-5 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="w-5 h-5 text-orange-600 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
                             </svg>
                           </div>
-                          <p className="text-sm text-gray-500">推定コスト</p>
+                          <p className="text-xs text-gray-600 mb-1">推定コスト</p>
                           <p className="text-lg font-bold text-gray-900">¥{formatNumber(result.estimatedCost)}</p>
                         </div>
+                      </div>
 
-                        {/* 親和性 */}
-                        <div className="text-center">
-                          <div className="flex items-center justify-center mb-2">
-                            <svg className="w-5 h-5 text-purple-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                            </svg>
-                          </div>
-                          <p className="text-sm text-gray-500">ブランド親和性</p>
-                          <p className="text-lg font-bold text-gray-900">{result.compatibility.brand}%</p>
+                      {/* チャンネル説明（実データがある場合のみ表示） */}
+                      {result.description && (
+                        <div className="mb-6">
+                          <h4 className="font-semibold text-gray-900 mb-3">チャンネル紹介</h4>
+                          <p className="text-sm text-gray-600 leading-relaxed bg-gray-50 p-4 rounded-lg">
+                            {result.description.length > 200 
+                              ? `${result.description.substring(0, 200)}...` 
+                              : result.description
+                            }
+                          </p>
                         </div>
+                      )}
                       </div>
 
                       {/* 互換性スコア */}
@@ -481,17 +534,33 @@ export default function MatchingPage() {
                       </div>
 
                       {/* アクションボタン */}
-                      <div className="flex space-x-4">
-                        <Link href="/messages" className="btn btn-primary flex-1 text-center">
+                      <div className="flex space-x-3">
+                        <Link 
+                          href={result.email ? 
+                            `/messages?to=${encodeURIComponent(result.email)}&subject=${encodeURIComponent(`【コラボ提案】${result.influencerName}様へ`)}&influencer=${encodeURIComponent(result.influencerName)}` :
+                            '/messages'
+                          } 
+                          className="btn btn-primary flex-1 text-center"
+                        >
                           <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                           </svg>
-                          コンタクト開始
+                          {result.email ? 'コンタクト開始' : 'メッセージ'}
                         </Link>
-                        <Link href="/search" className="btn btn-outline flex-1 text-center">
-                          詳細プロフィール
+                        <Link 
+                          href={`/search?channel_id=${result.id}`} 
+                          className="btn btn-outline flex-1 text-center"
+                        >
+                          <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                          </svg>
+                          詳細表示
                         </Link>
-                        <button className="btn btn-ghost">
+                        <button 
+                          className="btn btn-ghost px-3"
+                          title="お気に入りに追加"
+                        >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
                           </svg>
