@@ -30,6 +30,59 @@ export interface Influencer {
   brandSafetyScore?: number;
 }
 
+export interface ChannelResearchRequest {
+  channel_id: string;
+  channel_title: string;
+  channel_data?: any;
+  research_categories?: string[];
+}
+
+export interface ChannelResearchResponse {
+  success: boolean;
+  channel_id: string;
+  channel_name: string;
+  research_timestamp: string;
+  basic_info: {
+    latest_activity: string;
+    growth_trend: string;
+    popular_content: string;
+    recent_news: string;
+    current_status: string;
+    activity_level: string;
+    last_updated: string;
+  };
+  reputation_safety: {
+    controversy_history: string;
+    public_reputation: string;
+    brand_risk_level: string;
+    content_appropriateness: string;
+    safety_score: number;
+    risk_factors: string[];
+    safety_recommendations: string;
+  };
+  collaboration_history: {
+    collaboration_count: string;
+    major_collaborations: string[];
+    pr_frequency: string;
+    collaboration_types: string[];
+    estimated_rates: string;
+    collaboration_style: string;
+    success_indicators: string;
+  };
+  market_analysis: {
+    market_position: string;
+    competitors: string[];
+    market_share: string;
+    differentiation: string;
+    growth_potential: string;
+    market_value: string;
+    trending_topics: string;
+  };
+  research_confidence: number;
+  summary: string;
+  message: string;
+}
+
 export interface SearchParams {
   keyword?: string;
   category?: string;
@@ -362,6 +415,33 @@ class APIClient {
   async getAIAgentsStatus(): Promise<any> {
     return this.request<any>('/api/v1/ai/agents/status');
   }
+
+  /**
+   * チャンネル包括的調査API
+   */
+  async researchChannel(request: ChannelResearchRequest): Promise<ChannelResearchResponse> {
+    return this.request<ChannelResearchResponse>('/api/channel-research/research', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    });
+  }
+
+  /**
+   * チャンネルクイック調査API
+   */
+  async quickResearchChannel(request: ChannelResearchRequest): Promise<any> {
+    return this.request<any>('/api/channel-research/research/quick', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    });
+  }
+
+  /**
+   * 調査カテゴリ一覧取得API
+   */
+  async getResearchCategories(): Promise<any> {
+    return this.request<any>('/api/channel-research/research/categories');
+  }
 }
 
 // API クライアントのシングルトンインスタンス
@@ -388,6 +468,15 @@ export const getAIAgentsStatus = () =>
 
 export const generateCollaborationProposal = (influencer: Influencer, userSettings?: any) =>
   apiClient.generateCollaborationProposal(influencer, userSettings);
+
+export const researchChannel = (request: ChannelResearchRequest) =>
+  apiClient.researchChannel(request);
+
+export const quickResearchChannel = (request: ChannelResearchRequest) =>
+  apiClient.quickResearchChannel(request);
+
+export const getResearchCategories = () =>
+  apiClient.getResearchCategories();
 
 // エラーハンドリング用のカスタムエラークラス
 export class APIError extends Error {

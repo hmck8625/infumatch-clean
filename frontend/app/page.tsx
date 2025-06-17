@@ -2,27 +2,14 @@
 
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
-import { signOut, useSession } from 'next-auth/react';
-import { AuthContent, UserInfo } from '@/components/auth-guard';
+import Header from '@/components/Header';
 
 export default function HomePage() {
   const [isVisible, setIsVisible] = useState(false);
-  const { data: session } = useSession();
 
   useEffect(() => {
     setIsVisible(true);
   }, []);
-
-  const handleLogout = async () => {
-    try {
-      await signOut({ 
-        callbackUrl: '/',
-        redirect: true 
-      });
-    } catch (error) {
-      console.error('ログアウトエラー:', error);
-    }
-  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 relative overflow-hidden">
@@ -36,49 +23,7 @@ export default function HomePage() {
       </div>
 
       {/* ナビゲーション */}
-      <nav className="relative z-10 bg-glass backdrop-blur-md border-b border-white/10">
-        <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="text-2xl font-bold text-gradient">
-              InfuMatch
-            </div>
-            <div className="hidden md:flex space-x-8">
-              <Link href="/search" className="text-white/80 hover:text-white transition-colors">
-                検索
-              </Link>
-              <Link href="/messages" className="text-white/80 hover:text-white transition-colors">
-                メッセージ
-              </Link>
-              <Link href="/matching" className="text-white/80 hover:text-white transition-colors">
-                AIマッチング
-              </Link>
-              <Link href="/settings" className="text-white/80 hover:text-white transition-colors">
-                設定
-              </Link>
-            </div>
-            <AuthContent
-              authenticated={
-                <div className="flex items-center space-x-4">
-                  <UserInfo />
-                  <button 
-                    onClick={handleLogout}
-                    className="btn btn-outline border-white/30 text-white hover:bg-white hover:text-purple-900"
-                  >
-                    ログアウト
-                  </button>
-                </div>
-              }
-              unauthenticated={
-                <Link href="/auth/signin">
-                  <button className="btn btn-primary">
-                    無料で始める
-                  </button>
-                </Link>
-              }
-            />
-          </div>
-        </div>
-      </nav>
+      <Header variant="transparent" />
 
       {/* メインコンテンツ */}
       <main className="relative z-10 flex-1">

@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { signOut } from 'next-auth/react';
+import Header from '@/components/Header';
 // import { EmailThread, GmailMessage } from '@/lib/gmail'; // Server-side only
 // Temporary interfaces for client-side
 interface EmailThread { id: string; snippet: string; historyId: string; messages?: GmailMessage[]; }
@@ -1160,37 +1161,7 @@ InfuMatchの田中です。
       <ErrorBoundary>
         <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
       {/* ヘッダー */}
-      <header className="bg-white/80 backdrop-blur-md shadow-sm border-b border-gray-200/50 sticky top-0 z-50">
-        <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <Link href="/" className="text-2xl font-bold text-gradient">
-              InfuMatch
-            </Link>
-            <nav className="hidden md:flex space-x-8">
-              <Link href="/search" className="text-gray-600 hover:text-indigo-600 transition-colors">
-                検索
-              </Link>
-              <Link href="/messages" className="text-indigo-600 font-medium border-b-2 border-indigo-600 pb-1">
-                メッセージ
-              </Link>
-              <Link href="/matching" className="text-gray-600 hover:text-indigo-600 transition-colors">
-                AIマッチング
-              </Link>
-              <Link href="/settings" className="text-gray-600 hover:text-indigo-600 transition-colors">
-                設定
-              </Link>
-            </nav>
-            <div className="flex items-center space-x-4">
-              <button 
-                onClick={handleLogout}
-                className="btn btn-primary"
-              >
-                ログアウト
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
+      <Header variant="glass" />
 
       <main className="container mx-auto px-6 py-8">
         <div className={`transform transition-all duration-1000 ${isVisible ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'}`}>

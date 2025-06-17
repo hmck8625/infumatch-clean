@@ -62,6 +62,14 @@ async def startup_event():
     global orchestration_service, system_ready
     logger.info("🚀 InfuMatch Orchestration System starting up...")
     
+    # 環境変数を確認
+    import os
+    gemini_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
+    if not gemini_key:
+        logger.warning("⚠️ GOOGLE_API_KEY not found, trying to initialize anyway...")
+    else:
+        logger.info("✅ Gemini API key found")
+    
     try:
         # オーケストレーションシステムの初期化を試行
         from services.orchestrated_negotiation_service import get_orchestrated_negotiation_service
@@ -69,7 +77,10 @@ async def startup_event():
         system_ready = True
         logger.info("✅ Multi-Agent Orchestration System initialized successfully")
     except Exception as e:
-        logger.warning(f"⚠️ Failed to initialize orchestration system: {e}")
+        logger.error(f"❌ Failed to initialize orchestration system: {str(e)}")
+        logger.error(f"Error type: {type(e).__name__}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
         logger.warning("🔄 Falling back to basic mode")
         system_ready = False
 

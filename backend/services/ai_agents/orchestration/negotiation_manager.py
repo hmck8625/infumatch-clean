@@ -571,3 +571,36 @@ class NegotiationManager(BaseAgent):
             "evaluation_criteria": self.evaluation_criteria,
             "quality_thresholds": self.quality_thresholds
         }
+    
+    # BaseAgent抽象メソッドの実装
+    def get_capabilities(self) -> Dict[str, Any]:
+        """マネージャーの能力情報を返す"""
+        return {
+            "agent_type": "negotiation_manager",
+            "specialization": "multi_agent_orchestration",
+            "registered_agents": len(self.registered_agents),
+            "active_negotiations": len(self.active_negotiations),
+            "capabilities": [
+                "agent_coordination",
+                "quality_evaluation", 
+                "strategy_integration",
+                "performance_monitoring"
+            ]
+        }
+    
+    async def process(self, task_data: Dict[str, Any]) -> Dict[str, Any]:
+        """マネージャーの処理メソッド（交渉開始をラップ）"""
+        if "action" in task_data and task_data["action"] == "start_negotiation":
+            return await self.start_negotiation(
+                thread_id=task_data.get("thread_id", ""),
+                new_message=task_data.get("new_message", ""),
+                company_settings=task_data.get("company_settings", {}),
+                conversation_history=task_data.get("conversation_history", []),
+                custom_instructions=task_data.get("custom_instructions", "")
+            )
+        else:
+            return {
+                "success": False,
+                "error": "Unsupported task action",
+                "supported_actions": ["start_negotiation"]
+            }

@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { AuthGuard } from '@/components/auth-guard';
+import Header from '@/components/Header';
+import { apiClient, CampaignRequest, AIRecommendationResponse } from '@/lib/api';
 
 // マッチング結果の型定義
 interface MatchingResult {
@@ -72,6 +74,8 @@ export default function MatchingPage() {
   const [showResults, setShowResults] = useState(false);
   const [settings, setSettings] = useState<any>(null);
   const [matchingResults, setMatchingResults] = useState<MatchingResult[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [isLoadingSettings, setIsLoadingSettings] = useState(true);
 
   useEffect(() => {
     setIsVisible(true);
@@ -80,27 +84,64 @@ export default function MatchingPage() {
 
   const loadSettings = async () => {
     try {
+      setIsLoadingSettings(true);
+      setError(null);
       const response = await fetch('/api/settings');
       if (response.ok) {
-        const data = await response.json();
-        setSettings(data);
+        const result = await response.json();
+        if (result.success && result.data) {
+          setSettings(result.data);
+          console.log('✅ 設定データ読み込み完了:', result.data);
+        } else {
+          console.warn('⚠️ 設定データが見つかりません、デフォルト値を使用します');
+          setSettings(null);
+        }
+      } else {
+        throw new Error(`設定読み込み失敗: ${response.status}`);
       }
     } catch (error) {
-      console.error('設定読み込みエラー:', error);
+      console.error('❌ 設定読み込みエラー:', error);
+      setError(error instanceof Error ? error.message : '設定の読み込みに失敗しました');
+      setSettings(null);
+    } finally {
+      setIsLoadingSettings(false);
     }
   };
 
   const handleStartMatching = async () => {
     setIsAnalyzing(true);
     setShowResults(false);
+    setError(null);
     
-    // 設定データに基づいてマッチング結果をカスタマイズ
-    const customizedResults = customizeMatchingResults();
+    try {
+      // 設定データからキャンペーン情報を構築
+      const campaignRequest = buildCampaignRequest();
+      console.log('🚀 AI推薦開始:', campaignRequest);
+      
+      // 実際のAI推薦APIを呼び出し
+      const aiResponse = await apiClient.getAIRecommendations(campaignRequest);
+      console.log('📡 AI推薦レスポンス:', aiResponse);
+      
+      if (aiResponse.success && aiResponse.recommendations?.length > 0) {
+        // AI推薦結果をマッチング結果形式に変換
+        const convertedResults = convertAIResponseToMatchingResults(aiResponse);
+        setMatchingResults(convertedResults);
+        console.log('✅ AI推薦結果変換完了:', convertedResults);
+      } else {
+        // AI推薦が失敗または結果がない場合はフォールバック
+        console.warn('⚠️ AI推薦が失敗またはデータなし、フォールバックデータを使用');
+        const fallbackResults = customizeMatchingResults();
+        setMatchingResults(fallbackResults);
+      }
+      
+    } catch (error) {
+      console.error('❌ AI推薦API呼び出しエラー:', error);
+      setError(error instanceof Error ? error.message : 'AI推薦の実行に失敗しました');
+      // エラー時はフォールバックデータを使用
+      const fallbackResults = customizeMatchingResults();
+      setMatchingResults(fallbackResults);
+    }
     
-    // AI分析のシミュレーション
-    await new Promise(resolve => setTimeout(resolve, 3000));
-    
-    setMatchingResults(customizedResults);
     setIsAnalyzing(false);
     setShowResults(true);
   };
@@ -151,6 +192,48 @@ export default function MatchingPage() {
     return customizedResults.sort((a, b) => b.score - a.score);
   };
 
+  const buildCampaignRequest = (): CampaignRequest => {
+    // 設定データまたはデフォルト値を使用してキャンペーンリクエストを構築
+    const productNames = settings?.products?.map(p => p.name).join(", ") || settings?.companyInfo?.companyName || "サンプル製品";
+    const targetAudiences = settings?.products?.length > 0 
+      ? settings.products.map(p => p.targetAudience).filter(Boolean)
+      : ["20-30代", "男女問わず"];
+    
+    return {
+      product_name: productNames,
+      budget_min: settings?.negotiationSettings?.defaultBudgetRange?.min || 50000,
+      budget_max: settings?.negotiationSettings?.defaultBudgetRange?.max || 300000,
+      target_audience: targetAudiences.length > 0 ? targetAudiences : ["20-30代", "男女問わず"],
+      required_categories: settings?.matchingSettings?.priorityCategories?.length > 0 
+        ? settings.matchingSettings.priorityCategories 
+        : ["テクノロジー", "ライフスタイル"],
+      campaign_goals: settings?.companyInfo?.description || "ブランド認知度向上とコンバージョン獲得",
+      min_engagement_rate: settings?.matchingSettings?.minEngagementRate || 2.0,
+      min_subscribers: settings?.matchingSettings?.minSubscribers || 10000,
+      max_subscribers: settings?.matchingSettings?.maxSubscribers || 500000,
+      geographic_focus: settings?.matchingSettings?.geographicFocus?.[0] || "日本"
+    };
+  };
+
+  const convertAIResponseToMatchingResults = (aiResponse: AIRecommendationResponse): MatchingResult[] => {
+    if (!aiResponse.recommendations) return [];
+    
+    return aiResponse.recommendations.map((rec: any, index: number) => ({
+      id: rec.channel_id || `ai-rec-${index}`,
+      influencerName: rec.channel_name || `AI推薦 ${index + 1}`,
+      score: Math.round((rec.overall_score || 0.5) * 100),
+      category: rec.category || "AI分析",
+      reason: rec.explanation || "AI分析による推薦",
+      estimatedReach: rec.estimated_reach || Math.floor(Math.random() * 100000) + 50000,
+      estimatedCost: rec.estimated_cost || Math.floor(Math.random() * 200000) + 80000,
+      compatibility: {
+        audience: Math.round((rec.detailed_scores?.audience_fit || 0.7) * 100),
+        content: Math.round((rec.detailed_scores?.category_match || 0.8) * 100),
+        brand: Math.round((rec.detailed_scores?.budget_fit || 0.6) * 100),
+      }
+    }));
+  };
+
   const formatNumber = (num: number) => {
     if (num >= 10000) {
       return (num / 10000).toFixed(1) + '万';
@@ -162,32 +245,7 @@ export default function MatchingPage() {
     <AuthGuard>
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
       {/* ヘッダー */}
-      <header className="bg-white/80 backdrop-blur-md shadow-sm border-b border-gray-200/50 sticky top-0 z-50">
-        <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <Link href="/" className="text-2xl font-bold text-gradient">
-              InfuMatch
-            </Link>
-            <nav className="hidden md:flex space-x-8">
-              <Link href="/search" className="text-gray-600 hover:text-indigo-600 transition-colors">
-                検索
-              </Link>
-              <Link href="/messages" className="text-gray-600 hover:text-indigo-600 transition-colors">
-                メッセージ
-              </Link>
-              <Link href="/matching" className="text-indigo-600 font-medium border-b-2 border-indigo-600 pb-1">
-                AIマッチング
-              </Link>
-              <Link href="/settings" className="text-gray-600 hover:text-indigo-600 transition-colors">
-                設定
-              </Link>
-            </nav>
-            <button className="btn btn-primary">
-              ログイン
-            </button>
-          </div>
-        </div>
-      </header>
+      <Header variant="glass" />
 
       <main className="container mx-auto px-6 py-8">
         <div className={`transform transition-all duration-1000 ${isVisible ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'}`}>
@@ -218,15 +276,49 @@ export default function MatchingPage() {
 
             {!isAnalyzing && !showResults && (
               <div className="text-center">
-                <button 
-                  onClick={handleStartMatching}
-                  className="btn btn-primary text-lg px-12 py-4"
-                >
-                  <svg className="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
-                  AI分析を開始
-                </button>
+                {isLoadingSettings ? (
+                  <div className="flex items-center justify-center space-x-3">
+                    <svg className="animate-spin h-6 w-6 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span className="text-gray-600">設定データを読み込み中...</span>
+                  </div>
+                ) : error ? (
+                  <div className="text-center">
+                    <div className="text-red-600 mb-4">⚠️ {error}</div>
+                    <button 
+                      onClick={handleStartMatching}
+                      className="btn btn-primary text-lg px-12 py-4"
+                    >
+                      <svg className="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      </svg>
+                      デフォルト設定でAI分析を開始
+                    </button>
+                  </div>
+                ) : (
+                  <div>
+                    {settings ? (
+                      <div className="mb-4 text-sm text-gray-600">
+                        ✅ 設定データ読み込み完了 ({settings.companyInfo?.companyName || 'データなし'})
+                      </div>
+                    ) : (
+                      <div className="mb-4 text-sm text-gray-500">
+                        ℹ️ デフォルト設定を使用します
+                      </div>
+                    )}
+                    <button 
+                      onClick={handleStartMatching}
+                      className="btn btn-primary text-lg px-12 py-4"
+                    >
+                      <svg className="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      </svg>
+                      AI分析を開始
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 
@@ -390,15 +482,15 @@ export default function MatchingPage() {
 
                       {/* アクションボタン */}
                       <div className="flex space-x-4">
-                        <button className="btn btn-primary flex-1">
+                        <Link href="/messages" className="btn btn-primary flex-1 text-center">
                           <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                           </svg>
                           コンタクト開始
-                        </button>
-                        <button className="btn btn-outline flex-1">
+                        </Link>
+                        <Link href="/search" className="btn btn-outline flex-1 text-center">
                           詳細プロフィール
-                        </button>
+                        </Link>
                         <button className="btn btn-ghost">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />

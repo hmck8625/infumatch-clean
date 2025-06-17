@@ -161,8 +161,7 @@ class BaseAgent(ABC):
         
         self.model = genai.GenerativeModel(
             model_name=model_name,
-            generation_config=generation_config,
-            system_instruction=self.config.system_instruction
+            generation_config=generation_config
         )
         logger.info(f"✅ Gemini API Model {model_name} initialized")
     
@@ -248,10 +247,14 @@ class BaseAgent(ABC):
         # 基本的な前処理（サブクラスでオーバーライド可能）
         formatted = prompt
         
+        # Gemini API使用時はシステムインストラクションをプロンプトに含める
+        if not self.use_vertex and self.config.system_instruction:
+            formatted = f"{self.config.system_instruction}\n\n{prompt}"
+        
         if context:
             # コンテキスト情報を追加
             context_str = self._context_to_string(context)
-            formatted = f"{context_str}\n\n{prompt}"
+            formatted = f"{context_str}\n\n{formatted}"
         
         return formatted
     

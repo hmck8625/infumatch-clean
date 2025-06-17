@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useSession, signOut } from 'next-auth/react';
+import Header from '@/components/Header';
 // UserSettings型定義を追加
 interface UserSettings {
   userId: string;
@@ -382,58 +383,26 @@ export default function SettingsPage() {
     );
   }
 
+  const saveSettingsAction = (
+    <Button onClick={saveSettings} disabled={isSaving} className="btn-primary">
+      {isSaving ? (
+        <>
+          <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full mr-2"></div>
+          保存中...
+        </>
+      ) : (
+        <>
+          <Save className="w-4 h-4 mr-2" />
+          設定を保存
+        </>
+      )}
+    </Button>
+  );
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
       {/* ヘッダー */}
-      <header className="bg-white/80 backdrop-blur-md shadow-sm border-b border-gray-200/50 sticky top-0 z-50">
-        <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <Link href="/" className="text-2xl font-bold text-gradient">
-              InfuMatch
-            </Link>
-            <nav className="hidden md:flex space-x-8">
-              <Link href="/search" className="text-gray-600 hover:text-indigo-600 transition-colors">
-                検索
-              </Link>
-              <Link href="/messages" className="text-gray-600 hover:text-indigo-600 transition-colors">
-                メッセージ
-              </Link>
-              <Link href="/matching" className="text-gray-600 hover:text-indigo-600 transition-colors">
-                AIマッチング
-              </Link>
-              <Link href="/settings" className="text-indigo-600 font-medium border-b-2 border-indigo-600 pb-1">
-                設定
-              </Link>
-            </nav>
-            <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-600">
-                {session?.user?.email || 'ユーザー情報なし'}
-              </span>
-              <Button onClick={saveSettings} disabled={isSaving} className="btn-primary">
-                {isSaving ? (
-                  <>
-                    <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full mr-2"></div>
-                    保存中...
-                  </>
-                ) : (
-                  <>
-                    <Save className="w-4 h-4 mr-2" />
-                    設定を保存
-                  </>
-                )}
-              </Button>
-              <Button 
-                onClick={() => signOut({ callbackUrl: '/' })} 
-                variant="outline"
-                className="text-gray-600 hover:text-red-600 hover:border-red-600"
-              >
-                <LogOut className="w-4 h-4 mr-2" />
-                ログアウト
-              </Button>
-            </div>
-          </div>
-        </div>
-      </header>
+      <Header variant="glass" extraActions={saveSettingsAction} />
 
       <main className="container mx-auto px-6 py-8">
         {/* ヘッダーセクション */}

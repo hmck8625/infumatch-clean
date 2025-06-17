@@ -114,39 +114,47 @@ def save_to_bigquery(channels):
 
 def main():
     """メイン実行関数"""
-    # Vlog・カップル系JSONファイルを優先的に探す
-    vlog_files = [f for f in os.listdir('.') if f.startswith('vlog_couple_channels_') and f.endswith('.json')]
+    # ゲーム系JSONファイルを優先的に探す
+    gaming_files = [f for f in os.listdir('.') if f.startswith('gaming_channels_') and f.endswith('.json')]
     
-    if vlog_files:
-        # 最新Vlog系ファイルを選択
-        latest_file = sorted(vlog_files)[-1]
+    if gaming_files:
+        # 最新ゲーム系ファイルを選択
+        latest_file = sorted(gaming_files)[-1]
         print(f"📁 読み込み: {latest_file}")
     else:
-        # 芸人系JSONファイルを次に探す
-        comedian_files = [f for f in os.listdir('.') if f.startswith('comedian_channels_') and f.endswith('.json')]
+        # Vlog・カップル系JSONファイルを次に探す
+        vlog_files = [f for f in os.listdir('.') if f.startswith('vlog_couple_channels_') and f.endswith('.json')]
         
-        if comedian_files:
-            # 最新芸人系ファイルを選択
-            latest_file = sorted(comedian_files)[-1]
+        if vlog_files:
+            # 最新Vlog系ファイルを選択
+            latest_file = sorted(vlog_files)[-1]
             print(f"📁 読み込み: {latest_file}")
         else:
-            # ビジネス系JSONファイルを次に探す
-            business_files = [f for f in os.listdir('.') if f.startswith('business_channels_') and f.endswith('.json')]
+            # 芸人系JSONファイルを次に探す
+            comedian_files = [f for f in os.listdir('.') if f.startswith('comedian_channels_') and f.endswith('.json')]
             
-            if business_files:
-                # 最新ビジネス系ファイルを選択
-                latest_file = sorted(business_files)[-1]
+            if comedian_files:
+                # 最新芸人系ファイルを選択
+                latest_file = sorted(comedian_files)[-1]
                 print(f"📁 読み込み: {latest_file}")
             else:
-                # その他のJSONファイル
-                json_files = [f for f in os.listdir('.') if f.endswith('.json') and ('channels_' in f or 'famous_' in f)]
+                # ビジネス系JSONファイルを次に探す
+                business_files = [f for f in os.listdir('.') if f.startswith('business_channels_') and f.endswith('.json')]
                 
-                if not json_files:
-                    print("❌ JSONファイルが見つかりません")
-                    return
-                
-                latest_file = sorted(json_files)[-1]
-                print(f"📁 読み込み: {latest_file}")
+                if business_files:
+                    # 最新ビジネス系ファイルを選択
+                    latest_file = sorted(business_files)[-1]
+                    print(f"📁 読み込み: {latest_file}")
+                else:
+                    # その他のJSONファイル
+                    json_files = [f for f in os.listdir('.') if f.endswith('.json') and ('channels_' in f or 'famous_' in f)]
+                    
+                    if not json_files:
+                        print("❌ JSONファイルが見つかりません")
+                        return
+                    
+                    latest_file = sorted(json_files)[-1]
+                    print(f"📁 読み込み: {latest_file}")
     
     # データ読み込み
     with open(latest_file, 'r', encoding='utf-8') as f:

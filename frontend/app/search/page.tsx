@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { searchInfluencers, getAIRecommendations, generateCollaborationProposal, Influencer, APIError, CampaignRequest, AIRecommendationResponse } from '@/lib/api';
+import { searchInfluencers, getAIRecommendations, generateCollaborationProposal, researchChannel, Influencer, APIError, CampaignRequest, AIRecommendationResponse, ChannelResearchRequest, ChannelResearchResponse } from '@/lib/api';
+import Header from '@/components/Header';
 import { 
   Search, 
   Filter, 
@@ -23,7 +24,12 @@ import {
   Shield,
   Star,
   Target,
-  Sparkles
+  Sparkles,
+  SearchCheck,
+  TrendingUp as TrendingUpIcon,
+  AlertTriangle,
+  Handshake,
+  BarChart
 } from 'lucide-react';
 
 // アイコン配列を定義
@@ -73,6 +79,37 @@ function InfluencerDetailModal({
   onCollaborationProposal: (influencer: Influencer) => void;
   isGeneratingProposal: boolean;
 }) {
+  const [researchResult, setResearchResult] = useState<ChannelResearchResponse | null>(null);
+  const [isResearching, setIsResearching] = useState(false);
+  const [activeTab, setActiveTab] = useState('basic');
+
+  const handleChannelResearch = async () => {
+    try {
+      setIsResearching(true);
+      
+      const request: ChannelResearchRequest = {
+        channel_id: influencer.channelId,
+        channel_title: influencer.name,
+        channel_data: {
+          category: influencer.category,
+          subscriber_count: influencer.subscriberCount,
+          description: influencer.description,
+          engagement_rate: influencer.engagementRate
+        }
+      };
+
+      const result = await researchChannel(request);
+      setResearchResult(result);
+      setActiveTab('research'); // 調査結果タブに切り替え
+      
+    } catch (error) {
+      console.error('チャンネル調査エラー:', error);
+      // エラーハンドリング（後で実装）
+    } finally {
+      setIsResearching(false);
+    }
+  };
+
   if (!isOpen || !influencer) return null;
 
   const hasEmail = influencer.email && influencer.email !== 'null' && influencer.email.trim() !== '';
@@ -121,8 +158,42 @@ function InfluencerDetailModal({
           </button>
         </div>
 
+        {/* タブナビゲーション */}
+        <div className="border-b border-gray-200">
+          <nav className="flex space-x-8 px-6">
+            <button
+              onClick={() => setActiveTab('basic')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'basic'
+                  ? 'border-purple-500 text-purple-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              基本情報
+            </button>
+            <button
+              onClick={() => setActiveTab('research')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 ${
+                activeTab === 'research'
+                  ? 'border-purple-500 text-purple-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <SearchCheck className="w-4 h-4" />
+              <span>AI調査</span>
+              {researchResult && (
+                <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">
+                  完了
+                </span>
+              )}
+            </button>
+          </nav>
+        </div>
+
         {/* コンテンツ */}
         <div className="p-6 space-y-6">
+          {activeTab === 'basic' && (
+            <div className="space-y-6">
           {/* 基本情報 */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4">
@@ -272,6 +343,18 @@ function InfluencerDetailModal({
               <span>{isGeneratingProposal ? 'AI生成中...' : 'コラボ提案'}</span>
             </button>
             <button 
+              onClick={handleChannelResearch}
+              disabled={isResearching}
+              className="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 text-white py-3 px-4 rounded-xl font-medium hover:from-green-700 hover:to-emerald-700 transition-all duration-200 flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isResearching ? (
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+              ) : (
+                <SearchCheck className="w-4 h-4" />
+              )}
+              <span>{isResearching ? 'AI調査中...' : 'AI調査開始'}</span>
+            </button>
+            <button 
               onClick={() => window.open(`https://www.youtube.com/channel/${influencer.channelId}`, '_blank')}
               className="flex-1 border border-gray-300 text-gray-700 py-3 px-4 rounded-xl font-medium hover:bg-gray-50 transition-colors flex items-center justify-center space-x-2"
             >
@@ -279,6 +362,174 @@ function InfluencerDetailModal({
               <span>チャンネル確認</span>
             </button>
           </div>
+            </div>
+          )}
+
+          {/* AI調査結果 */}
+          {activeTab === 'research' && (
+            <div className="space-y-6">
+              {!researchResult && !isResearching && (
+                <div className="text-center py-12 bg-gray-50 rounded-xl">
+                  <SearchCheck className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-xl font-semibold text-gray-900 mb-2">AI調査を開始</h3>
+                  <p className="text-gray-600 mb-6">Vertex AIがこのチャンネルについて詳細に調査します</p>
+                  <button 
+                    onClick={handleChannelResearch}
+                    className="bg-gradient-to-r from-green-600 to-emerald-600 text-white px-6 py-3 rounded-xl font-medium hover:from-green-700 hover:to-emerald-700 transition-all duration-200 flex items-center space-x-2 mx-auto"
+                  >
+                    <SearchCheck className="w-5 h-5" />
+                    <span>AI調査開始</span>
+                  </button>
+                </div>
+              )}
+
+              {isResearching && (
+                <div className="text-center py-12">
+                  <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-green-600 mx-auto mb-4"></div>
+                  <h3 className="text-xl font-semibold text-gray-900 mb-2">AI調査実行中...</h3>
+                  <p className="text-gray-600">Web検索とAI分析を実行しています（2-3分程度）</p>
+                </div>
+              )}
+
+              {researchResult && (
+                <div className="space-y-6">
+                  {/* 調査サマリー */}
+                  <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6">
+                    <div className="flex items-center space-x-2 mb-3">
+                      <SearchCheck className="w-6 h-6 text-blue-600" />
+                      <h3 className="text-lg font-semibold text-blue-900">調査サマリー</h3>
+                      <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">
+                        信頼度: {(researchResult.research_confidence * 100).toFixed(0)}%
+                      </span>
+                    </div>
+                    <p className="text-blue-900 leading-relaxed">{researchResult.summary}</p>
+                  </div>
+
+                  {/* 調査結果詳細 */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* 基本情報・最新動向 */}
+                    <div className="bg-white border border-gray-200 rounded-xl p-6">
+                      <div className="flex items-center space-x-2 mb-4">
+                        <TrendingUpIcon className="w-5 h-5 text-blue-600" />
+                        <h4 className="text-lg font-semibold text-gray-900">最新動向</h4>
+                      </div>
+                      <div className="space-y-3 text-sm">
+                        <div>
+                          <span className="font-medium text-gray-700">活動状況:</span>
+                          <span className="ml-2 text-gray-900">{researchResult.basic_info.latest_activity}</span>
+                        </div>
+                        <div>
+                          <span className="font-medium text-gray-700">成長傾向:</span>
+                          <span className="ml-2 text-gray-900">{researchResult.basic_info.growth_trend}</span>
+                        </div>
+                        <div>
+                          <span className="font-medium text-gray-700">人気コンテンツ:</span>
+                          <span className="ml-2 text-gray-900">{researchResult.basic_info.popular_content}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 評判・安全性 */}
+                    <div className="bg-white border border-gray-200 rounded-xl p-6">
+                      <div className="flex items-center space-x-2 mb-4">
+                        <Shield className="w-5 h-5 text-green-600" />
+                        <h4 className="text-lg font-semibold text-gray-900">ブランド安全性</h4>
+                      </div>
+                      <div className="space-y-3 text-sm">
+                        <div>
+                          <span className="font-medium text-gray-700">リスクレベル:</span>
+                          <span className={`ml-2 px-2 py-1 rounded text-xs font-medium ${
+                            researchResult.reputation_safety.brand_risk_level === '低' 
+                              ? 'bg-green-100 text-green-800'
+                              : researchResult.reputation_safety.brand_risk_level === '中'
+                              ? 'bg-yellow-100 text-yellow-800'
+                              : 'bg-red-100 text-red-800'
+                          }`}>
+                            {researchResult.reputation_safety.brand_risk_level}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="font-medium text-gray-700">安全性スコア:</span>
+                          <span className="ml-2 text-gray-900">{(researchResult.reputation_safety.safety_score * 100).toFixed(0)}%</span>
+                        </div>
+                        <div>
+                          <span className="font-medium text-gray-700">一般評判:</span>
+                          <span className="ml-2 text-gray-900">{researchResult.reputation_safety.public_reputation}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* コラボ実績 */}
+                    <div className="bg-white border border-gray-200 rounded-xl p-6">
+                      <div className="flex items-center space-x-2 mb-4">
+                        <Handshake className="w-5 h-5 text-purple-600" />
+                        <h4 className="text-lg font-semibold text-gray-900">コラボ実績</h4>
+                      </div>
+                      <div className="space-y-3 text-sm">
+                        <div>
+                          <span className="font-medium text-gray-700">年間コラボ数:</span>
+                          <span className="ml-2 text-gray-900">{researchResult.collaboration_history.collaboration_count}</span>
+                        </div>
+                        <div>
+                          <span className="font-medium text-gray-700">PR頻度:</span>
+                          <span className="ml-2 text-gray-900">{researchResult.collaboration_history.pr_frequency}</span>
+                        </div>
+                        <div>
+                          <span className="font-medium text-gray-700">推定料金:</span>
+                          <span className="ml-2 text-gray-900">{researchResult.collaboration_history.estimated_rates}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 市場分析 */}
+                    <div className="bg-white border border-gray-200 rounded-xl p-6">
+                      <div className="flex items-center space-x-2 mb-4">
+                        <BarChart className="w-5 h-5 text-orange-600" />
+                        <h4 className="text-lg font-semibold text-gray-900">市場分析</h4>
+                      </div>
+                      <div className="space-y-3 text-sm">
+                        <div>
+                          <span className="font-medium text-gray-700">市場ポジション:</span>
+                          <span className="ml-2 text-gray-900">{researchResult.market_analysis.market_position}</span>
+                        </div>
+                        <div>
+                          <span className="font-medium text-gray-700">成長潜在性:</span>
+                          <span className="ml-2 text-gray-900">{researchResult.market_analysis.growth_potential}</span>
+                        </div>
+                        <div>
+                          <span className="font-medium text-gray-700">差別化要因:</span>
+                          <span className="ml-2 text-gray-900">{researchResult.market_analysis.differentiation}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 詳細情報表示 */}
+                  <div className="bg-gray-50 rounded-xl p-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
+                      <div>
+                        <h5 className="font-semibold text-gray-900 mb-3">主要コラボ先</h5>
+                        <ul className="space-y-2">
+                          {researchResult.collaboration_history.major_collaborations.map((collab, index) => (
+                            <li key={index} className="text-gray-700">• {collab}</li>
+                          ))}
+                        </ul>
+                      </div>
+                      <div>
+                        <h5 className="font-semibold text-gray-900 mb-3">主要競合</h5>
+                        <ul className="space-y-2">
+                          {researchResult.market_analysis.competitors.map((competitor, index) => (
+                            <li key={index} className="text-gray-700">• {competitor}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
         </div>
       </div>
     </div>
@@ -415,6 +666,7 @@ export default function SearchPage() {
       
       if (useAI) {
         // AI推薦の場合は /matching ページにリダイレクト
+        console.log('[handleSearch] AI推薦実行 - /matchingページに遷移');
         router.push('/matching');
         return;
       } else {
@@ -532,21 +784,7 @@ export default function SearchPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
       {/* ヘッダー */}
-      <div className="bg-white shadow-sm border-b">
-        <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <Link href="/" className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
-              InfuMatch
-            </Link>
-            <nav className="hidden md:flex space-x-8">
-              <Link href="/search" className="text-purple-600 font-medium">検索</Link>
-              <Link href="/messages" className="text-gray-600 hover:text-purple-600 transition-colors">メッセージ</Link>
-              <Link href="/matching" className="text-gray-600 hover:text-purple-600 transition-colors">AIマッチング</Link>
-              <Link href="/settings" className="text-gray-600 hover:text-purple-600 transition-colors">設定</Link>
-            </nav>
-          </div>
-        </div>
-      </div>
+      <Header />
 
       <div className="container mx-auto px-6 py-8">
         {/* 検索セクション */}
@@ -569,7 +807,7 @@ export default function SearchPage() {
                 onClick={() => setUseAI(true)}
                 className={`px-6 py-2 rounded-lg font-medium transition-all ${useAI ? 'bg-white text-purple-600 shadow-sm' : 'text-gray-600'}`}
               >
-                AI推薦
+                AIマッチング
               </button>
             </div>
           </div>
@@ -717,7 +955,7 @@ export default function SearchPage() {
               ) : (
                 <Search className="w-5 h-5" />
               )}
-              <span>{isSearching ? '検索中...' : useAI ? 'AI推薦実行' : '検索実行'}</span>
+              <span>{isSearching ? (useAI ? 'AIマッチング開始中...' : '検索中...') : useAI ? 'AIマッチング開始' : '検索実行'}</span>
             </button>
           </div>
         </div>
