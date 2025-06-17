@@ -58,7 +58,7 @@ function MessagesPageContent() {
     status: string;
     detail: string;
     reasoning?: string; // AIの思考過程
-    stepNumber: number; // 1-7の段階番号
+    stepNumber: number; // 1-4の段階番号
     progressPercent: number; // 進捗率 (0-100)
     agentType?: string; // 処理中のエージェントタイプ
     duration?: number; // 処理時間（ミリ秒）
@@ -66,48 +66,30 @@ function MessagesPageContent() {
     isCompleted: boolean; // 完了フラグ
   }
 
-  // 7段階の詳細ステップ定義
+  // 4段階のシンプルステップ定義
   const PROCESSING_STAGES = [
     { 
       number: 1, 
-      name: '🚀 初期化・設定読み込み', 
-      description: 'AI交渉エージェントを起動し、企業設定・商材情報を読み込んでいます',
-      progressTarget: 15
+      name: '📊 スレッド分析', 
+      description: 'メッセージ履歴を分析し、現在の交渉状況を把握しています',
+      progressTarget: 25
     },
     { 
       number: 2, 
-      name: '🧠 メッセージ解析・コンテキスト分析', 
-      description: 'メッセージ内容を分析し、交渉コンテキストを理解しています',
-      progressTarget: 30
+      name: '🧠 戦略立案', 
+      description: 'カスタム指示と企業設定を考慮して返信戦略を立案しています',
+      progressTarget: 50
     },
     { 
       number: 3, 
-      name: '🎭 マルチエージェント協調開始', 
-      description: '6つの専門AIエージェントが連携して分析を開始しています',
-      progressTarget: 45
+      name: '🔍 内容評価', 
+      description: '戦略内容の適切性を評価し、リスク要因をチェックしています',
+      progressTarget: 75
     },
     { 
       number: 4, 
-      name: '📊 戦略立案・リスク評価', 
-      description: '交渉戦略を立案し、リスク要因を評価しています',
-      progressTarget: 65
-    },
-    { 
-      number: 5, 
-      name: '✍️ 応答生成・品質最適化', 
-      description: 'プロフェッショナルな応答文を生成し、品質を最適化しています',
-      progressTarget: 80
-    },
-    { 
-      number: 6, 
-      name: '⚖️ 最終評価・統合判断', 
-      description: 'エージェント結果を統合し、最終的な品質評価を行っています',
-      progressTarget: 95
-    },
-    { 
-      number: 7, 
-      name: '✅ 完了・結果出力', 
-      description: '処理完了。最適な返信パターンを生成しました',
+      name: '🎨 パターン生成', 
+      description: '3つの異なるアプローチで返信パターンを生成しています',
       progressTarget: 100
     }
   ];
@@ -367,7 +349,7 @@ function MessagesPageContent() {
       // ステップ番号が指定されていない場合は自動判定
       const actualStepNumber = stepNumber || (currentStageIndex + 1);
       const stage = PROCESSING_STAGES.find(s => s.number === actualStepNumber);
-      const progressPercent = stage?.progressTarget || Math.min((actualStepNumber / 7) * 100, 100);
+      const progressPercent = stage?.progressTarget || Math.min((actualStepNumber / 4) * 100, 100);
       
       setProcessingSteps(prev => [...prev, {
         time: new Date().toLocaleTimeString(),
@@ -379,7 +361,7 @@ function MessagesPageContent() {
         agentType: agentType,
         duration: duration,
         confidence: confidence,
-        isCompleted: actualStepNumber === 7
+        isCompleted: actualStepNumber === 4
       }]);
       
       // 現在の段階インデックスを更新
@@ -398,10 +380,10 @@ function MessagesPageContent() {
   const completeProcessing = () => {
     updateAgentStatus(
       '✅ 処理完了', 
-      '最適な返信パターンを生成しました', 
-      'マルチエージェント協調による高品質な応答生成が完了しました',
-      7,
-      'NegotiationManager',
+      '3つの返信パターンを生成しました', 
+      'シンプル4エージェント協調による効率的な応答生成が完了しました',
+      4,
+      'SimpleNegotiationManager',
       0.95
     );
   };
@@ -415,13 +397,13 @@ function MessagesPageContent() {
     startProcessing(); // 処理開始時刻を記録
     
     try {
-      // 段階1: 初期化・設定読み込み
+      // 段階1: スレッド分析
       updateAgentStatus(
-        '🚀 初期化・設定読み込み', 
-        'AI交渉エージェントを起動し、企業設定を読み込んでいます...', 
-        'マルチエージェントオーケストレーションシステムを初期化し、必要なリソースを準備します',
+        '📊 スレッド分析', 
+        'メッセージ履歴を分析し、現在の交渉状況を把握しています...', 
+        'スレッド分析エージェントがメッセージ履歴を読み込み、交渉段階・相手の感情・懸念事項を分析します',
         1,
-        'SystemManager',
+        'ThreadAnalysisAgent',
         0.85
       );
       console.log('🤖 AIエージェントが返信パターンを生成中...');
@@ -474,13 +456,13 @@ function MessagesPageContent() {
       console.log('📤 API送信データ:', JSON.stringify(requestData, null, 2));
       console.log('📝 カスタムプロンプトの状態:', customPrompt ? `「${customPrompt}」が設定されています` : '未設定');
       
-      // 企業設定を取得（settingsから） - 段階1の継続
+      // 企業設定を取得 - 段階2の準備
       updateAgentStatus(
-        '📋 設定取得中', 
-        '企業情報・商材情報・交渉ポイントを読み込んでいます...', 
-        '交渉戦略を最適化するため、企業固有の設定情報を取得します',
-        1,
-        'ConfigurationAgent',
+        '🧠 戦略立案', 
+        '企業情報・商材情報・カスタム指示を考慮して戦略を立案しています...', 
+        '戦略立案エージェントが企業設定とカスタム指示を統合し、最適な返信戦略を考案します',
+        2,
+        'ReplyStrategyAgent',
         0.90
       );
       let companySettings = {};
@@ -496,13 +478,13 @@ function MessagesPageContent() {
           const products = companySettings.products || [];
           const negotiationSettings = companySettings.negotiationSettings || {};
           
-          // 段階2: メッセージ解析・コンテキスト分析 (設定読み込み完了後)
+          // 段階3: 内容評価 (設定読み込み完了後)
           updateAgentStatus(
-            '🧠 メッセージ解析・コンテキスト分析', 
-            `企業: ${companyInfo.companyName || '未設定'}, 商材: ${products.length}件を把握し、メッセージ分析を開始`,
-            `${companyInfo.companyName || '企業'}の商材と交渉ポイントを把握しました。これらの情報を基にメッセージコンテキストを分析します`,
-            2,
-            'ContextAgent',
+            '🔍 内容評価', 
+            `企業: ${companyInfo.companyName || '未設定'}, 商材: ${products.length}件を基に戦略内容を評価中`,
+            `${companyInfo.companyName || '企業'}の設定を把握し、立案された戦略の適切性とリスク要因を評価します`,
+            3,
+            'ContentEvaluationAgent',
             0.85
           );
         } else {
@@ -539,17 +521,17 @@ function MessagesPageContent() {
         console.log('📝 カスタムプロンプトを適用:', customPrompt);
       }
       
-      // 段階3: マルチエージェント協調開始
+      // 段階4: パターン生成
       const threadSubject = currentThread.messages[0] ? getMessageSubject(currentThread.messages[0]) : 'No Subject';
       const messageCount = currentThread.messages.length;
       const lastSender = threadMessages[threadMessages.length - 1]?.sender || '不明';
       
       updateAgentStatus(
-        '🎭 マルチエージェント協調開始', 
-        `${messageCount}件のメッセージを6つの専門AIエージェントが並列分析中...`, 
-        `${lastSender}からの最新メッセージを分析し、Context・Analysis・Strategy・Communication・Pricing・Riskエージェントが連携して処理を開始`,
-        3,
-        'OrchestrationManager',
+        '🎨 パターン生成', 
+        `${messageCount}件のメッセージを基に3つの返信パターンを生成中...`, 
+        `${lastSender}からのメッセージに対し、協調的・中立・主張的の3つのアプローチで返信パターンを生成します`,
+        4,
+        'PatternGenerationAgent',
         0.80
       );
       
@@ -587,13 +569,13 @@ function MessagesPageContent() {
       const result = await response.json();
       console.log('📥 API応答:', result);
       
-      // 段階4: 戦略立案・リスク評価
+      // API応答を受信
       updateAgentStatus(
-        '📊 戦略立案・リスク評価', 
-        'AI応答を受信し、戦略とリスクを評価中...', 
-        'オーケストレーションAPIからの応答を解析し、StrategyAgentとRiskAgentの結果を統合しています',
+        '📥 応答受信', 
+        'AI応答を受信し、パターン結果を処理中...', 
+        'シンプル4エージェントシステムからの応答を解析し、生成された3つのパターンを処理しています',
         4,
-        'StrategyAgent',
+        'SimpleNegotiationManager',
         0.85
       );
 
@@ -602,25 +584,25 @@ function MessagesPageContent() {
       const orchestrationDetails = result.orchestration_details || {};
       const metadata = result.metadata || {};
       
-      // 段階5: 応答生成・品質最適化
-      if (metadata.processing_type === 'multi_agent_orchestration') {
+      // 4段階システムでの最終処理
+      if (metadata.processing_type === 'simple_4_agent') {
         updateAgentStatus(
-          '✍️ 応答生成・品質最適化', 
-          `${orchestrationDetails.active_agents?.length || 6}つの専門AIエージェントによる応答生成完了`, 
-          aiThinking.orchestration_summary || 'マルチエージェント協調による高品質な応答を生成しています',
-          5,
-          'CommunicationAgent',
-          0.90
+          '✅ 処理完了', 
+          `4つのシンプルエージェントによる効率的な応答生成完了`, 
+          aiThinking.orchestration_summary || 'シンプル4エージェント協調による効率的な応答を生成しました',
+          4,
+          'SimpleNegotiationManager',
+          0.95
         );
       } else {
         // フォールバック時の表示
         updateAgentStatus(
-          '✍️ 応答生成・品質最適化', 
+          '✅ 処理完了', 
           'フォールバックシステムによる応答生成完了', 
           `${aiThinking.processing_note || 'AI処理完了'} → ${aiThinking.reason || '標準応答生成'}`,
-          5,
+          4,
           'FallbackAgent',
-          0.70
+          0.80
         );
       }
       
@@ -688,13 +670,13 @@ function MessagesPageContent() {
             stageReasoning = '現在の交渉段階を分析し、適切なアプローチを選択します';
         }
         
-        // 段階6: 最終評価・統合判断
+        // パターン生成の最終処理
         updateAgentStatus(
-          '⚖️ 最終評価・統合判断', 
-          '3つの異なるコミュニケーションスタイルを評価・作成中...', 
-          `${stageReasoning} 品質評価とパターン多様化を実行しています`,
-          6,
-          'EvaluationAgent',
+          '🎨 パターン最終生成', 
+          '3つの異なるコミュニケーションスタイルを作成中...', 
+          `${stageReasoning} 協調的・中立・主張的の3パターンを生成しています`,
+          4,
+          'PatternGenerationAgent',
           0.92
         );
         
