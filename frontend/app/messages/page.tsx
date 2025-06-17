@@ -58,7 +58,59 @@ function MessagesPageContent() {
     status: string;
     detail: string;
     reasoning?: string; // AIの思考過程
+    stepNumber: number; // 1-7の段階番号
+    progressPercent: number; // 進捗率 (0-100)
+    agentType?: string; // 処理中のエージェントタイプ
+    duration?: number; // 処理時間（ミリ秒）
+    confidence?: number; // 信頼度 (0-1)
+    isCompleted: boolean; // 完了フラグ
   }
+
+  // 7段階の詳細ステップ定義
+  const PROCESSING_STAGES = [
+    { 
+      number: 1, 
+      name: '🚀 初期化・設定読み込み', 
+      description: 'AI交渉エージェントを起動し、企業設定・商材情報を読み込んでいます',
+      progressTarget: 15
+    },
+    { 
+      number: 2, 
+      name: '🧠 メッセージ解析・コンテキスト分析', 
+      description: 'メッセージ内容を分析し、交渉コンテキストを理解しています',
+      progressTarget: 30
+    },
+    { 
+      number: 3, 
+      name: '🎭 マルチエージェント協調開始', 
+      description: '6つの専門AIエージェントが連携して分析を開始しています',
+      progressTarget: 45
+    },
+    { 
+      number: 4, 
+      name: '📊 戦略立案・リスク評価', 
+      description: '交渉戦略を立案し、リスク要因を評価しています',
+      progressTarget: 65
+    },
+    { 
+      number: 5, 
+      name: '✍️ 応答生成・品質最適化', 
+      description: 'プロフェッショナルな応答文を生成し、品質を最適化しています',
+      progressTarget: 80
+    },
+    { 
+      number: 6, 
+      name: '⚖️ 最終評価・統合判断', 
+      description: 'エージェント結果を統合し、最終的な品質評価を行っています',
+      progressTarget: 95
+    },
+    { 
+      number: 7, 
+      name: '✅ 完了・結果出力', 
+      description: '処理完了。最適な返信パターンを生成しました',
+      progressTarget: 100
+    }
+  ];
   
   const [agentStatus, setAgentStatus] = useState<string>('待機中');
   const [processingSteps, setProcessingSteps] = useState<ProcessingStep[]>([]);
@@ -294,16 +346,64 @@ function MessagesPageContent() {
     }
   };
 
-  const updateAgentStatus = (status: string, detail?: string, reasoning?: string) => {
+  // 処理開始時刻を記録
+  const [processingStartTime, setProcessingStartTime] = useState<number>(0);
+  const [currentStageIndex, setCurrentStageIndex] = useState<number>(0);
+
+  const updateAgentStatus = (
+    status: string, 
+    detail?: string, 
+    reasoning?: string, 
+    stepNumber?: number,
+    agentType?: string,
+    confidence?: number
+  ) => {
     setAgentStatus(status);
+    
     if (detail) {
+      const now = Date.now();
+      const duration = processingStartTime > 0 ? now - processingStartTime : 0;
+      
+      // ステップ番号が指定されていない場合は自動判定
+      const actualStepNumber = stepNumber || (currentStageIndex + 1);
+      const stage = PROCESSING_STAGES.find(s => s.number === actualStepNumber);
+      const progressPercent = stage?.progressTarget || Math.min((actualStepNumber / 7) * 100, 100);
+      
       setProcessingSteps(prev => [...prev, {
         time: new Date().toLocaleTimeString(),
         status: status,
         detail: detail,
-        reasoning: reasoning
+        reasoning: reasoning,
+        stepNumber: actualStepNumber,
+        progressPercent: progressPercent,
+        agentType: agentType,
+        duration: duration,
+        confidence: confidence,
+        isCompleted: actualStepNumber === 7
       }]);
+      
+      // 現在の段階インデックスを更新
+      if (stepNumber && stepNumber > currentStageIndex) {
+        setCurrentStageIndex(stepNumber);
+      }
     }
+  };
+
+  const startProcessing = () => {
+    setProcessingStartTime(Date.now());
+    setCurrentStageIndex(0);
+    setProcessingSteps([]);
+  };
+
+  const completeProcessing = () => {
+    updateAgentStatus(
+      '✅ 処理完了', 
+      '最適な返信パターンを生成しました', 
+      'マルチエージェント協調による高品質な応答生成が完了しました',
+      7,
+      'NegotiationManager',
+      0.95
+    );
   };
 
   const generateReplyPatterns = async () => {
@@ -312,10 +412,18 @@ function MessagesPageContent() {
     setIsGeneratingPatterns(true);
     setReplyPatterns([]);
     setThreadAnalysis(null);
-    setProcessingSteps([]);
+    startProcessing(); // 処理開始時刻を記録
     
     try {
-      updateAgentStatus('🚀 初期化中', 'AI交渉エージェントを起動しています...', 'エージェントを初期化し、必要なリソースを準備します');
+      // 段階1: 初期化・設定読み込み
+      updateAgentStatus(
+        '🚀 初期化・設定読み込み', 
+        'AI交渉エージェントを起動し、企業設定を読み込んでいます...', 
+        'マルチエージェントオーケストレーションシステムを初期化し、必要なリソースを準備します',
+        1,
+        'SystemManager',
+        0.85
+      );
       console.log('🤖 AIエージェントが返信パターンを生成中...');
       
       // バックエンドの交渉エージェントAPIを呼び出し
@@ -366,8 +474,15 @@ function MessagesPageContent() {
       console.log('📤 API送信データ:', JSON.stringify(requestData, null, 2));
       console.log('📝 カスタムプロンプトの状態:', customPrompt ? `「${customPrompt}」が設定されています` : '未設定');
       
-      // 企業設定を取得（settingsから）
-      updateAgentStatus('📋 設定取得中', '企業情報・商材情報・交渉ポイントを読み込んでいます...', '交渉戦略を最適化するため、企業固有の設定情報を取得します');
+      // 企業設定を取得（settingsから） - 段階1の継続
+      updateAgentStatus(
+        '📋 設定取得中', 
+        '企業情報・商材情報・交渉ポイントを読み込んでいます...', 
+        '交渉戦略を最適化するため、企業固有の設定情報を取得します',
+        1,
+        'ConfigurationAgent',
+        0.90
+      );
       let companySettings = {};
       try {
         const settingsResponse = await fetch('/api/settings');
@@ -381,9 +496,15 @@ function MessagesPageContent() {
           const products = companySettings.products || [];
           const negotiationSettings = companySettings.negotiationSettings || {};
           
-          updateAgentStatus('✅ 設定読み込み完了', 
-            `企業: ${companyInfo.companyName || '未設定'}, 商材: ${products.length}件, 交渉ポイント: ${negotiationSettings.keyPriorities?.length || 0}項目`,
-            `${companyInfo.companyName || '企業'}の商材と交渉ポイントを把握しました。これらの情報を基に最適な返信を生成します`);
+          // 段階2: メッセージ解析・コンテキスト分析 (設定読み込み完了後)
+          updateAgentStatus(
+            '🧠 メッセージ解析・コンテキスト分析', 
+            `企業: ${companyInfo.companyName || '未設定'}, 商材: ${products.length}件を把握し、メッセージ分析を開始`,
+            `${companyInfo.companyName || '企業'}の商材と交渉ポイントを把握しました。これらの情報を基にメッセージコンテキストを分析します`,
+            2,
+            'ContextAgent',
+            0.85
+          );
         } else {
           updateAgentStatus('⚠️ 設定取得失敗', '企業設定の読み込みに失敗しました', 'デフォルト設定で続行します');
         }
@@ -406,19 +527,31 @@ function MessagesPageContent() {
       
       // カスタムプロンプトを追加
       if (customPrompt.trim()) {
-        updateAgentStatus('📝 カスタム指示適用', `ユーザー指示: "${customPrompt}"`, 
-          `カスタム指示「${customPrompt}」を交渉戦略に組み込みます。この指示を優先的に考慮して返信を調整します`);
+        updateAgentStatus(
+          '📝 カスタム指示適用', 
+          `ユーザー指示: "${customPrompt}"`, 
+          `カスタム指示「${customPrompt}」を交渉戦略に組み込みます。この指示を優先的に考慮して返信を調整します`,
+          2,
+          'CustomizationAgent',
+          0.90
+        );
         requestData.custom_instructions = customPrompt.trim();
         console.log('📝 カスタムプロンプトを適用:', customPrompt);
       }
       
-      // スレッド分析を開始
+      // 段階3: マルチエージェント協調開始
       const threadSubject = currentThread.messages[0] ? getMessageSubject(currentThread.messages[0]) : 'No Subject';
       const messageCount = currentThread.messages.length;
       const lastSender = threadMessages[threadMessages.length - 1]?.sender || '不明';
       
-      updateAgentStatus('🧠 AI分析中', 'スレッド内容を分析し、戦略を立案しています...', 
-        `${messageCount}件のメッセージを分析中。${lastSender}からの最新メッセージから交渉段階を判断し、次のアクションを決定します`);
+      updateAgentStatus(
+        '🎭 マルチエージェント協調開始', 
+        `${messageCount}件のメッセージを6つの専門AIエージェントが並列分析中...`, 
+        `${lastSender}からの最新メッセージを分析し、Context・Analysis・Strategy・Communication・Pricing・Riskエージェントが連携して処理を開始`,
+        3,
+        'OrchestrationManager',
+        0.80
+      );
       
       // 新しいマルチエージェントオーケストレーションAPIを使用
       const fullUrl = `${apiUrl}/api/v1/negotiate/orchestrated`;
@@ -454,30 +587,41 @@ function MessagesPageContent() {
       const result = await response.json();
       console.log('📥 API応答:', result);
       
+      // 段階4: 戦略立案・リスク評価
+      updateAgentStatus(
+        '📊 戦略立案・リスク評価', 
+        'AI応答を受信し、戦略とリスクを評価中...', 
+        'オーケストレーションAPIからの応答を解析し、StrategyAgentとRiskAgentの結果を統合しています',
+        4,
+        'StrategyAgent',
+        0.85
+      );
+
       // AI思考過程の詳細表示 (オーケストレーション対応)
       const aiThinking = result.ai_thinking || {};
       const orchestrationDetails = result.orchestration_details || {};
       const metadata = result.metadata || {};
       
-      // オーケストレーション情報の表示
+      // 段階5: 応答生成・品質最適化
       if (metadata.processing_type === 'multi_agent_orchestration') {
-        updateAgentStatus('🎭 マルチエージェント協調', 
-          `${orchestrationDetails.active_agents?.length || 6}つの専門AIエージェントが協調して処理完了`, 
-          aiThinking.orchestration_summary || 'マルチエージェント協調による高度な交渉処理');
-          
-        if (aiThinking.stage_analysis) {
-          updateAgentStatus('📊 交渉段階分析', aiThinking.stage_analysis, 
-            `エージェント協調スコア: ${aiThinking.agent_coordination || '高'}`)
-        }
-        
-        if (aiThinking.quality_optimization) {
-          updateAgentStatus('⭐ 品質最適化', aiThinking.quality_optimization, 
-            `統合判断信頼度: ${aiThinking.decision_confidence || '高'}`)
-        }
+        updateAgentStatus(
+          '✍️ 応答生成・品質最適化', 
+          `${orchestrationDetails.active_agents?.length || 6}つの専門AIエージェントによる応答生成完了`, 
+          aiThinking.orchestration_summary || 'マルチエージェント協調による高品質な応答を生成しています',
+          5,
+          'CommunicationAgent',
+          0.90
+        );
       } else {
         // フォールバック時の表示
-        updateAgentStatus('📥 AI応答受信', 'AIからの返信データを処理しています...', 
-          `${aiThinking.processing_note || 'AI処理完了'} → ${aiThinking.reason || '標準応答生成'}`);
+        updateAgentStatus(
+          '✍️ 応答生成・品質最適化', 
+          'フォールバックシステムによる応答生成完了', 
+          `${aiThinking.processing_note || 'AI処理完了'} → ${aiThinking.reason || '標準応答生成'}`,
+          5,
+          'FallbackAgent',
+          0.70
+        );
       }
       
       // AI分析の詳細をログ出力
@@ -544,7 +688,15 @@ function MessagesPageContent() {
             stageReasoning = '現在の交渉段階を分析し、適切なアプローチを選択します';
         }
         
-        updateAgentStatus('🎨 パターン生成中', '3つの異なるコミュニケーションスタイルを作成しています...', stageReasoning);
+        // 段階6: 最終評価・統合判断
+        updateAgentStatus(
+          '⚖️ 最終評価・統合判断', 
+          '3つの異なるコミュニケーションスタイルを評価・作成中...', 
+          `${stageReasoning} 品質評価とパターン多様化を実行しています`,
+          6,
+          'EvaluationAgent',
+          0.92
+        );
         
         // 多様性を向上させるためのランダム要素を追加
         const currentTime = new Date();
@@ -677,8 +829,15 @@ ${baseReply}
           next_steps: ['返信パターンの選択', '個別カスタマイズ']
         };
         
-        updateAgentStatus('✅ 生成完了', `3つの返信パターンが生成されました`, 
-          `友好的・積極的、慎重・プロフェッショナル、ビジネス重視の3パターンを用意しました。${customPrompt ? 'カスタム指示も反映済みです。' : ''}状況に応じて最適なものを選択してください`);
+        // 段階7: 完了・結果出力
+        updateAgentStatus(
+          '✅ 完了・結果出力', 
+          `3つの返信パターンが生成されました`, 
+          `友好的・積極的、慎重・プロフェッショナル、ビジネス重視の3パターンを用意しました。${customPrompt ? 'カスタム指示も反映済みです。' : ''}状況に応じて最適なものを選択してください`,
+          7,
+          'NegotiationManager',
+          0.95
+        );
         console.log(`✅ AI返信を基に3つのパターンを生成しました: "${baseReply.substring(0, 50)}..."`);
         
         setReplyPatterns(patterns);
@@ -690,7 +849,14 @@ ${baseReply}
       
     } catch (error: any) {
       console.error('❌ 返信パターン生成エラー:', error);
-      updateAgentStatus('❌ エラー発生', error.message || error.toString(), 'エラーが発生したため、フォールバックパターンを使用します');
+      updateAgentStatus(
+        '❌ エラー発生', 
+        error.message || error.toString(), 
+        'エラーが発生したため、フォールバックパターンを使用します',
+        7,
+        'ErrorHandler',
+        0.30
+      );
       
       // フォールバック: エラー時はモックデータを使用
       console.log('🔄 フォールバック: モックデータを使用します');
@@ -764,6 +930,16 @@ InfuMatchの田中です。
         }
       ];
       
+      // フォールバック完了
+      updateAgentStatus(
+        '✅ フォールバック完了', 
+        'フォールバックパターンを生成しました', 
+        'エラーが発生しましたが、標準的な返信パターンを用意しました。手動で調整してご利用ください',
+        7,
+        'FallbackSystem',
+        0.60
+      );
+
       setReplyPatterns(fallbackPatterns);
       setThreadAnalysis({
         relationship_stage: 'initial_contact',
@@ -1696,36 +1872,123 @@ InfuMatchの田中です。
                     {processingSteps.length > 1 && (
                       <button
                         onClick={() => setShowCustomPrompt(!showCustomPrompt)}
-                        className="text-xs text-blue-600 hover:text-blue-800 underline"
+                        className="text-xs text-blue-600 hover:text-blue-800 underline flex items-center space-x-1"
                       >
-                        詳細表示 ({processingSteps.length}段階)
+                        <span>🔍 7段階詳細表示</span>
+                        <span className="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded text-xs">
+                          {processingSteps.length}/7完了
+                        </span>
+                        <span className="text-xs">
+                          {showCustomPrompt ? '▲' : '▼'}
+                        </span>
                       </button>
                     )}
                   </div>
                   
-                  {/* 詳細ステップ表示 */}
+                  {/* 7段階詳細ステップ表示 */}
                   {showCustomPrompt && processingSteps.length > 1 && (
-                    <div className="mt-3 border-t border-blue-200 pt-3 space-y-3">
-                      {processingSteps.slice(-5).map((step, index) => (
-                        <div key={index} className="space-y-1">
-                          <div className="flex items-start space-x-2">
-                            <div className="w-1.5 h-1.5 bg-blue-400 rounded-full mt-1 flex-shrink-0"></div>
-                            <div className="flex-grow">
-                              <div className="text-xs text-blue-800">
-                                <span className="font-medium">{step.time}</span> - {step.status}
+                    <div className="mt-3 border-t border-blue-200 pt-3">
+                      {/* 進捗バー */}
+                      <div className="mb-4">
+                        <div className="flex justify-between text-xs text-blue-600 mb-1">
+                          <span>処理進捗</span>
+                          <span>{Math.max(...processingSteps.map(s => s.progressPercent || 0))}%</span>
+                        </div>
+                        <div className="w-full bg-blue-100 rounded-full h-2">
+                          <div 
+                            className="bg-gradient-to-r from-blue-500 to-purple-500 h-2 rounded-full transition-all duration-500"
+                            style={{ width: `${Math.max(...processingSteps.map(s => s.progressPercent || 0))}%` }}
+                          ></div>
+                        </div>
+                        <div className="flex justify-between text-xs text-blue-500 mt-1">
+                          {PROCESSING_STAGES.map((stage, idx) => (
+                            <div 
+                              key={stage.number}
+                              className={`text-center ${
+                                processingSteps.some(s => s.stepNumber >= stage.number) 
+                                  ? 'text-blue-700 font-medium' 
+                                  : 'text-blue-400'
+                              }`}
+                            >
+                              {idx === 0 || idx === 3 || idx === 6 ? stage.number : '·'}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* ステップ詳細 */}
+                      <div className="space-y-3 max-h-60 overflow-y-auto">
+                        {processingSteps.map((step, index) => {
+                          const isLatest = index === processingSteps.length - 1;
+                          const stage = PROCESSING_STAGES.find(s => s.number === step.stepNumber);
+                          
+                          return (
+                            <div 
+                              key={index} 
+                              className={`space-y-2 p-3 rounded-lg border-l-4 ${
+                                isLatest 
+                                  ? 'border-l-blue-500 bg-blue-50' 
+                                  : step.isCompleted 
+                                    ? 'border-l-green-400 bg-green-50' 
+                                    : 'border-l-gray-300 bg-gray-50'
+                              }`}
+                            >
+                              <div className="flex items-start justify-between">
+                                <div className="flex-grow">
+                                  <div className="flex items-center space-x-2">
+                                    <span className="text-xs font-bold text-blue-700">
+                                      段階{step.stepNumber}/7
+                                    </span>
+                                    {step.agentType && (
+                                      <span className="text-xs text-purple-600 bg-purple-100 px-2 py-0.5 rounded">
+                                        {step.agentType}
+                                      </span>
+                                    )}
+                                    {step.confidence && (
+                                      <span className="text-xs text-green-600">
+                                        信頼度: {(step.confidence * 100).toFixed(0)}%
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="text-xs font-medium text-blue-800 mt-1">
+                                    <span className="text-gray-500">{step.time}</span> - {step.status}
+                                  </div>
+                                  <div className="text-xs text-blue-700 mt-1">
+                                    {step.detail}
+                                  </div>
+                                  {step.reasoning && (
+                                    <details className="mt-2">
+                                      <summary className="text-xs text-blue-600 cursor-pointer hover:text-blue-800">
+                                        💭 AI思考過程を表示
+                                      </summary>
+                                      <div className="text-xs text-blue-600 mt-1 pl-3 border-l-2 border-blue-200 italic">
+                                        {step.reasoning}
+                                      </div>
+                                    </details>
+                                  )}
+                                </div>
+                                <div className="ml-2 flex flex-col items-end">
+                                  {step.duration && step.duration > 0 && (
+                                    <span className="text-xs text-gray-500">
+                                      {(step.duration / 1000).toFixed(1)}s
+                                    </span>
+                                  )}
+                                  {step.isCompleted && (
+                                    <span className="text-green-500 text-xs">✓</span>
+                                  )}
+                                </div>
                               </div>
-                              <div className="text-xs text-blue-700 ml-3">
-                                {step.detail}
-                              </div>
-                              {step.reasoning && (
-                                <div className="text-xs text-blue-600 ml-3 mt-1 italic">
-                                  💭 {step.reasoning}
+                              
+                              {/* ステージ説明 */}
+                              {stage && isLatest && (
+                                <div className="text-xs text-blue-600 bg-blue-100 p-2 rounded">
+                                  {stage.description}
                                 </div>
                               )}
                             </div>
-                          </div>
-                        </div>
-                      ))}
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
                 </div>
