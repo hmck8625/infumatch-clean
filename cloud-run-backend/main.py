@@ -280,20 +280,77 @@ async def health():
     }
 
 @app.get("/api/v1/influencers")
-async def get_influencers():
-    """インフルエンサー一覧取得（Firestore連携）"""
+async def get_influencers(
+    channel_id: Optional[str] = None,
+    keyword: Optional[str] = None,
+    category: Optional[str] = None,
+    min_subscribers: Optional[int] = None,
+    max_subscribers: Optional[int] = None
+):
+    """インフルエンサー一覧取得（Firestore連携）- フィルタリング対応"""
     try:
         # Firestoreからデータを取得
-        influencers_data = get_firestore_influencers()
+        all_influencers = get_firestore_influencers()
+        
+        # フィルタリング処理
+        filtered_influencers = all_influencers
+        
+        # channel_idでフィルタリング（最優先）
+        if channel_id:
+            print(f"🔍 Filtering by channel_id: {channel_id}")
+            filtered_influencers = [inf for inf in filtered_influencers 
+                                  if inf.get("channel_id") == channel_id]
+            print(f"📊 Channel ID filter result: {len(filtered_influencers)} matches")
+        
+        # キーワードでフィルタリング
+        if keyword:
+            keyword_lower = keyword.lower()
+            filtered_influencers = [inf for inf in filtered_influencers 
+                                  if keyword_lower in inf.get("channel_name", "").lower() or
+                                     keyword_lower in inf.get("description", "").lower() or
+                                     keyword_lower in inf.get("category", "").lower()]
+            print(f"📊 Keyword filter result: {len(filtered_influencers)} matches")
+        
+        # カテゴリでフィルタリング
+        if category and category != "all":
+            filtered_influencers = [inf for inf in filtered_influencers 
+                                  if inf.get("category") == category]
+            print(f"📊 Category filter result: {len(filtered_influencers)} matches")
+        
+        # 登録者数でフィルタリング
+        if min_subscribers:
+            filtered_influencers = [inf for inf in filtered_influencers 
+                                  if inf.get("subscriber_count", 0) >= min_subscribers]
+            print(f"📊 Min subscribers filter result: {len(filtered_influencers)} matches")
+        
+        if max_subscribers:
+            filtered_influencers = [inf for inf in filtered_influencers 
+                                  if inf.get("subscriber_count", 0) <= max_subscribers]
+            print(f"📊 Max subscribers filter result: {len(filtered_influencers)} matches")
+        
+        filter_summary = {
+            "total_available": len(all_influencers),
+            "filtered_count": len(filtered_influencers),
+            "filters_applied": {
+                "channel_id": channel_id,
+                "keyword": keyword,
+                "category": category,
+                "min_subscribers": min_subscribers,
+                "max_subscribers": max_subscribers
+            }
+        }
+        
+        print(f"✅ Filter summary: {filter_summary}")
         
         return {
             "success": True,
-            "data": influencers_data,
+            "data": filtered_influencers,
             "metadata": {
                 "platform": "Google Cloud Run",
                 "ai_service": "Vertex AI + Gemini API",
                 "data_source": "Firestore" if db else "Mock Data",
-                "total_count": len(influencers_data)
+                "total_count": len(filtered_influencers),
+                "filter_summary": filter_summary
             }
         }
     except Exception as e:
