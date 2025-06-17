@@ -28,6 +28,8 @@ export interface Influencer {
     safety_score?: number;
   };
   brandSafetyScore?: number;
+  selectionReason?: string; // AI選定理由
+  createdAt?: string; // チャンネル作成日
 }
 
 export interface ChannelResearchRequest {
