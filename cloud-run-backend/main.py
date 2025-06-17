@@ -11,6 +11,7 @@ import json
 from google.cloud import firestore
 from google.auth import default
 import google.generativeai as genai
+# from services.ai_agents.simple_agents.simple_negotiation_manager import SimpleNegotiationManager
 
 app = FastAPI(
     title="InfuMatch Cloud Run API",
@@ -48,6 +49,9 @@ try:
 except Exception as e:
     print(f"❌ Gemini API initialization failed: {e}")
     gemini_model = None
+
+# 4エージェント統合マネージャー初期化（無効化）
+negotiation_manager = None
 
 def get_firestore_influencers():
     """Firestoreからインフルエンサーデータを取得"""
@@ -735,7 +739,7 @@ async def generate_ai_response(
 
 @app.post("/api/v1/negotiation/continue")
 async def continue_negotiation(request: ContinueNegotiationRequest):
-    """交渉継続・返信生成（AI搭載カスタム指示対応）"""
+    """交渉継続・返信生成（4エージェント統合システム）"""
     try:
         # コンテキストから追加情報を取得
         company_settings = request.context.get("company_settings", {})
@@ -744,29 +748,94 @@ async def continue_negotiation(request: ContinueNegotiationRequest):
         print(f"🔍 カスタム指示: {custom_instructions if custom_instructions else '設定なし'}")
         print(f"🏢 企業設定: {len(company_settings)} 項目")
         
-        # AI応答生成
-        # AI分析と応答生成
-        ai_result = await generate_detailed_ai_response(
-            request.conversation_history,
-            request.new_message,
-            company_settings,
-            custom_instructions
-        )
-        
-        return {
-            "success": True,
-            "content": ai_result["content"],
-            "metadata": {
-                "relationship_stage": "ai_powered",
-                "ai_service": "Gemini 1.5 Flash",
-                "platform": "Google Cloud Run",
-                "confidence": 0.92,
-                "custom_instructions_applied": bool(custom_instructions),
-                "company_settings_applied": bool(company_settings),
-                "ai_generated": True
-            },
-            "ai_thinking": ai_result["thinking_process"]
-        }
+        # 4エージェント統合システムを使用
+        if negotiation_manager:
+            print("🎯 4エージェント統合システム使用")
+            result = await negotiation_manager.process_negotiation(
+                request.conversation_history,
+                request.new_message,
+                company_settings,
+                custom_instructions
+            )
+            
+            if result["success"]:
+                # 3パターンから最適なものを選択（今回はbalanced）
+                patterns = result["patterns"]
+                selected_pattern = patterns.get("pattern_balanced", {})
+                content = selected_pattern.get("content", "返信生成に失敗しました。")
+                
+                return {
+                    "success": True,
+                    "content": content,
+                    "metadata": {
+                        "relationship_stage": "4_agent_powered",
+                        "ai_service": "Gemini 1.5 Pro via 4-Agent System",
+                        "platform": "Google Cloud Run",
+                        "confidence": 0.92,
+                        "custom_instructions_applied": bool(custom_instructions),
+                        "company_settings_applied": bool(company_settings),
+                        "ai_generated": True,
+                        "processing_duration": result.get("processing_duration_seconds", 0),
+                        "manager_id": result.get("manager_id", "unknown")
+                    },
+                    "ai_thinking": {
+                        "analysis": result.get("analysis", {}),
+                        "strategy": result.get("strategy", {}),
+                        "evaluation": result.get("evaluation", {}),
+                        "patterns_generated": len([k for k in patterns.keys() if k.startswith("pattern_")])
+                    },
+                    "alternative_patterns": {
+                        "collaborative": patterns.get("pattern_collaborative", {}),
+                        "assertive": patterns.get("pattern_assertive", {})
+                    }
+                }
+            else:
+                print("❌ 4エージェントシステムエラー、フォールバック使用")
+                # フォールバック: 旧システム使用
+                ai_result = await generate_detailed_ai_response(
+                    request.conversation_history,
+                    request.new_message,
+                    company_settings,
+                    custom_instructions
+                )
+                return {
+                    "success": True,
+                    "content": ai_result["content"],
+                    "metadata": {
+                        "relationship_stage": "fallback_mode",
+                        "ai_service": "Gemini 1.5 Flash (Fallback)",
+                        "platform": "Google Cloud Run",
+                        "confidence": 0.8,
+                        "custom_instructions_applied": bool(custom_instructions),
+                        "company_settings_applied": bool(company_settings),
+                        "ai_generated": True
+                    },
+                    "ai_thinking": ai_result["thinking_process"]
+                }
+        else:
+            print("⚠️ 4エージェントマネージャー利用不可、旧システム使用")
+            # フォールバック: 旧システム使用
+            ai_result = await generate_detailed_ai_response(
+                request.conversation_history,
+                request.new_message,
+                company_settings,
+                custom_instructions
+            )
+            return {
+                "success": True,
+                "content": ai_result["content"],
+                "metadata": {
+                    "relationship_stage": "legacy_mode",
+                    "ai_service": "Gemini 1.5 Flash (Legacy)",
+                    "platform": "Google Cloud Run",
+                    "confidence": 0.85,
+                    "custom_instructions_applied": bool(custom_instructions),
+                    "company_settings_applied": bool(company_settings),
+                    "ai_generated": True
+                },
+                "ai_thinking": ai_result["thinking_process"]
+            }
+            
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"返信生成エラー: {str(e)}")
 

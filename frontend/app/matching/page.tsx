@@ -295,8 +295,16 @@ export default function MatchingPage() {
       
       // 1. チャンネルIDで検索
       if (channelId && channelId !== `ai-rec-${0}` && !channelId.startsWith('ai-rec-')) {
+        console.log('🔍 チャンネルID検索実行:', channelId);
         results = await searchInfluencers({ channel_id: channelId });
-        console.log('📋 チャンネルID検索結果:', results);
+        console.log('📋 チャンネルID検索結果:', results?.length, '件見つかりました');
+        
+        // もし結果が1件だけなら詳細ログ
+        if (results && results.length === 1) {
+          console.log('✅ 正確なマッチ:', results[0].name, '- ID:', results[0].id);
+        } else if (results && results.length > 1) {
+          console.log('⚠️ 複数マッチ:', results.map(r => r.name));
+        }
       }
       
       // 2. チャンネル名で検索（IDで見つからない場合）

@@ -86,6 +86,7 @@ export interface ChannelResearchResponse {
 }
 
 export interface SearchParams {
+  channel_id?: string;
   keyword?: string;
   category?: string;
   min_subscribers?: number;
@@ -246,6 +247,9 @@ class APIClient {
   async searchInfluencers(params: SearchParams = {}): Promise<Influencer[]> {
     const searchParams = new URLSearchParams();
     
+    if (params.channel_id) {
+      searchParams.append('channel_id', params.channel_id);
+    }
     if (params.keyword) {
       searchParams.append('keyword', params.keyword);
     }

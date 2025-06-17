@@ -10,6 +10,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
 
 # アプリケーションファイルのコピー
 COPY main.py .
+# COPY services/ ./services/
 
 # ポートの設定
 EXPOSE 8000
