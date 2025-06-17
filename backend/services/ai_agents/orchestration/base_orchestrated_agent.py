@@ -231,3 +231,41 @@ class BaseOrchestratedAgent(BaseAgent):
             "total_tasks_completed": self.performance_metrics["total_tasks"],
             "last_activity": self.performance_metrics["last_activity"]
         }
+    
+    async def process(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        BaseAgentの抽象メソッドを実装
+        オーケストレーション環境では process_message を使用することを推奨
+        
+        Args:
+            input_data: 入力データ
+            
+        Returns:
+            Dict: 処理結果
+        """
+        logger.info(f"🔄 {self.agent_id}: Direct process call (consider using process_message)")
+        
+        # 基本的なタスク実行をサポート
+        task_type = input_data.get("task_type", "default")
+        payload = input_data.get("payload", {})
+        
+        # 空の状態オブジェクトを作成
+        from .negotiation_state import NegotiationState
+        state = NegotiationState()
+        
+        try:
+            result = await self.execute_task(task_type, payload, state)
+            return {
+                "success": True,
+                "result": result,
+                "agent_id": self.agent_id,
+                "specialization": self.specialization
+            }
+        except Exception as e:
+            logger.error(f"❌ {self.agent_id}: Direct process failed: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e),
+                "agent_id": self.agent_id,
+                "specialization": self.specialization
+            }

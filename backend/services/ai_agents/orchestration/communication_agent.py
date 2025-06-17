@@ -85,8 +85,23 @@ class CommunicationAgent(BaseOrchestratedAgent):
         company_name = company_info.get("company_name", "InfuMatch")
         contact_person = company_info.get("contact_person", "田中美咲")
         
+        # カスタム指示から言語指定を検出
+        language_detected = "Japanese"  # デフォルト
+        language_instruction = ""
+        if custom_instructions:
+            custom_lower = custom_instructions.lower()
+            if "英語" in custom_instructions or "english" in custom_lower:
+                language_detected = "English"
+                language_instruction = "Respond entirely in English. All content including greetings, body, and signature must be in English."
+            elif "中国語" in custom_instructions or "chinese" in custom_lower:
+                language_detected = "Chinese"
+                language_instruction = "Respond entirely in Chinese. All content including greetings, body, and signature must be in Chinese."
+        
         communication_prompt = f"""
 以下の情報に基づいて、プロフェッショナルな返信メールを作成してください：
+
+【最重要指示 - 言語設定】
+{language_instruction if language_instruction else "日本語で作成してください。"}
 
 【戦略情報】
 - アプローチ: {approach}
@@ -110,6 +125,7 @@ class CommunicationAgent(BaseOrchestratedAgent):
 3. 具体的で価値のある内容
 4. 次のアクションが明確
 5. 営業のプロレベルの説得力
+6. 【重要】言語設定に従って、指定された言語で全体を作成すること
 
 以下のJSON形式で回答してください：
 {{
@@ -149,8 +165,23 @@ class CommunicationAgent(BaseOrchestratedAgent):
             try:
                 communication_result = json.loads(response)
             except json.JSONDecodeError:
-                # フォールバック: 基本的な返信生成
-                fallback_content = f"""いつもお世話になっております。
+                # フォールバック: 基本的な返信生成（言語に応じて）
+                if language_detected == "English":
+                    fallback_content = f"""Dear Partner,
+
+Thank you for your message.
+
+We would be happy to discuss the details about {recommended_focus}. 
+We are committed to providing you with the best possible proposal.
+
+Please feel free to contact us if you have any questions or concerns.
+We look forward to working with you.
+
+Best regards,
+{contact_person}
+{company_name}"""
+                else:
+                    fallback_content = f"""いつもお世話になっております。
 {company_name} の{contact_person}です。
 
 ご連絡いただき、ありがとうございます。

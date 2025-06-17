@@ -76,6 +76,22 @@ class StrategyAgent(BaseOrchestratedAgent):
         message_analysis = analysis_results.get("analysis", {})
         risk_analysis = analysis_results.get("risk", {})
         
+        # カスタム指示から言語・トーン指定を検出
+        language_instruction = ""
+        strategy_adjustments = []
+        
+        if custom_instructions:
+            custom_lower = custom_instructions.lower()
+            if "英語" in custom_instructions or "english" in custom_lower:
+                language_instruction = "The response strategy should prioritize English language communication. Key messages should be adapted for English-speaking audiences."
+                strategy_adjustments.append("English language priority")
+            elif "積極的" in custom_instructions or "aggressive" in custom_lower:
+                strategy_adjustments.append("Aggressive approach")
+            elif "丁寧" in custom_instructions or "polite" in custom_lower:
+                strategy_adjustments.append("Extra polite approach")
+            elif "値引き" in custom_instructions or "discount" in custom_lower:
+                strategy_adjustments.append("Price negotiation focus")
+        
         strategy_prompt = f"""
 以下の情報に基づいて、最適な交渉戦略を立案してください：
 
@@ -92,6 +108,12 @@ class StrategyAgent(BaseOrchestratedAgent):
 
 【カスタム指示】
 {custom_instructions}
+
+【カスタム指示による戦略調整】
+{'; '.join(strategy_adjustments) if strategy_adjustments else '標準アプローチ'}
+
+【言語・コミュニケーション指示】
+{language_instruction if language_instruction else '日本語での標準的なビジネスコミュニケーション'}
 
 【戦略立案項目】
 1. 基本アプローチ（協調的/競争的/統合的）
