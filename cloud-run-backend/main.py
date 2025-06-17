@@ -659,6 +659,7 @@ async def get_ai_recommendations(campaign: CampaignData):
         "recommendations": [
             {
                 "channel_id": "UC0QMnnz3E-B02xtQhjktiXA",
+                "channel_name": "ヒカキンTV",
                 "overall_score": 0.92,
                 "detailed_scores": {
                     "category_match": 0.95,
@@ -668,11 +669,12 @@ async def get_ai_recommendations(campaign: CampaignData):
                     "availability": 0.85,
                     "risk": 0.95
                 },
-                "explanation": "ゲーム実況チャンネルとして高いエンゲージメント率を持ち、ターゲット層と一致",
+                "explanation": "日本最大級のYouTuberとして圧倒的な影響力を持ち、あらゆる年齢層にリーチ可能",
                 "rank": 1
             },
             {
-                "channel_id": "UC1_J_HiKEc4SG8E8_feekLA",
+                "channel_id": "UC1_J_HiKEc4SG8E8_feekLA", 
+                "channel_name": "はじめしゃちょー",
                 "overall_score": 0.88,
                 "detailed_scores": {
                     "category_match": 0.92,
@@ -682,11 +684,12 @@ async def get_ai_recommendations(campaign: CampaignData):
                     "availability": 0.88,
                     "risk": 0.92
                 },
-                "explanation": "料理・グルメ系チャンネルで安定したエンゲージメントとターゲット層への高い訴求力",
+                "explanation": "実験・検証系コンテンツで若者に絶大な人気、商品の面白い活用法を提案",
                 "rank": 2
             },
             {
                 "channel_id": "UC2_Beauty_Channel_123",
+                "channel_name": "東海オンエア",
                 "overall_score": 0.85,
                 "detailed_scores": {
                     "category_match": 0.88,
@@ -696,11 +699,12 @@ async def get_ai_recommendations(campaign: CampaignData):
                     "availability": 0.90,
                     "risk": 0.88
                 },
-                "explanation": "美容・ライフスタイル系チャンネルで女性視聴者層に強い影響力",
+                "explanation": "6人組の企画系YouTuberグループ、エンターテイメント性の高いコンテンツで幅広い層にアピール",
                 "rank": 3
             },
             {
                 "channel_id": "UC3_Tech_Reviews_456",
+                "channel_name": "フィッシャーズ",
                 "overall_score": 0.82,
                 "detailed_scores": {
                     "category_match": 0.85,
@@ -710,7 +714,7 @@ async def get_ai_recommendations(campaign: CampaignData):
                     "availability": 0.85,
                     "risk": 0.90
                 },
-                "explanation": "テクノロジー系レビューチャンネルで製品紹介に適した専門性",
+                "explanation": "アスレチック系コンテンツで有名なグループ、アクティブな若者向け商品に最適",
                 "rank": 4
             }
         ],
@@ -757,6 +761,7 @@ async def get_ai_recommendations_query(
     recommendations = [
         {
             "channel_id": "UC0_J_HiKEc4SG8E8_feekLA",
+            "channel_name": "水溜りボンド",
             "overall_score": 0.88,
             "detailed_scores": {
                 "category_match": 0.90,
@@ -766,11 +771,12 @@ async def get_ai_recommendations_query(
                 "availability": 0.82,
                 "risk": 0.93
             },
-            "explanation": f"{product_name}のターゲット層に最適なインフルエンサー",
+            "explanation": f"{product_name}のターゲット層に最適なエンターテイメント系チャンネル",
             "rank": 1
         },
         {
             "channel_id": "UC1_Gaming_Pro_789",
+            "channel_name": "兄者弟者",
             "overall_score": 0.85,
             "detailed_scores": {
                 "category_match": 0.87,
@@ -785,6 +791,7 @@ async def get_ai_recommendations_query(
         },
         {
             "channel_id": "UC2_Lifestyle_456",
+            "channel_name": "リュウジ",
             "overall_score": 0.82,
             "detailed_scores": {
                 "category_match": 0.85,
@@ -794,11 +801,12 @@ async def get_ai_recommendations_query(
                 "availability": 0.88,
                 "risk": 0.87
             },
-            "explanation": f"{product_name}のライフスタイル系アプローチに最適",
+            "explanation": f"{product_name}のライフスタイル・料理系アプローチに最適",
             "rank": 3
         },
         {
             "channel_id": "UC3_Review_Channel_321",
+            "channel_name": "瀬戸弘司",
             "overall_score": 0.79,
             "detailed_scores": {
                 "category_match": 0.82,
