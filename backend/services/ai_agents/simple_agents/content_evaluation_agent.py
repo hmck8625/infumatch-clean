@@ -161,6 +161,9 @@ class ContentEvaluationAgent(BaseAgent):
         """
         try:
             logger.info("⚡ 簡易承認チェック開始")
+            logger.info("📥 詳細INPUT:")
+            logger.info(f"   評価対象: '{proposed_content[:100]}...'" if len(proposed_content) > 100 else f"   評価対象: '{proposed_content}'")
+            logger.info(f"   文字数: {len(proposed_content)}文字")
             
             # 基本的なリスクチェック
             risk_keywords = [
@@ -185,7 +188,7 @@ class ContentEvaluationAgent(BaseAgent):
             
             approval = "approve" if base_score >= 0.7 else "revise" if base_score >= 0.5 else "reject"
             
-            return {
+            result = {
                 "quick_score": max(base_score, 0.0),
                 "approval_recommendation": approval,
                 "risk_flags": found_risks,
@@ -193,6 +196,15 @@ class ContentEvaluationAgent(BaseAgent):
                 "evaluation_type": "quick_check",
                 "confidence_level": 0.8
             }
+            
+            logger.info("✅ 簡易承認チェック完了")
+            logger.info("📤 詳細OUTPUT:")
+            logger.info(f"   評価スコア: {result['quick_score']:.2f}")
+            logger.info(f"   承認推奨: {result['approval_recommendation']}")
+            logger.info(f"   リスク要素: {result['risk_flags']}")
+            logger.info(f"   信頼度: {result['confidence_level']}")
+            
+            return result
             
         except Exception as e:
             logger.error(f"❌ 簡易承認チェックエラー: {str(e)}")

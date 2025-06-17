@@ -196,6 +196,9 @@ class BaseAgent(ABC):
             
             # AI生成実行
             logger.info(f"🤖 Generating response with {self.config.name}")
+            logger.info(f"   📝 Prompt length: {len(formatted_prompt)} characters")
+            logger.info(f"   ⚙️ Temperature: {generation_config['temperature']}")
+            logger.info(f"   📊 Max tokens: {generation_config['max_output_tokens']}")
             
             if self.use_vertex:
                 # Vertex AI使用
@@ -218,6 +221,7 @@ class BaseAgent(ABC):
             result = await self._process_response(response, context)
             
             logger.info(f"✅ Response generated successfully by {self.config.name}")
+            logger.info(f"   📤 Response length: {len(result) if isinstance(result, str) else 'structured data'}")
             return result
             
         except Exception as e:

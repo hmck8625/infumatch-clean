@@ -75,6 +75,17 @@ class ThreadAnalysisAgent(BaseAgent):
         """
         try:
             logger.info(f"📊 スレッド分析開始: {len(thread_messages)}件のメッセージ")
+            logger.info("📥 詳細INPUT:")
+            for i, msg in enumerate(thread_messages[-3:], 1):  # 直近3件をログ出力
+                sender = msg.get('sender', '不明')
+                content = msg.get('content', '')[:100]  # 100文字まで
+                logger.info(f"   {i}. {sender}: {content}...")
+            
+            if company_settings:
+                logger.info(f"   企業設定: {len(company_settings)}項目")
+                if 'companyInfo' in company_settings:
+                    company_name = company_settings['companyInfo'].get('companyName', '未設定')
+                    logger.info(f"   企業名: {company_name}")
             
             # メッセージ履歴を整理
             conversation_summary = self._summarize_conversation(thread_messages)
@@ -118,6 +129,13 @@ class ThreadAnalysisAgent(BaseAgent):
             try:
                 analysis_result = json.loads(response)
                 logger.info("✅ スレッド分析完了")
+                logger.info("📤 詳細OUTPUT:")
+                logger.info(f"   交渉段階: {analysis_result.get('negotiation_stage', '不明')}")
+                logger.info(f"   感情トーン: {analysis_result.get('sentiment_analysis', {}).get('tone', '不明')}")
+                logger.info(f"   主要トピック: {analysis_result.get('key_topics', [])}")
+                logger.info(f"   相手の懸念: {analysis_result.get('partner_concerns', [])}")
+                logger.info(f"   緊急度: {analysis_result.get('urgency_level', '不明')}")
+                logger.info(f"   信頼度: {analysis_result.get('analysis_confidence', 0.0)}")
                 return analysis_result
                 
             except json.JSONDecodeError:

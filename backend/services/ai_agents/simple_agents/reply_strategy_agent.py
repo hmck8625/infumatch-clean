@@ -77,11 +77,22 @@ class ReplyStrategyAgent(BaseAgent):
         """
         try:
             logger.info("🧠 返信戦略立案開始")
+            logger.info("📥 詳細INPUT:")
+            logger.info(f"   分析結果: 交渉段階={thread_analysis.get('negotiation_stage', '不明')}")
+            logger.info(f"   感情トーン: {thread_analysis.get('sentiment_analysis', {}).get('tone', '不明')}")
+            logger.info(f"   主要懸念: {thread_analysis.get('partner_concerns', [])}")
+            logger.info(f"   カスタム指示: '{custom_instructions}'" if custom_instructions else "   カスタム指示: 未設定")
             
             # 企業情報を整理
             company_info = company_settings.get("companyInfo", {})
             products = company_settings.get("products", [])
             negotiation_settings = company_settings.get("negotiationSettings", {})
+            
+            if company_info:
+                logger.info(f"   企業名: {company_info.get('companyName', '未設定')}")
+                logger.info(f"   担当者: {company_info.get('contactPerson', '未設定')}")
+            if products:
+                logger.info(f"   商材数: {len(products)}件")
             
             # カスタム指示の解析
             custom_analysis = self._analyze_custom_instructions(custom_instructions)
@@ -137,6 +148,13 @@ class ReplyStrategyAgent(BaseAgent):
             try:
                 strategy_result = json.loads(response)
                 logger.info("✅ 返信戦略立案完了")
+                logger.info("📤 詳細OUTPUT:")
+                logger.info(f"   基本アプローチ: {strategy_result.get('primary_approach', '不明')}")
+                logger.info(f"   重要メッセージ: {strategy_result.get('key_messages', [])}")
+                logger.info(f"   言語設定: {strategy_result.get('language_setting', '不明')}")
+                logger.info(f"   トーン設定: {strategy_result.get('tone_setting', '不明')}")
+                logger.info(f"   優先トピック: {strategy_result.get('priority_topics', [])}")
+                logger.info(f"   戦略信頼度: {strategy_result.get('strategy_confidence', 0.0)}")
                 return strategy_result
                 
             except json.JSONDecodeError:

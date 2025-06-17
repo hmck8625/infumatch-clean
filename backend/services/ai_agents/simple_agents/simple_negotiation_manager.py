@@ -89,9 +89,21 @@ class SimpleNegotiationManager:
                 await callback_func("スレッド分析", "開始", "メッセージ履歴を分析中")
             
             logger.info("📊 Stage 1: スレッド分析開始")
+            logger.info("📥 ThreadAnalysisAgent INPUT:")
+            logger.info(f"  - thread_messages: {len(thread_messages)}件のメッセージ")
+            logger.info(f"  - company_settings: {len(company_settings)}項目の設定")
+            
             thread_analysis = await self.thread_agent.analyze_thread(
                 thread_messages, company_settings
             )
+            
+            logger.info("📤 ThreadAnalysisAgent OUTPUT:")
+            logger.info(f"  - negotiation_stage: {thread_analysis.get('negotiation_stage', '不明')}")
+            logger.info(f"  - sentiment_tone: {thread_analysis.get('sentiment_analysis', {}).get('tone', '不明')}")
+            logger.info(f"  - key_topics: {thread_analysis.get('key_topics', [])}")
+            logger.info(f"  - urgency_level: {thread_analysis.get('urgency_level', '不明')}")
+            logger.info(f"  - confidence: {thread_analysis.get('analysis_confidence', 0.0)}")
+            
             results["stages"]["thread_analysis"] = {
                 "status": "completed",
                 "result": thread_analysis,
@@ -106,9 +118,22 @@ class SimpleNegotiationManager:
                 await callback_func("戦略立案", "開始", "返信戦略を考案中")
             
             logger.info("🧠 Stage 2: 戦略立案開始")
+            logger.info("📥 ReplyStrategyAgent INPUT:")
+            logger.info(f"  - thread_analysis: 交渉段階={thread_analysis.get('negotiation_stage', '不明')}")
+            logger.info(f"  - company_settings: {len(company_settings)}項目")
+            logger.info(f"  - custom_instructions: '{custom_instructions}'" if custom_instructions else "  - custom_instructions: 未設定")
+            
             strategy_plan = await self.strategy_agent.plan_reply_strategy(
                 thread_analysis, company_settings, custom_instructions
             )
+            
+            logger.info("📤 ReplyStrategyAgent OUTPUT:")
+            logger.info(f"  - primary_approach: {strategy_plan.get('primary_approach', '不明')}")
+            logger.info(f"  - key_messages: {strategy_plan.get('key_messages', [])}")
+            logger.info(f"  - language_setting: {strategy_plan.get('language_setting', '不明')}")
+            logger.info(f"  - tone_setting: {strategy_plan.get('tone_setting', '不明')}")
+            logger.info(f"  - strategy_confidence: {strategy_plan.get('strategy_confidence', 0.0)}")
+            
             results["stages"]["strategy_planning"] = {
                 "status": "completed",
                 "result": strategy_plan,
@@ -124,9 +149,20 @@ class SimpleNegotiationManager:
             
             logger.info("🔍 Stage 3: 内容評価開始")
             # 戦略プランを基に簡易評価を実行
-            evaluation_result = await self.evaluation_agent.quick_approval_check(
-                f"戦略: {strategy_plan.get('primary_approach', '')} メッセージ: {', '.join(strategy_plan.get('key_messages', []))}"
-            )
+            strategy_summary = f"戦略: {strategy_plan.get('primary_approach', '')} メッセージ: {', '.join(strategy_plan.get('key_messages', []))}"
+            logger.info("📥 ContentEvaluationAgent INPUT:")
+            logger.info(f"  - proposed_content: '{strategy_summary}'")
+            logger.info(f"  - evaluation_method: quick_approval_check")
+            
+            evaluation_result = await self.evaluation_agent.quick_approval_check(strategy_summary)
+            
+            logger.info("📤 ContentEvaluationAgent OUTPUT:")
+            logger.info(f"  - quick_score: {evaluation_result.get('quick_score', 0.0)}")
+            logger.info(f"  - approval_recommendation: {evaluation_result.get('approval_recommendation', '不明')}")
+            logger.info(f"  - risk_flags: {evaluation_result.get('risk_flags', [])}")
+            logger.info(f"  - content_length: {evaluation_result.get('content_length', 0)}")
+            logger.info(f"  - confidence_level: {evaluation_result.get('confidence_level', 0.0)}")
+            
             results["stages"]["content_evaluation"] = {
                 "status": "completed",
                 "result": evaluation_result,
@@ -141,10 +177,30 @@ class SimpleNegotiationManager:
                 await callback_func("パターン生成", "開始", "3つの返信パターンを生成中")
             
             logger.info("🎨 Stage 4: パターン生成開始")
+            logger.info("📥 PatternGenerationAgent INPUT:")
+            logger.info(f"  - thread_analysis: 交渉段階={thread_analysis.get('negotiation_stage', '不明')}")
+            logger.info(f"  - strategy_plan: アプローチ={strategy_plan.get('primary_approach', '不明')}")
+            logger.info(f"  - evaluation_result: 承認={evaluation_result.get('approval_recommendation', '不明')}")
+            logger.info(f"  - company_settings: {len(company_settings)}項目")
+            logger.info(f"  - custom_instructions: '{custom_instructions}'" if custom_instructions else "  - custom_instructions: 未設定")
+            
             patterns_result = await self.pattern_agent.generate_three_patterns(
                 thread_analysis, strategy_plan, evaluation_result, 
                 company_settings, custom_instructions
             )
+            
+            logger.info("📤 PatternGenerationAgent OUTPUT:")
+            if "pattern_collaborative" in patterns_result:
+                logger.info(f"  - collaborative: '{patterns_result['pattern_collaborative'].get('content', '生成エラー')[:100]}...'")
+            if "pattern_balanced" in patterns_result:
+                logger.info(f"  - balanced: '{patterns_result['pattern_balanced'].get('content', '生成エラー')[:100]}...'")
+            if "pattern_assertive" in patterns_result:
+                logger.info(f"  - assertive: '{patterns_result['pattern_assertive'].get('content', '生成エラー')[:100]}...'")
+            if "generation_metadata" in patterns_result:
+                metadata = patterns_result["generation_metadata"]
+                logger.info(f"  - confidence_level: {metadata.get('confidence_level', 0.0)}")
+                logger.info(f"  - language_setting: {metadata.get('language_setting', '不明')}")
+            
             results["stages"]["pattern_generation"] = {
                 "status": "completed",
                 "result": patterns_result,
@@ -168,6 +224,13 @@ class SimpleNegotiationManager:
             })
             
             logger.info(f"✅ 4段階交渉処理完了 ({processing_duration:.2f}秒)")
+            logger.info("📋 最終処理結果サマリー:")
+            logger.info(f"   ⏱️ 総処理時間: {processing_duration:.2f}秒")
+            logger.info(f"   🎯 完了段階数: {results['completed_stages']}/{results['total_stages']}")
+            logger.info(f"   📊 成功フラグ: {results['success']}")
+            if results.get('final_patterns'):
+                pattern_count = len([k for k in results['final_patterns'].keys() if k.startswith('pattern_')])
+                logger.info(f"   🎨 生成パターン数: {pattern_count}パターン")
             
             return results
             

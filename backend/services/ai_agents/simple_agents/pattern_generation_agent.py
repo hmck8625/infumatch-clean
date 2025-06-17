@@ -79,12 +79,21 @@ class PatternGenerationAgent(BaseAgent):
         """
         try:
             logger.info("🎨 3パターン返信生成開始")
+            logger.info("📥 詳細INPUT:")
+            logger.info(f"   交渉段階: {thread_analysis.get('negotiation_stage', '不明')}")
+            logger.info(f"   戦略アプローチ: {strategy_plan.get('primary_approach', '不明')}")
+            logger.info(f"   評価結果: {evaluation_result.get('approval_recommendation', '不明')}")
+            logger.info(f"   カスタム指示: '{custom_instructions}'" if custom_instructions else "   カスタム指示: 未設定")
             
             # 企業情報を整理
             company_info = company_settings.get("companyInfo", {})
             products = company_settings.get("products", [])
             company_name = company_info.get("companyName", "InfuMatch")
             contact_person = company_info.get("contactPerson", "田中美咲")
+            
+            logger.info(f"   企業名: {company_name}")
+            logger.info(f"   担当者: {contact_person}")
+            logger.info(f"   商材数: {len(products)}件")
             
             # 基本情報の整理
             negotiation_stage = thread_analysis.get('negotiation_stage', '関心表明')
@@ -154,6 +163,20 @@ class PatternGenerationAgent(BaseAgent):
                         patterns_result[pattern_key]['contact_person'] = contact_person
                 
                 logger.info("✅ 3パターン返信生成完了")
+                logger.info("📤 詳細OUTPUT:")
+                if "pattern_collaborative" in patterns_result:
+                    content = patterns_result["pattern_collaborative"].get("content", "")
+                    logger.info(f"   協調的パターン: '{content[:50]}...'" if len(content) > 50 else f"   協調的パターン: '{content}'")
+                if "pattern_balanced" in patterns_result:
+                    content = patterns_result["pattern_balanced"].get("content", "")
+                    logger.info(f"   中立パターン: '{content[:50]}...'" if len(content) > 50 else f"   中立パターン: '{content}'")
+                if "pattern_assertive" in patterns_result:
+                    content = patterns_result["pattern_assertive"].get("content", "")
+                    logger.info(f"   主張的パターン: '{content[:50]}...'" if len(content) > 50 else f"   主張的パターン: '{content}'")
+                if "generation_metadata" in patterns_result:
+                    metadata = patterns_result["generation_metadata"]
+                    logger.info(f"   生成信頼度: {metadata.get('confidence_level', 0.0)}")
+                    logger.info(f"   言語設定: {metadata.get('language_setting', '不明')}")
                 return patterns_result
                 
             except json.JSONDecodeError:
