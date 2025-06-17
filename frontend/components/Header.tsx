@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
+import { useSession, signOut } from 'next-auth/react';
 import { 
   Menu, 
   X, 
@@ -41,13 +42,10 @@ export default function Header({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
 
-  // 認証状態のシミュレーション（実際にはNext.js AuthやSupabaseを使用）
-  const [isAuthenticated, setIsAuthenticated] = useState(true);
-  const [user] = useState({
-    name: '田中太郎',
-    email: 'tanaka@example.com',
-    avatar: null
-  });
+  // NextAuth.jsを使用した実際の認証状態
+  const { data: session, status } = useSession();
+  const isAuthenticated = status === 'authenticated';
+  const user = session?.user || null;
 
   const getHeaderStyle = () => {
     switch (variant) {
@@ -78,10 +76,9 @@ export default function Header({
     }
   };
 
-  const handleLogout = () => {
-    setIsAuthenticated(false);
+  const handleLogout = async () => {
     setUserMenuOpen(false);
-    // 実際のログアウト処理をここに追加
+    await signOut({ callbackUrl: '/' });
   };
 
   return (
@@ -148,8 +145,8 @@ export default function Header({
                           <User className="w-4 h-4 text-white" />
                         </div>
                         <div className="hidden md:block text-left">
-                          <div className="text-sm font-medium text-gray-900">{user.name}</div>
-                          <div className="text-xs text-gray-500">{user.email}</div>
+                          <div className="text-sm font-medium text-gray-900">{user?.name || 'ユーザー'}</div>
+                          <div className="text-xs text-gray-500">{user?.email || ''}</div>
                         </div>
                         <ChevronDown className="w-4 h-4 text-gray-400" />
                       </button>
@@ -245,8 +242,8 @@ export default function Header({
                         <User className="w-4 h-4 text-white" />
                       </div>
                       <div>
-                        <div className="text-sm font-medium text-gray-900">{user.name}</div>
-                        <div className="text-xs text-gray-500">{user.email}</div>
+                        <div className="text-sm font-medium text-gray-900">{user?.name || 'ユーザー'}</div>
+                        <div className="text-xs text-gray-500">{user?.email || ''}</div>
                       </div>
                     </div>
                     <button
