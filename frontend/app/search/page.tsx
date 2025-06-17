@@ -79,435 +79,24 @@ function InfluencerDetailModal({
   onCollaborationProposal: (influencer: Influencer) => void;
   isGeneratingProposal: boolean;
 }) {
-  const [researchResult, setResearchResult] = useState<any>(null);
-  const [isResearching, setIsResearching] = useState(false);
-  const [activeTab, setActiveTab] = useState('basic');
-
-  const handleChannelResearch = async () => {
-    // TODO: Implement channel research
-    console.log('Channel research not implemented yet');
-  };
-
   if (!isOpen || !influencer) return null;
 
-  const hasEmail = influencer.email && influencer.email !== 'null' && influencer.email.trim() !== '';
-  const categoryIcon = getCategoryIcon(influencer.category);
-
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto relative">
-        {/* ヘッダー */}
-        <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <div className="w-16 h-16 rounded-full overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center text-2xl">
-              {influencer.thumbnailUrl && !influencer.thumbnailUrl.includes('/images/default-channel') ? (
-                <>
-                  <img 
-                    src={influencer.thumbnailUrl}
-                    alt={`${influencer.name} チャンネル`}
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      e.currentTarget.style.display = 'none';
-                      e.currentTarget.nextElementSibling?.classList.remove('hidden');
-                      e.currentTarget.nextElementSibling?.classList.add('flex');
-                    }}
-                  />
-                  {/* フォールバック表示（画像読み込み失敗時） */}
-                  <div className="w-full h-full bg-gradient-to-br from-purple-500 to-blue-500 rounded-full items-center justify-center text-2xl text-white hidden">
-                    {categoryIcon}
-                  </div>
-                </>
-              ) : (
-                <div className="w-full h-full bg-gradient-to-br from-purple-500 to-blue-500 rounded-full flex items-center justify-center text-2xl text-white">
-                  {categoryIcon}
-                </div>
-              )}
-            </div>
-            <div>
-              <h2 className="text-2xl font-bold text-gray-900">{influencer.name}</h2>
-              <p className="text-gray-500">{influencer.category}</p>
-            </div>
-          </div>
-          <button 
-            onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-          >
-            <X className="w-6 h-6" />
+    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-xl p-6 max-w-md w-full">
+        <h2 className="text-xl font-bold mb-4">{influencer.name}</h2>
+        <p className="text-gray-600 mb-4">{influencer.description}</p>
+        <div className="flex justify-end space-x-2">
+          <button onClick={onClose} className="px-4 py-2 bg-gray-200 rounded">
+            閉じる
           </button>
-        </div>
-
-        {/* タブナビゲーション */}
-        <div className="border-b border-gray-200">
-          <nav className="flex space-x-8 px-6">
-            <button
-              onClick={() => setActiveTab('basic')}
-              className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                activeTab === 'basic'
-                  ? 'border-purple-500 text-purple-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              基本情報
-            </button>
-            <button
-              onClick={() => setActiveTab('research')}
-              className={`py-4 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 ${
-                activeTab === 'research'
-                  ? 'border-purple-500 text-purple-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              <SearchCheck className="w-4 h-4" />
-              <span>AI調査</span>
-              {researchResult && (
-                <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">
-                  完了
-                </span>
-              )}
-            </button>
-          </nav>
-        </div>
-
-        {/* コンテンツ */}
-        <div className="p-6 space-y-6">
-          {activeTab === 'basic' && (
-            <div className="space-y-6">
-          {/* 基本情報 */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4">
-              <div className="flex items-center space-x-2 mb-2">
-                <Users className="w-5 h-5 text-blue-600" />
-                <span className="text-sm font-medium text-blue-900">登録者数</span>
-              </div>
-              <p className="text-2xl font-bold text-blue-900">
-                {influencer.subscriberCount?.toLocaleString()}人
-              </p>
-            </div>
-            
-            <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4">
-              <div className="flex items-center space-x-2 mb-2">
-                <Eye className="w-5 h-5 text-green-600" />
-                <span className="text-sm font-medium text-green-900">総視聴回数</span>
-              </div>
-              <p className="text-2xl font-bold text-green-900">
-                {influencer.viewCount?.toLocaleString()}回
-              </p>
-            </div>
-
-            <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-4">
-              <div className="flex items-center space-x-2 mb-2">
-                <Play className="w-5 h-5 text-purple-600" />
-                <span className="text-sm font-medium text-purple-900">動画数</span>
-              </div>
-              <p className="text-2xl font-bold text-purple-900">
-                {influencer.videoCount?.toLocaleString()}本
-              </p>
-            </div>
-          </div>
-
-          {/* エンゲージメント率 */}
-          <div className="bg-gradient-to-r from-orange-50 to-red-50 rounded-xl p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <TrendingUp className="w-5 h-5 text-orange-600" />
-                <span className="text-sm font-medium text-orange-900">エンゲージメント率</span>
-              </div>
-              <div className="text-right">
-                <p className="text-2xl font-bold text-orange-900">{influencer.engagementRate?.toFixed(2)}%</p>
-                <p className="text-xs text-orange-700">
-                  {influencer.engagementRate && influencer.engagementRate > 3 ? '高' : 
-                   influencer.engagementRate && influencer.engagementRate > 1 ? '中' : '低'}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* 連絡先情報 */}
-          <div className="bg-gray-50 rounded-xl p-4">
-            <div className="flex items-center space-x-2 mb-3">
-              <Mail className="w-5 h-5 text-gray-600" />
-              <span className="font-medium text-gray-900">連絡先</span>
-            </div>
-            <div className="flex items-center space-x-2">
-              {hasEmail ? (
-                <>
-                  <MailCheck className="w-4 h-4 text-green-600" />
-                  <span className="text-green-800 font-medium">メールアドレス有り</span>
-                  <span className="text-gray-600">({influencer.email})</span>
-                </>
-              ) : (
-                <>
-                  <MailX className="w-4 h-4 text-red-600" />
-                  <span className="text-red-800 font-medium">メールアドレス無し</span>
-                  <span className="text-gray-600">YouTubeコメント経由での連絡が必要</span>
-                </>
-              )}
-            </div>
-          </div>
-
-          {/* AI分析情報 */}
-          {influencer.aiAnalysis && Object.keys(influencer.aiAnalysis).length > 0 && (
-            <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl p-4">
-              <div className="flex items-center space-x-2 mb-3">
-                <Sparkles className="w-5 h-5 text-indigo-600" />
-                <span className="font-medium text-indigo-900">AI分析情報</span>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                {influencer.aiAnalysis.target_age && (
-                  <div>
-                    <span className="text-indigo-700 font-medium">ターゲット年齢:</span>
-                    <span className="ml-2 text-indigo-900">{influencer.aiAnalysis.target_age}</span>
-                  </div>
-                )}
-                {influencer.aiAnalysis.top_product && (
-                  <div>
-                    <span className="text-indigo-700 font-medium">推奨商品:</span>
-                    <span className="ml-2 text-indigo-900">{influencer.aiAnalysis.top_product}</span>
-                  </div>
-                )}
-                {influencer.aiAnalysis.match_score && (
-                  <div>
-                    <span className="text-indigo-700 font-medium">マッチ度:</span>
-                    <span className="ml-2 text-indigo-900">{(influencer.aiAnalysis.match_score * 100).toFixed(0)}%</span>
-                  </div>
-                )}
-                {influencer.brandSafetyScore && (
-                  <div>
-                    <span className="text-indigo-700 font-medium">ブランド安全性:</span>
-                    <span className="ml-2 text-indigo-900">{(influencer.brandSafetyScore * 100).toFixed(0)}%</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* 説明文 */}
-          <div className="bg-white border border-gray-200 rounded-xl p-4">
-            <div className="flex items-center space-x-2 mb-3">
-              <Info className="w-5 h-5 text-gray-600" />
-              <span className="font-medium text-gray-900">チャンネル説明</span>
-            </div>
-            <p className="text-gray-700 leading-relaxed">{influencer.description}</p>
-          </div>
-
-          {/* 追加情報 */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-            {influencer.country && (
-              <div className="flex items-center space-x-2">
-                <Globe className="w-4 h-4 text-gray-500" />
-                <span className="text-gray-600">国: {influencer.country}</span>
-              </div>
-            )}
-            {influencer.language && (
-              <div className="flex items-center space-x-2">
-                <Calendar className="w-4 h-4 text-gray-500" />
-                <span className="text-gray-600">言語: {influencer.language}</span>
-              </div>
-            )}
-          </div>
-
-          {/* アクションボタン */}
-          <div className="flex space-x-3 pt-4 border-t border-gray-200">
-            <button 
-              onClick={() => onCollaborationProposal(influencer)}
-              disabled={isGeneratingProposal}
-              className="flex-1 bg-gradient-to-r from-purple-600 to-blue-600 text-white py-3 px-4 rounded-xl font-medium hover:from-purple-700 hover:to-blue-700 transition-all duration-200 flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isGeneratingProposal ? (
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-              ) : (
-                <Target className="w-4 h-4" />
-              )}
-              <span>{isGeneratingProposal ? 'AI生成中...' : 'コラボ提案'}</span>
-            </button>
-            <button 
-              onClick={handleChannelResearch}
-              disabled={isResearching}
-              className="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 text-white py-3 px-4 rounded-xl font-medium hover:from-green-700 hover:to-emerald-700 transition-all duration-200 flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isResearching ? (
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-              ) : (
-                <SearchCheck className="w-4 h-4" />
-              )}
-              <span>{isResearching ? 'AI調査中...' : 'AI調査開始'}</span>
-            </button>
-            <button 
-              onClick={() => window.open(`https://www.youtube.com/channel/${influencer.channelId}`, '_blank')}
-              className="flex-1 border border-gray-300 text-gray-700 py-3 px-4 rounded-xl font-medium hover:bg-gray-50 transition-colors flex items-center justify-center space-x-2"
-            >
-              <ExternalLink className="w-4 h-4" />
-              <span>チャンネル確認</span>
-            </button>
-          </div>
-            </div>
-          )}
-
-          {/* AI調査結果 */}
-          {activeTab === 'research' && (
-            <div className="space-y-6">
-              {!researchResult && !isResearching && (
-                <div className="text-center py-12 bg-gray-50 rounded-xl">
-                  <SearchCheck className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-xl font-semibold text-gray-900 mb-2">AI調査を開始</h3>
-                  <p className="text-gray-600 mb-6">Vertex AIがこのチャンネルについて詳細に調査します</p>
-                  <button 
-                    onClick={handleChannelResearch}
-                    className="bg-gradient-to-r from-green-600 to-emerald-600 text-white px-6 py-3 rounded-xl font-medium hover:from-green-700 hover:to-emerald-700 transition-all duration-200 flex items-center space-x-2 mx-auto"
-                  >
-                    <SearchCheck className="w-5 h-5" />
-                    <span>AI調査開始</span>
-                  </button>
-                </div>
-              )}
-
-              {isResearching && (
-                <div className="text-center py-12">
-                  <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-green-600 mx-auto mb-4"></div>
-                  <h3 className="text-xl font-semibold text-gray-900 mb-2">AI調査実行中...</h3>
-                  <p className="text-gray-600">Web検索とAI分析を実行しています（2-3分程度）</p>
-                </div>
-              )}
-
-              {researchResult && (
-                <div className="space-y-6">
-                  {/* 調査サマリー */}
-                  <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6">
-                    <div className="flex items-center space-x-2 mb-3">
-                      <SearchCheck className="w-6 h-6 text-blue-600" />
-                      <h3 className="text-lg font-semibold text-blue-900">調査サマリー</h3>
-                      <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">
-                        信頼度: {(researchResult.research_confidence * 100).toFixed(0)}%
-                      </span>
-                    </div>
-                    <p className="text-blue-900 leading-relaxed">{researchResult.summary}</p>
-                  </div>
-
-                  {/* 調査結果詳細 */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* 基本情報・最新動向 */}
-                    <div className="bg-white border border-gray-200 rounded-xl p-6">
-                      <div className="flex items-center space-x-2 mb-4">
-                        <TrendingUpIcon className="w-5 h-5 text-blue-600" />
-                        <h4 className="text-lg font-semibold text-gray-900">最新動向</h4>
-                      </div>
-                      <div className="space-y-3 text-sm">
-                        <div>
-                          <span className="font-medium text-gray-700">活動状況:</span>
-                          <span className="ml-2 text-gray-900">{researchResult.basic_info.latest_activity}</span>
-                        </div>
-                        <div>
-                          <span className="font-medium text-gray-700">成長傾向:</span>
-                          <span className="ml-2 text-gray-900">{researchResult.basic_info.growth_trend}</span>
-                        </div>
-                        <div>
-                          <span className="font-medium text-gray-700">人気コンテンツ:</span>
-                          <span className="ml-2 text-gray-900">{researchResult.basic_info.popular_content}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* 評判・安全性 */}
-                    <div className="bg-white border border-gray-200 rounded-xl p-6">
-                      <div className="flex items-center space-x-2 mb-4">
-                        <Shield className="w-5 h-5 text-green-600" />
-                        <h4 className="text-lg font-semibold text-gray-900">ブランド安全性</h4>
-                      </div>
-                      <div className="space-y-3 text-sm">
-                        <div>
-                          <span className="font-medium text-gray-700">リスクレベル:</span>
-                          <span className={`ml-2 px-2 py-1 rounded text-xs font-medium ${
-                            researchResult.reputation_safety.brand_risk_level === '低' 
-                              ? 'bg-green-100 text-green-800'
-                              : researchResult.reputation_safety.brand_risk_level === '中'
-                              ? 'bg-yellow-100 text-yellow-800'
-                              : 'bg-red-100 text-red-800'
-                          }`}>
-                            {researchResult.reputation_safety.brand_risk_level}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="font-medium text-gray-700">安全性スコア:</span>
-                          <span className="ml-2 text-gray-900">{(researchResult.reputation_safety.safety_score * 100).toFixed(0)}%</span>
-                        </div>
-                        <div>
-                          <span className="font-medium text-gray-700">一般評判:</span>
-                          <span className="ml-2 text-gray-900">{researchResult.reputation_safety.public_reputation}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* コラボ実績 */}
-                    <div className="bg-white border border-gray-200 rounded-xl p-6">
-                      <div className="flex items-center space-x-2 mb-4">
-                        <Handshake className="w-5 h-5 text-purple-600" />
-                        <h4 className="text-lg font-semibold text-gray-900">コラボ実績</h4>
-                      </div>
-                      <div className="space-y-3 text-sm">
-                        <div>
-                          <span className="font-medium text-gray-700">年間コラボ数:</span>
-                          <span className="ml-2 text-gray-900">{researchResult.collaboration_history.collaboration_count}</span>
-                        </div>
-                        <div>
-                          <span className="font-medium text-gray-700">PR頻度:</span>
-                          <span className="ml-2 text-gray-900">{researchResult.collaboration_history.pr_frequency}</span>
-                        </div>
-                        <div>
-                          <span className="font-medium text-gray-700">推定料金:</span>
-                          <span className="ml-2 text-gray-900">{researchResult.collaboration_history.estimated_rates}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* 市場分析 */}
-                    <div className="bg-white border border-gray-200 rounded-xl p-6">
-                      <div className="flex items-center space-x-2 mb-4">
-                        <BarChart className="w-5 h-5 text-orange-600" />
-                        <h4 className="text-lg font-semibold text-gray-900">市場分析</h4>
-                      </div>
-                      <div className="space-y-3 text-sm">
-                        <div>
-                          <span className="font-medium text-gray-700">市場ポジション:</span>
-                          <span className="ml-2 text-gray-900">{researchResult.market_analysis.market_position}</span>
-                        </div>
-                        <div>
-                          <span className="font-medium text-gray-700">成長潜在性:</span>
-                          <span className="ml-2 text-gray-900">{researchResult.market_analysis.growth_potential}</span>
-                        </div>
-                        <div>
-                          <span className="font-medium text-gray-700">差別化要因:</span>
-                          <span className="ml-2 text-gray-900">{researchResult.market_analysis.differentiation}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* 詳細情報表示 */}
-                  <div className="bg-gray-50 rounded-xl p-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
-                      <div>
-                        <h5 className="font-semibold text-gray-900 mb-3">主要コラボ先</h5>
-                        <ul className="space-y-2">
-                          {researchResult.collaboration_history.major_collaborations.map((collab, index) => (
-                            <li key={index} className="text-gray-700">• {collab}</li>
-                          ))}
-                        </ul>
-                      </div>
-                      <div>
-                        <h5 className="font-semibold text-gray-900 mb-3">主要競合</h5>
-                        <ul className="space-y-2">
-                          {researchResult.market_analysis.competitors.map((competitor, index) => (
-                            <li key={index} className="text-gray-700">• {competitor}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
+          <button 
+            onClick={() => onCollaborationProposal(influencer)}
+            disabled={isGeneratingProposal}
+            className="px-4 py-2 bg-purple-600 text-white rounded disabled:opacity-50"
+          >
+            {isGeneratingProposal ? '生成中...' : 'コラボ提案'}
+          </button>
         </div>
       </div>
     </div>
@@ -576,13 +165,9 @@ export default function SearchPage() {
       console.log('[handleInitialLoad] Calling searchInfluencers...');
       const results = await searchInfluencers({});
       console.log('[handleInitialLoad] Search results:', results);
-      console.log('[handleInitialLoad] Results type:', typeof results);
-      console.log('[handleInitialLoad] Results length:', results?.length);
-      console.log('[handleInitialLoad] Results isArray:', Array.isArray(results));
       
       if (results && Array.isArray(results) && results.length > 0) {
         console.log('[handleInitialLoad] Setting allInfluencers with:', results.length, 'items');
-        console.log('[handleInitialLoad] First item:', results[0]);
         setAllInfluencers(results);
         setFilteredResults(results); // 初期表示は全データ
       } else {
@@ -650,13 +235,6 @@ export default function SearchPage() {
       } else {
         // クライアントサイドフィルタリングを実行
         console.log('[handleSearch] Applying filters to', allInfluencers.length, 'influencers');
-        console.log('[handleSearch] Search params:', {
-          keyword: searchQuery.trim(),
-          category: selectedCategory,
-          minSubscribers,
-          maxSubscribers
-        });
-        
         const filtered = filterInfluencers(allInfluencers);
         console.log('[handleSearch] Filtered results:', filtered.length, 'items');
         
@@ -674,40 +252,6 @@ export default function SearchPage() {
       console.error('Search failed:', err);
     } finally {
       setIsSearching(false);
-    }
-  };
-
-  const handleAIRecommendation = async () => {
-    try {
-      // AI推薦に必要なフィールドの検証
-      if (!productName || !budgetMin || !budgetMax || !targetAudience || !campaignGoals) {
-        setError('AI推薦には商品名、予算、ターゲット層、キャンペーン目標の入力が必要です');
-        return;
-      }
-
-      const campaign: CampaignRequest = {
-        product_name: productName,
-        budget_min: parseInt(budgetMin),
-        budget_max: parseInt(budgetMax),
-        target_audience: targetAudience.split(',').map(t => t.trim()),
-        required_categories: selectedCategory !== 'all' ? [selectedCategory] : [],
-        campaign_goals: campaignGoals,
-        min_engagement_rate: 2.0,
-        min_subscribers: minSubscribers ? parseInt(minSubscribers) : undefined,
-        max_subscribers: maxSubscribers ? parseInt(maxSubscribers) : undefined,
-        geographic_focus: '日本'
-      };
-
-      const recommendations = await getAIRecommendations(campaign);
-      setAiResults(recommendations);
-      setFilteredResults([]);
-    } catch (err) {
-      if (err instanceof APIError) {
-        setError(`AI推薦エラー: ${err.message}`);
-      } else {
-        setError('AI推薦中にエラーが発生しました');
-      }
-      console.error('AI recommendation failed:', err);
     }
   };
 
@@ -761,345 +305,61 @@ export default function SearchPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
-      {/* ヘッダー */}
       <Header />
-
+      
       <div className="container mx-auto px-6 py-8">
-        {/* 検索セクション */}
-        <div className={`bg-white rounded-2xl shadow-lg p-8 mb-8 transform transition-all duration-1000 ${isVisible ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'}`}>
-          <div className="text-center mb-8">
-            <h1 className="text-4xl font-bold text-gray-900 mb-4">インフルエンサー検索</h1>
-            <p className="text-gray-600 text-lg">AIが最適なYouTubeインフルエンサーを見つけます</p>
-          </div>
-
-          {/* AI/通常検索切り替え */}
-          <div className="flex justify-center mb-6">
-            <div className="bg-gray-100 p-1 rounded-xl">
-              <button
-                onClick={() => setUseAI(false)}
-                className={`px-6 py-2 rounded-lg font-medium transition-all ${!useAI ? 'bg-white text-purple-600 shadow-sm' : 'text-gray-600'}`}
-              >
-                通常検索
-              </button>
-              <button
-                onClick={() => setUseAI(true)}
-                className={`px-6 py-2 rounded-lg font-medium transition-all ${useAI ? 'bg-white text-purple-600 shadow-sm' : 'text-gray-600'}`}
-              >
-                AIマッチング
-              </button>
-            </div>
-          </div>
-
-          {useAI ? (
-            /* AI推薦フォーム */
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">商品名</label>
-                  <input
-                    type="text"
-                    value={productName}
-                    onChange={(e) => setProductName(e.target.value)}
-                    placeholder="例: プレミアム調味料セット"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">ターゲット層</label>
-                  <input
-                    type="text"
-                    value={targetAudience}
-                    onChange={(e) => setTargetAudience(e.target.value)}
-                    placeholder="例: 20-40代女性, 料理好き"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">予算下限（円）</label>
-                  <input
-                    type="number"
-                    value={budgetMin}
-                    onChange={(e) => setBudgetMin(e.target.value)}
-                    placeholder="20000"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">予算上限（円）</label>
-                  <input
-                    type="number"
-                    value={budgetMax}
-                    onChange={(e) => setBudgetMax(e.target.value)}
-                    placeholder="100000"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">キャンペーン目標</label>
-                <textarea
-                  value={campaignGoals}
-                  onChange={(e) => setCampaignGoals(e.target.value)}
-                  placeholder="例: ブランド認知度向上と商品売上増加を目指し、料理動画内で自然な商品紹介を行いたい"
-                  rows={3}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                />
-              </div>
-            </div>
-          ) : (
-            /* 通常検索フォーム */
-            <div className="space-y-6">
-              <div className="relative">
-                <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="キーワードを入力..."
-                  className="w-full pl-12 pr-4 py-4 text-lg border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-                />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">カテゴリ</label>
-                  <select
-                    value={selectedCategory}
-                    onChange={(e) => setSelectedCategory(e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  >
-                    {categories.map(category => (
-                      <option key={category} value={category}>
-                        {category === 'all' ? 'すべて' : category}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">最小登録者数</label>
-                  <input
-                    type="number"
-                    value={minSubscribers}
-                    onChange={(e) => setMinSubscribers(e.target.value)}
-                    placeholder="1000"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">最大登録者数</label>
-                  <input
-                    type="number"
-                    value={maxSubscribers}
-                    onChange={(e) => setMaxSubscribers(e.target.value)}
-                    placeholder="1000000"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  />
-                </div>
-              </div>
-
-              {/* メールフィルタ */}
-              <div className="mt-4">
-                <label className="flex items-center space-x-3 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={hasEmailFilter}
-                    onChange={(e) => setHasEmailFilter(e.target.checked)}
-                    className="w-5 h-5 text-purple-600 bg-white border-gray-300 rounded focus:ring-purple-500 focus:ring-2"
-                  />
-                  <div className="flex items-center space-x-2">
-                    <MailCheck className="w-5 h-5 text-green-600" />
-                    <span className="text-sm font-medium text-gray-700">メールアドレス有りのみ表示</span>
-                  </div>
-                </label>
-              </div>
-            </div>
-          )}
-
-          <div className="flex justify-center mt-8">
+        <div className="bg-white rounded-2xl shadow-lg p-8 mb-8">
+          <h1 className="text-4xl font-bold text-gray-900 mb-4 text-center">インフルエンサー検索</h1>
+          <p className="text-gray-600 text-lg text-center mb-8">YouTubeインフルエンサーを検索</p>
+          
+          <div className="flex justify-center">
             <button
               onClick={handleSearch}
               disabled={isSearching}
-              className="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-8 py-4 rounded-xl font-semibold text-lg hover:from-purple-700 hover:to-blue-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2 shadow-lg"
+              className="bg-purple-600 text-white px-8 py-4 rounded-xl font-semibold hover:bg-purple-700 transition-colors disabled:opacity-50"
             >
-              {isSearching ? (
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-              ) : useAI ? (
-                <Sparkles className="w-5 h-5" />
-              ) : (
-                <Search className="w-5 h-5" />
-              )}
-              <span>{isSearching ? (useAI ? 'AIマッチング開始中...' : '検索中...') : useAI ? 'AIマッチング開始' : '検索実行'}</span>
+              {isSearching ? '検索中...' : '検索実行'}
             </button>
           </div>
         </div>
 
-        {/* エラー表示 */}
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6">
             <p className="text-red-800">{error}</p>
           </div>
         )}
 
-        {/* 検索結果 */}
-        {hasSearched && (
-          <div className={`transform transition-all duration-1000 ${isVisible ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'}`}>
-            {filteredResults.length > 0 ? (
-              <div>
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-2xl font-bold text-gray-900">
-                    検索結果 ({filteredResults.length}件)
-                  </h2>
-                  <div className="flex items-center space-x-2 text-gray-600">
-                    <Filter className="w-4 h-4" />
-                    <span className="text-sm">フィルタ適用済み</span>
-                  </div>
+        {hasSearched && filteredResults.length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredResults.slice(0, 12).map((influencer) => (
+              <div key={influencer.id} className="bg-white rounded-xl shadow-lg p-6">
+                <h3 className="text-xl font-bold mb-2">{influencer.name}</h3>
+                <p className="text-gray-600 mb-4">{influencer.category}</p>
+                <div className="flex justify-between text-sm text-gray-500 mb-4">
+                  <span>{influencer.subscriberCount?.toLocaleString()} 登録者</span>
+                  <span>{influencer.engagementRate?.toFixed(1)}% エンゲージ</span>
                 </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {filteredResults.map((influencer) => {
-                    const hasEmail = influencer.email && influencer.email !== 'null' && influencer.email.trim() !== '';
-                    const categoryIcon = getCategoryIcon(influencer.category);
-                    
-                    return (
-                      <div key={influencer.id} className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
-                        {/* カード画像部分 */}
-                        <div className="h-48 relative overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200">
-                          {influencer.thumbnailUrl && !influencer.thumbnailUrl.includes('/images/default-channel') ? (
-                            <>
-                              <img 
-                                src={influencer.thumbnailUrl}
-                                alt={`${influencer.name} チャンネル`}
-                                className="w-full h-full object-cover"
-                                onError={(e) => {
-                                  e.currentTarget.style.display = 'none';
-                                  e.currentTarget.nextElementSibling?.classList.remove('hidden');
-                                  e.currentTarget.nextElementSibling?.classList.add('flex');
-                                }}
-                              />
-                              {/* フォールバック表示（画像読み込み失敗時） */}
-                              <div className="absolute inset-0 bg-gradient-to-br from-purple-500 to-blue-500 items-center justify-center hidden">
-                                <div className="text-6xl text-white">{categoryIcon}</div>
-                              </div>
-                            </>
-                          ) : (
-                            <>
-                              <div className="absolute inset-0 bg-gradient-to-br from-purple-500 to-blue-500"></div>
-                              <div className="absolute inset-0 bg-black/20"></div>
-                              <div className="absolute inset-0 flex items-center justify-center">
-                                <div className="text-6xl text-white">{categoryIcon}</div>
-                              </div>
-                            </>
-                          )}
-                          
-                          {/* ステータスバッジ */}
-                          <div className="absolute top-4 left-4">
-                            <span className="bg-white/90 text-gray-800 px-3 py-1 rounded-full text-xs font-medium">
-                              {influencer.category}
-                            </span>
-                          </div>
-                          
-                          {/* メール状態バッジ */}
-                          <div className="absolute top-4 right-4">
-                            {hasEmail ? (
-                              <div className="bg-green-500 text-white p-2 rounded-full">
-                                <MailCheck className="w-4 h-4" />
-                              </div>
-                            ) : (
-                              <div className="bg-red-500 text-white p-2 rounded-full">
-                                <MailX className="w-4 h-4" />
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                        
-                        {/* カード内容 */}
-                        <div className="p-6">
-                          <h3 className="text-xl font-bold text-gray-900 mb-2 line-clamp-2">
-                            {influencer.name}
-                          </h3>
-                          
-                          <p className="text-gray-600 text-sm mb-4 line-clamp-3">
-                            {influencer.description}
-                          </p>
-                          
-                          {/* 統計情報 */}
-                          <div className="grid grid-cols-3 gap-4 mb-4">
-                            <div className="text-center">
-                              <div className="flex items-center justify-center mb-1">
-                                <Users className="w-4 h-4 text-blue-500" />
-                              </div>
-                              <p className="text-sm font-semibold text-gray-900">
-                                {influencer.subscriberCount?.toLocaleString()}
-                              </p>
-                              <p className="text-xs text-gray-500">登録者</p>
-                            </div>
-                            
-                            <div className="text-center">
-                              <div className="flex items-center justify-center mb-1">
-                                <Play className="w-4 h-4 text-green-500" />
-                              </div>
-                              <p className="text-sm font-semibold text-gray-900">
-                                {influencer.videoCount?.toLocaleString()}
-                              </p>
-                              <p className="text-xs text-gray-500">動画数</p>
-                            </div>
-                            
-                            <div className="text-center">
-                              <div className="flex items-center justify-center mb-1">
-                                <TrendingUp className="w-4 h-4 text-purple-500" />
-                              </div>
-                              <p className="text-sm font-semibold text-gray-900">
-                                {influencer.engagementRate?.toFixed(1)}%
-                              </p>
-                              <p className="text-xs text-gray-500">エンゲージ</p>
-                            </div>
-                          </div>
-                          
-                          {/* アクションボタン */}
-                          <div className="flex space-x-2">
-                            <button
-                              onClick={() => openModal(influencer)}
-                              className="flex-1 bg-purple-600 text-white py-2 px-4 rounded-xl font-medium hover:bg-purple-700 transition-colors flex items-center justify-center space-x-2"
-                            >
-                              <Info className="w-4 h-4" />
-                              <span>詳細</span>
-                            </button>
-                            <button
-                              onClick={() => handleCollaborationProposal(influencer)}
-                              disabled={isGeneratingProposal}
-                              className="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 text-white py-2 px-4 rounded-xl font-medium hover:from-green-700 hover:to-emerald-700 transition-colors flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              {isGeneratingProposal ? (
-                                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
-                              ) : (
-                                <Target className="w-4 h-4" />
-                              )}
-                              <span className="text-xs">{isGeneratingProposal ? 'AI生成中' : '提案'}</span>
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
+                <div className="flex space-x-2">
+                  <button
+                    onClick={() => openModal(influencer)}
+                    className="flex-1 bg-purple-600 text-white py-2 px-4 rounded-lg hover:bg-purple-700 transition-colors"
+                  >
+                    詳細
+                  </button>
+                  <button
+                    onClick={() => handleCollaborationProposal(influencer)}
+                    disabled={isGeneratingProposal}
+                    className="flex-1 bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
+                  >
+                    {isGeneratingProposal ? '生成中' : '提案'}
+                  </button>
                 </div>
               </div>
-            ) : (
-              <div className="text-center py-12">
-                <Search className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-xl font-semibold text-gray-900 mb-2">検索結果が見つかりませんでした</h3>
-                <p className="text-gray-600">検索条件を変更して再度お試しください</p>
-              </div>
-            )}
+            ))}
           </div>
         )}
       </div>
 
-      {/* 詳細モーダル */}
       <InfluencerDetailModal
         influencer={selectedInfluencer}
         isOpen={isModalOpen}
