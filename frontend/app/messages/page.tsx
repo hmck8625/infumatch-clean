@@ -773,7 +773,9 @@ function MessagesPageContent() {
               pattern_type: 'ai_generated_formal',
               pattern_name: 'AI生成（フォーマル調整）',
               tone: 'AIベース + より丁寧なフォーマル表現',
-              content: baseReply.replace(/。/g, 'です。').replace(/です。です。/g, 'です。'),
+              content: baseReply
+                .replace(/([^す])。/g, '$1です。')
+                .replace(/です。です。/g, 'です。'),
               reasoning: 'AI生成内容をベースに、より丁寧な表現に微調整',
               recommendation_score: 0.85
             },

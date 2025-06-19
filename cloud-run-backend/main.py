@@ -297,6 +297,11 @@ class SimpleNegotiationManager:
 【カスタム指示】
 {custom_instructions}
 
+【生成ルール】
+- 自然で正しい日本語を使用してください
+- 「ますです」「ですです」などの重複表現は避けてください
+- 丁寧語は適切に使用してください（例：「思います」「させていただきます」）
+
 以下のJSON形式で3パターンを生成してください：
 {{
     "pattern_collaborative": {{
@@ -393,6 +398,11 @@ class SimpleNegotiationManager:
 【企業設定】
 - 会社名: {company_name}
 - 担当者: {contact_person}
+
+【生成ルール】
+- 自然で正しい日本語を使用してください
+- 「ますです」「ですです」などの重複表現は避けてください
+- 丁寧語は適切に使用してください
 
 以下の観点から、この返信を選択した理由を200-300文字で詳しく説明してください：
 
@@ -626,6 +636,131 @@ def calculate_match_scores(influencer: dict, campaign: CampaignData, campaign_ca
     
     return scores
 
+def calculate_enhanced_match_scores(influencer, campaign, campaign_category, target_keywords, audience_signals, category_scores):
+    """🎯 商品詳細を活用した強化版マッチングスコア計算"""
+    scores = {}
+    
+    # 基本情報取得
+    inf_category = influencer.get("category", "一般").lower()
+    inf_description = influencer.get("description", "").lower()
+    inf_name = influencer.get("channel_name", "").lower()
+    subscriber_count = influencer.get("subscriber_count", 0)
+    engagement_rate = influencer.get("engagement_rate", 0)
+    
+    print(f"🔍 スコア計算: {inf_name} (カテゴリ: {inf_category})")
+    
+    # 1. 🎯 強化されたカテゴリマッチスコア（重み30%）
+    category_score = 0.5  # ベーススコア
+    
+    # 直接カテゴリマッチ
+    if campaign_category.lower() in inf_category or inf_category in campaign_category.lower():
+        category_score = 0.95
+        print(f"   ✅ 直接マッチ: {campaign_category} ↔ {inf_category}")
+    
+    # キーワードベースマッチング（商品詳細活用）
+    keyword_matches = 0
+    for keyword in target_keywords:
+        if keyword in inf_description or keyword in inf_name:
+            keyword_matches += 1
+    
+    if keyword_matches > 0:
+        keyword_bonus = min(keyword_matches * 0.1, 0.3)  # 最大30%ボーナス
+        category_score = min(category_score + keyword_bonus, 1.0)
+        print(f"   🔍 キーワードマッチ: {keyword_matches}個 (+{keyword_bonus:.2f})")
+    
+    # カテゴリ信頼度反映
+    if campaign_category in category_scores:
+        confidence_bonus = min(category_scores[campaign_category] * 0.02, 0.1)
+        category_score = min(category_score + confidence_bonus, 1.0)
+        print(f"   📊 信頼度ボーナス: +{confidence_bonus:.2f}")
+    
+    scores["category_match"] = category_score
+    
+    # 2. 📈 エンゲージメントスコア（重み25%）
+    if engagement_rate > 5:
+        scores["engagement"] = 0.95
+    elif engagement_rate > 3:
+        scores["engagement"] = 0.85
+    elif engagement_rate > 1:
+        scores["engagement"] = 0.70
+    else:
+        scores["engagement"] = 0.50
+    
+    # 3. 👥 強化されたオーディエンス適合度（重み20%）
+    audience_score = 0.70  # ベーススコア
+    
+    if audience_signals:
+        # チャンネル説明文からオーディエンス情報を検出
+        audience_matches = 0
+        for signal in audience_signals:
+            signal_keywords = {
+                "10代": ["学生", "高校生", "teen", "若者"],
+                "20代": ["大学生", "社会人", "20代", "若手"],
+                "30代": ["30代", "働き盛り", "管理職", "家族"],
+                "女性": ["女性", "女子", "レディース", "ママ"],
+                "男性": ["男性", "男子", "メンズ", "ビジネスマン"],
+                "ファミリー": ["家族", "親子", "子供", "育児"]
+            }.get(signal, [signal.lower()])
+            
+            if any(keyword in inf_description for keyword in signal_keywords):
+                audience_matches += 1
+        
+        if audience_matches > 0:
+            audience_bonus = min(audience_matches * 0.1, 0.25)
+            audience_score = min(audience_score + audience_bonus, 1.0)
+            print(f"   👥 オーディエンスマッチ: {audience_matches}個 (+{audience_bonus:.2f})")
+    
+    scores["audience_fit"] = audience_score
+    
+    # 4. 💰 予算適合度（重み15%）
+    budget_min = getattr(campaign, 'budget_min', 50000)
+    budget_max = getattr(campaign, 'budget_max', 300000)
+    
+    # より詳細な価格推定
+    base_price = subscriber_count * 0.6  # 基本価格
+    engagement_multiplier = max(engagement_rate / 3.0, 0.5)  # エンゲージメント係数
+    estimated_cost = base_price * engagement_multiplier
+    
+    if estimated_cost <= budget_min:
+        scores["budget_fit"] = 1.0  # 非常に安価
+    elif estimated_cost <= budget_max:
+        # 予算範囲内での線形スコア
+        budget_range = budget_max - budget_min
+        position = (budget_max - estimated_cost) / budget_range
+        scores["budget_fit"] = 0.6 + (position * 0.4)  # 0.6-1.0の範囲
+    else:
+        # 予算オーバー
+        overage = estimated_cost / budget_max
+        scores["budget_fit"] = max(0.3, 1.0 - (overage - 1.0) * 0.5)
+    
+    print(f"   💰 予算分析: 推定{estimated_cost:,.0f}円 (範囲:{budget_min:,}-{budget_max:,}円)")
+    
+    # 5. ⚡ 稼働可能性（重み10%）
+    # メールアドレスの有無など
+    has_email = bool(influencer.get("email"))
+    scores["availability"] = 0.9 if has_email else 0.6
+    
+    # 6. 🛡️ リスクスコア（重み5%）
+    scores["risk"] = 0.90  # デフォルト低リスク
+    
+    # 総合スコア計算（重み付き平均）
+    weights = {
+        "category_match": 0.30,
+        "engagement": 0.25,
+        "audience_fit": 0.20,
+        "budget_fit": 0.15,
+        "availability": 0.10,
+        "risk": 0.05
+    }
+    
+    overall_score = sum(scores[key] * weights[key] for key in weights.keys())
+    scores["overall"] = overall_score
+    
+    print(f"   🏆 総合スコア: {overall_score:.3f}")
+    print(f"      カテゴリ: {scores['category_match']:.2f} | エンゲージ: {scores['engagement']:.2f} | オーディエンス: {scores['audience_fit']:.2f}")
+    
+    return scores
+
 def generate_recommendation_explanation(influencer: dict, campaign: CampaignData, scores: dict) -> str:
     """推薦理由の説明文を生成"""
     explanation_parts = []
@@ -652,6 +787,81 @@ def generate_recommendation_explanation(influencer: dict, campaign: CampaignData
         return "、".join(explanation_parts) + "を持つチャンネル"
     else:
         return f"{campaign.product_name}のプロモーションに適したチャンネル"
+
+def generate_enhanced_recommendation_explanation(influencer, campaign, scores, campaign_category, target_keywords, audience_signals):
+    """🎯 商品詳細を活用した強化版推薦理由生成"""
+    explanation_parts = []
+    
+    # チャンネル基本情報
+    channel_name = influencer.get("channel_name", "このチャンネル")
+    subscriber_count = influencer.get("subscriber_count", 0)
+    engagement_rate = influencer.get("engagement_rate", 0)
+    
+    # 1. カテゴリ適合性の説明
+    category_score = scores.get("category_match", 0)
+    if category_score > 0.9:
+        explanation_parts.append(f"{campaign_category}カテゴリで高い専門性を持つ")
+    elif category_score > 0.7:
+        explanation_parts.append(f"{campaign_category}分野と関連性が高い")
+    else:
+        explanation_parts.append("幅広い視聴者層に対応可能な")
+    
+    # 2. キーワードマッチの具体的説明
+    if target_keywords:
+        matched_keywords = []
+        inf_text = f"{influencer.get('description', '')} {influencer.get('channel_name', '')}".lower()
+        for keyword in target_keywords[:3]:  # 上位3つのキーワード
+            if keyword in inf_text:
+                matched_keywords.append(keyword)
+        
+        if matched_keywords:
+            explanation_parts.append(f"「{', '.join(matched_keywords)}」に関連するコンテンツを制作している")
+    
+    # 3. 規模とエンゲージメントの説明
+    if subscriber_count >= 100000:
+        explanation_parts.append(f"大規模な影響力({subscriber_count//10000:.0f}万人)")
+    elif subscriber_count >= 10000:
+        explanation_parts.append(f"安定した視聴者基盤({subscriber_count//1000:.0f}K人)")
+    else:
+        explanation_parts.append("ニッチで熱心なファン層を持つ")
+    
+    # エンゲージメント率の説明
+    if engagement_rate > 5:
+        explanation_parts.append("非常に高いエンゲージメント率")
+    elif engagement_rate > 3:
+        explanation_parts.append("良好なエンゲージメント率")
+    elif engagement_rate > 1:
+        explanation_parts.append("安定したエンゲージメント")
+    
+    # 4. ターゲットオーディエンスマッチ
+    if audience_signals:
+        audience_text = "、".join(audience_signals[:2])  # 上位2つ
+        explanation_parts.append(f"{audience_text}層への訴求力が高い")
+    
+    # 5. 予算適合性
+    budget_score = scores.get("budget_fit", 0)
+    if budget_score > 0.9:
+        explanation_parts.append("コストパフォーマンスに優れた")
+    elif budget_score > 0.7:
+        explanation_parts.append("予算範囲内で適切な")
+    
+    # 6. 商品との関連性強調
+    product_name = campaign.product_name
+    explanation_parts.append(f"「{product_name}」のプロモーションに最適なチャンネル")
+    
+    # 説明文を組み立て
+    explanation = "チャンネルで、".join(explanation_parts)
+    
+    # 最後に総合評価を追加
+    overall_score = scores.get("overall", 0)
+    if overall_score > 0.85:
+        explanation += "。非常に高い適合性を示しています。"
+    elif overall_score > 0.75:
+        explanation += "。高い適合性を示しています。"
+    else:
+        explanation += "。良好な適合性を示しています。"
+    
+    return explanation
 
 def calculate_diversity_score(recommendations: list) -> float:
     """推薦リストの多様性スコアを計算"""
@@ -1380,17 +1590,105 @@ async def get_ai_recommendations(campaign: CampaignData):
         # Firestoreからインフルエンサーデータを取得
         all_influencers = get_firestore_influencers()
         
-        # キャンペーンのカテゴリを推測（簡易的な実装）
+        # 🎯 商品情報に基づく高度なカテゴリ推測とターゲティング
         campaign_category = "一般"
-        product_name_lower = campaign.product_name.lower()
-        if "ゲーム" in product_name_lower or "game" in product_name_lower:
-            campaign_category = "ゲーム"
-        elif "料理" in product_name_lower or "食" in product_name_lower:
-            campaign_category = "料理"
-        elif "ビジネス" in product_name_lower or "business" in product_name_lower:
-            campaign_category = "ビジネス"
-        elif "エンタメ" in product_name_lower or "エンターテイメント" in product_name_lower:
-            campaign_category = "エンターテイメント"
+        target_keywords = []
+        audience_signals = []
+        
+        # 商品名・説明・目標からキーワード抽出
+        product_text = campaign.product_name.lower()
+        campaign_goals = getattr(campaign, 'campaign_goals', '').lower()
+        combined_text = f"{product_text} {campaign_goals}"
+        
+        print(f"🔍 商品分析開始: '{campaign.product_name}'")
+        print(f"📝 分析テキスト: '{combined_text[:100]}...'")
+        
+        # 詳細カテゴリ判定システム
+        category_keywords = {
+            "ゲーム": {
+                "primary": ["ゲーム", "game", "gaming", "esports"],
+                "secondary": ["実況", "配信", "ストリーマー", "eスポーツ", "プレイ", "攻略"],
+                "weight": 3.0
+            },
+            "料理": {
+                "primary": ["料理", "cooking", "food", "グルメ"],
+                "secondary": ["レシピ", "食べ物", "restaurant", "chef", "食材", "調理"],
+                "weight": 3.0
+            },
+            "ビジネス": {
+                "primary": ["ビジネス", "business", "仕事", "企業"],
+                "secondary": ["経営", "マーケティング", "営業", "起業", "投資", "副業"],
+                "weight": 2.5
+            },
+            "エンターテイメント": {
+                "primary": ["エンタメ", "エンターテイメント", "バラエティ"],
+                "secondary": ["お笑い", "コメディ", "娯楽", "面白", "芸人", "タレント"],
+                "weight": 2.0
+            },
+            "美容": {
+                "primary": ["美容", "beauty", "コスメ", "化粧品"],
+                "secondary": ["スキンケア", "メイク", "ファッション", "スタイル", "美肌"],
+                "weight": 2.5
+            },
+            "テクノロジー": {
+                "primary": ["テクノロジー", "tech", "IT", "AI"],
+                "secondary": ["アプリ", "ソフトウェア", "デジタル", "プログラミング", "技術"],
+                "weight": 2.0
+            },
+            "ライフスタイル": {
+                "primary": ["ライフスタイル", "lifestyle", "日常"],
+                "secondary": ["暮らし", "健康", "フィットネス", "旅行", "趣味"],
+                "weight": 1.5
+            }
+        }
+        
+        # カテゴリスコア計算
+        category_scores = {}
+        for category, data in category_keywords.items():
+            score = 0
+            matched_keywords = []
+            
+            # プライマリキーワードのマッチ
+            for keyword in data["primary"]:
+                if keyword in combined_text:
+                    score += data["weight"]
+                    matched_keywords.append(keyword)
+            
+            # セカンダリキーワードのマッチ
+            for keyword in data["secondary"]:
+                if keyword in combined_text:
+                    score += data["weight"] * 0.5
+                    matched_keywords.append(keyword)
+            
+            if score > 0:
+                category_scores[category] = score
+                target_keywords.extend(matched_keywords)
+                print(f"   📊 {category}: {score:.1f}点 (キーワード: {matched_keywords})")
+        
+        # 最高スコアのカテゴリを選択
+        if category_scores:
+            campaign_category = max(category_scores, key=category_scores.get)
+            print(f"🎯 選出カテゴリ: {campaign_category} ({category_scores[campaign_category]:.1f}点)")
+        
+        # ターゲットオーディエンス分析
+        audience_detection = {
+            "10代": ["学生", "高校生", "teenager", "teen", "若者", "10代"],
+            "20代": ["大学生", "社会人", "20代", "新卒", "若手", "キャリア"],
+            "30代": ["30代", "ミドル", "管理職", "家族", "子育て", "働き盛り"],
+            "女性": ["女性", "女子", "レディース", "ママ", "主婦", "OL"],
+            "男性": ["男性", "男子", "メンズ", "サラリーマン", "ビジネスマン"],
+            "ファミリー": ["家族", "親子", "子供", "ファミリー", "育児", "子育て"]
+        }
+        
+        for audience, keywords in audience_detection.items():
+            if any(keyword in combined_text for keyword in keywords):
+                audience_signals.append(audience)
+        
+        # キャンペーンのターゲットオーディエンス情報も活用
+        if hasattr(campaign, 'target_audience') and campaign.target_audience:
+            audience_signals.extend(campaign.target_audience)
+        
+        print(f"👥 検出オーディエンス: {audience_signals}")
         
         # フィルタリングとスコアリング
         scored_influencers = []
@@ -1399,8 +1697,15 @@ async def get_ai_recommendations(campaign: CampaignData):
             if influencer.get("subscriber_count", 0) < 5000:
                 continue
             
-            # スコアリング
-            scores = calculate_match_scores(influencer, campaign, campaign_category)
+            # 🎯 商品詳細を活用した高度なスコアリング
+            scores = calculate_enhanced_match_scores(
+                influencer, 
+                campaign, 
+                campaign_category, 
+                target_keywords, 
+                audience_signals,
+                category_scores
+            )
             
             scored_influencers.append({
                 "influencer": influencer,
@@ -1430,7 +1735,9 @@ async def get_ai_recommendations(campaign: CampaignData):
                     "availability": scores["availability"],
                     "risk": scores["risk"]
                 },
-                "explanation": generate_recommendation_explanation(inf, campaign, scores),
+                "explanation": generate_enhanced_recommendation_explanation(
+                    inf, campaign, scores, campaign_category, target_keywords, audience_signals
+                ),
                 "rank": idx + 1,
                 # Include actual database values for frontend display
                 "thumbnail_url": inf.get("thumbnail_url", ""),
