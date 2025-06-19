@@ -413,10 +413,10 @@ function MessagesPageContent() {
       
       // 最新のオーケストレーションシステムURLに更新
       if (apiUrl.includes('hackathon-backend-462905-269567634217') || 
-          apiUrl.includes('infumatch-backend-269567634217') ||
+          apiUrl.includes('infumatch-orchestration-269567634217') ||
           apiUrl.includes('infumatch-backend-fuwvv3ux7q-an.a.run.app')) {
-        console.warn('⚠️ 古いAPI URLが検出されました。最新のオーケストレーションシステムURLに修正します。');
-        apiUrl = 'https://infumatch-orchestration-269567634217.asia-northeast1.run.app';
+        console.warn('⚠️ 古いAPI URLが検出されました。最新の4エージェントシステムURLに修正します。');
+        apiUrl = 'https://infumatch-backend-269567634217.asia-northeast1.run.app';
       }
       
       console.log('🔗 使用するAPI URL:', apiUrl);
@@ -433,24 +433,25 @@ function MessagesPageContent() {
       
       // リクエストデータを準備（orchestrated negotiation API用）
       const requestData = {
-        thread_id: currentThread.id,
-        new_message: threadMessages.length > 0 ? threadMessages[threadMessages.length - 1].content : '',
-        company_settings: {
-          company_name: "InfuMatch",
-          contact_person: "田中美咲",
-          email: "tanaka@infumatch.com",
-          budget: {
-            min: 200000,
-            max: 500000,
-            currency: "JPY"
-          }
-        },
         conversation_history: threadMessages.map(msg => ({
-          sender: msg.sender,
-          message: msg.content,
-          timestamp: msg.date
+          role: msg.sender === 'InfuMatch' ? 'assistant' : 'user',
+          content: msg.content
         })),
-        custom_instructions: ""  // 後で更新
+        new_message: threadMessages.length > 0 ? threadMessages[threadMessages.length - 1].content : '',
+        context: {
+          company_settings: {
+            companyInfo: {
+              companyName: "InfuMatch",
+              contactPerson: "田中美咲",
+              email: "tanaka@infumatch.com"
+            },
+            products: [
+              { name: "健康食品A" },
+              { name: "美容クリーム" }
+            ]
+          },
+          custom_instructions: ""  // 後で更新
+        }
       };
       
       console.log('📤 API送信データ:', JSON.stringify(requestData, null, 2));
@@ -498,12 +499,12 @@ function MessagesPageContent() {
       // 企業設定を統合
       if (companySettings.companyInfo) {
         const companyInfo = companySettings.companyInfo;
-        requestData.company_settings.company_name = companyInfo.companyName || "InfuMatch";
-        requestData.company_settings.contact_person = companyInfo.contactPerson || "田中美咲";
-        requestData.company_settings.email = companyInfo.email || "tanaka@infumatch.com";
+        requestData.context.company_settings.companyInfo.companyName = companyInfo.companyName || "InfuMatch";
+        requestData.context.company_settings.companyInfo.contactPerson = companyInfo.contactPerson || "田中美咲";
+        requestData.context.company_settings.companyInfo.email = companyInfo.email || "tanaka@infumatch.com";
         
-        if (companySettings.negotiationSettings?.budget) {
-          requestData.company_settings.budget = companySettings.negotiationSettings.budget;
+        if (companySettings.products && companySettings.products.length > 0) {
+          requestData.context.company_settings.products = companySettings.products;
         }
       }
       
@@ -517,7 +518,7 @@ function MessagesPageContent() {
           'CustomizationAgent',
           0.90
         );
-        requestData.custom_instructions = customPrompt.trim();
+        requestData.context.custom_instructions = customPrompt.trim();
         console.log('📝 カスタムプロンプトを適用:', customPrompt);
       }
       
@@ -535,14 +536,14 @@ function MessagesPageContent() {
         0.80
       );
       
-      // 新しいマルチエージェントオーケストレーションAPIを使用
-      const fullUrl = `${apiUrl}/api/v1/negotiate/orchestrated`;
+      // 新しい4エージェント統合システムAPIを使用
+      const fullUrl = `${apiUrl}/api/v1/negotiation/continue`;
       console.log('🌐 リクエスト先URL:', fullUrl);
       console.log('🎯 企業設定を活用した返信生成を開始します');
       console.log('📝 最終的なコンテキスト:', {
-        has_company_settings: Object.keys(requestData.company_settings).length > 0,
-        has_custom_instructions: !!requestData.custom_instructions,
-        custom_instructions: requestData.custom_instructions || '設定なし'
+        has_company_settings: Object.keys(requestData.context.company_settings).length > 0,
+        has_custom_instructions: !!requestData.context.custom_instructions,
+        custom_instructions: requestData.context.custom_instructions || '設定なし'
       });
       
       const response = await fetch(fullUrl, {
