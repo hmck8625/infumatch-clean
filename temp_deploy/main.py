@@ -933,7 +933,16 @@ async def get_ai_recommendations(campaign: CampaignData):
                     "risk": scores["risk"]
                 },
                 "explanation": generate_recommendation_explanation(inf, campaign, scores),
-                "rank": idx + 1
+                "rank": idx + 1,
+                # Include actual database values for frontend display
+                "thumbnail_url": inf.get("thumbnail_url", ""),
+                "subscriber_count": inf.get("subscriber_count", 0),
+                "engagement_rate": inf.get("engagement_rate", 0.0),
+                "description": inf.get("description", ""),
+                "email": inf.get("email", ""),
+                "category": inf.get("category", "一般"),
+                "view_count": inf.get("view_count", 0),
+                "video_count": inf.get("video_count", 0)
             })
         
         return {
@@ -980,7 +989,16 @@ async def get_ai_recommendations(campaign: CampaignData):
                         "risk": 0.93
                     },
                     "explanation": "エラー時のフォールバック推薦",
-                    "rank": 1
+                    "rank": 1,
+                    # Include fallback database values 
+                    "thumbnail_url": "https://yt3.ggpht.com/sample-gaming.jpg",
+                    "subscriber_count": 150000,
+                    "engagement_rate": 4.2,
+                    "description": "最新ゲームレビューと攻略動画を配信しているゲーミングチャンネル",
+                    "email": "gaming@example.com",
+                    "category": "ゲーム",
+                    "view_count": 5000000,
+                    "video_count": 245
                 }
             ],
             "ai_evaluation": {
@@ -1114,7 +1132,16 @@ async def get_ai_recommendations_query(
                     "risk": round(scores["risk"], 2)
                 },
                 "explanation": explanation,
-                "rank": idx + 1
+                "rank": idx + 1,
+                # Include actual database values for frontend display
+                "thumbnail_url": inf.get("thumbnail_url", ""),
+                "subscriber_count": inf.get("subscriber_count", 0),
+                "engagement_rate": inf.get("engagement_rate", 0.0),
+                "description": inf.get("description", ""),
+                "email": inf.get("email", ""),
+                "category": inf.get("category", "一般"),
+                "view_count": inf.get("view_count", 0),
+                "video_count": inf.get("video_count", 0)
             })
         
         return {
@@ -1168,7 +1195,16 @@ async def get_ai_recommendations_query(
                         "risk": 0.80
                     },
                     "explanation": "データ取得エラーのためフォールバック推薦",
-                    "rank": 1
+                    "rank": 1,
+                    # Include fallback database values
+                    "thumbnail_url": "https://yt3.ggpht.com/sample-cooking.jpg",
+                    "subscriber_count": 75000,
+                    "engagement_rate": 3.8,
+                    "description": "簡単で美味しい家庭料理レシピを毎週配信",
+                    "email": "cooking@example.com", 
+                    "category": "料理",
+                    "view_count": 2800000,
+                    "video_count": 180
                 }
             ],
             "ai_evaluation": {
