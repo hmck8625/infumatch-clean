@@ -75,7 +75,7 @@ class DatabaseService:
             
             # 接続テスト
             try:
-                collection_ref = self.firestore_client.collection('youtube_influencers')
+                collection_ref = self.firestore_client.collection('influencers')
                 docs = list(collection_ref.limit(1).stream())
                 logger.info(f"🔥 Firestore test: Found {len(docs)} documents")
             except Exception as test_error:
@@ -136,12 +136,12 @@ class DatabaseService:
         """Firestore からインフルエンサーデータを取得"""
         
         def query_firestore():
-            collection_ref = self.firestore_client.collection('youtube_influencers')
+            collection_ref = self.firestore_client.collection('influencers')
             query = collection_ref
             
             # カテゴリフィルタ
             if category and category != 'all':
-                query = query.where('primary_category', '==', category)
+                query = query.where('category', '==', category)
             
             # 登録者数フィルタ
             if min_subscribers:
@@ -188,7 +188,7 @@ class DatabaseService:
             "subscriberCount": firestore_data.get('subscriber_count', 0),
             "viewCount": firestore_data.get('view_count', 0),
             "videoCount": firestore_data.get('video_count', 0),
-            "category": firestore_data.get('primary_category', 'その他'),
+            "category": firestore_data.get('category', 'その他'),
             "description": firestore_data.get('description', ''),
             "thumbnailUrl": firestore_data.get('thumbnail_url', '/images/default-channel.svg'),
             "engagementRate": firestore_data.get('engagement_rate', 0.0),
@@ -280,7 +280,7 @@ class DatabaseService:
         try:
             def get_doc():
                 # まず channel_id で検索
-                collection_ref = self.firestore_client.collection('youtube_influencers')
+                collection_ref = self.firestore_client.collection('influencers')
                 query = collection_ref.where('channel_id', '==', influencer_id).limit(1)
                 docs = list(query.stream())
                 
@@ -436,7 +436,7 @@ class DatabaseService:
         if self.firestore_client:
             try:
                 # 簡単なクエリでテスト
-                collection_ref = self.firestore_client.collection('youtube_influencers')
+                collection_ref = self.firestore_client.collection('influencers')
                 list(collection_ref.limit(1).stream())
                 status["firestore"] = "connected"
             except Exception as e:

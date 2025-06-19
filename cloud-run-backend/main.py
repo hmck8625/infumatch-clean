@@ -306,24 +306,25 @@ class SimpleNegotiationManager:
 - 自然で正しい日本語を使用してください
 - 「ますです」「ですです」などの重複表現は避けてください
 - 丁寧語は適切に使用してください
-- 完全なメール形式で生成してください（宛先、本文、署名含む）
+- メール本文のみを生成してください（署名は後で自動追加されます）
+- 宛先や「○○様」「署名」「会社名」「担当者名」は含めないでください
 
 以下のJSON形式で3つの異なるトーンのパターンを生成してください：
 
 {{
     "pattern_collaborative": {{
         "approach": "collaborative",
-        "content": "相手の意見を尊重し、協調的で親しみやすいトーンの完全なメール文章",
+        "content": "相手の意見を尊重し、協調的で親しみやすいトーンのメール本文（署名なし）",
         "tone": "friendly_accommodating"
     }},
     "pattern_balanced": {{
         "approach": "balanced", 
-        "content": "プロフェッショナルで中立的、丁寧なトーンの完全なメール文章",
+        "content": "プロフェッショナルで中立的、丁寧なトーンのメール本文（署名なし）",
         "tone": "professional_polite"
     }},
     "pattern_formal": {{
         "approach": "formal",
-        "content": "より格式高く、正式なビジネストーンの完全なメール文章", 
+        "content": "より格式高く、正式なビジネストーンのメール本文（署名なし）", 
         "tone": "highly_formal"
     }}
 }}
@@ -333,12 +334,18 @@ class SimpleNegotiationManager:
             response = self.gemini_model.generate_content(prompt)
             patterns = json.loads(response.text.strip())
             
-            # メタデータを追加
+            # メタデータを追加し、署名を統一的に追加
             for pattern_key in patterns:
                 if isinstance(patterns[pattern_key], dict):
                     patterns[pattern_key]['generated_at'] = datetime.now().isoformat()
                     patterns[pattern_key]['company_name'] = company_name
                     patterns[pattern_key]['contact_person'] = contact_person
+                    
+                    # Gemini生成コンテンツに署名を追加（重複チェック）
+                    content = patterns[pattern_key].get('content', '')
+                    if content and not (company_name in content and contact_person in content):
+                        # 署名がまだ含まれていない場合のみ追加
+                        patterns[pattern_key]['content'] = f"{content}\n\nよろしくお願いいたします。\n{company_name} {contact_person}"
             
             return patterns
             
@@ -351,7 +358,7 @@ class SimpleNegotiationManager:
         return {
             "pattern_collaborative": {
                 "approach": "collaborative",
-                "content": f"ご提案いただいた条件で、ぜひ進めさせていただきたく思います。詳細につきまして、お話しさせていただければ幸いです。\n\n{company_name}\n{contact_person}",
+                "content": f"ご提案いただいた条件で、ぜひ進めさせていただきたく思います。詳細につきまして、お話しさせていただければ幸いです。\n\nよろしくお願いいたします。\n{company_name} {contact_person}",
                 "tone": "friendly_accommodating",
                 "generated_at": datetime.now().isoformat(),
                 "company_name": company_name,
@@ -359,7 +366,7 @@ class SimpleNegotiationManager:
             },
             "pattern_balanced": {
                 "approach": "balanced",
-                "content": f"ご提案を検討させていただき、双方にとってメリットのある形でお話しを進められればと思います。詳細をご相談させてください。\n\n{company_name}\n{contact_person}",
+                "content": f"ご提案を検討させていただき、双方にとってメリットのある形でお話しを進められればと思います。詳細をご相談させてください。\n\nご検討のほど、よろしくお願いいたします。\n{company_name} {contact_person}",
                 "tone": "professional_polite", 
                 "generated_at": datetime.now().isoformat(),
                 "company_name": company_name,
@@ -367,7 +374,7 @@ class SimpleNegotiationManager:
             },
             "pattern_formal": {
                 "approach": "formal",
-                "content": f"貴重なお時間をいただき、誠にありがとうございます。弊社といたしましては、慎重に検討させていただいた上で、最適なご提案をお示しさせていただきたく存じます。\n\n{company_name}\n{contact_person}",
+                "content": f"貴重なお時間をいただき、誠にありがとうございます。弊社といたしましては、慎重に検討させていただいた上で、最適なご提案をお示しさせていただきたく存じます。\n\nご検討のほど、よろしくお願いいたします。\n{company_name} {contact_person}",
                 "tone": "highly_formal",
                 "generated_at": datetime.now().isoformat(),
                 "company_name": company_name,
@@ -1110,6 +1117,7 @@ async def generate_detailed_ai_response(
         company_info = company_settings.get("companyInfo", {})
         products = company_settings.get("products", [])
         company_name = company_info.get("companyName", "InfuMatch")
+        contact_person = company_info.get("contactPerson", "田中美咲")
         
         # まず、メッセージ分析用のプロンプト
         analysis_prompt = f"""
