@@ -686,170 +686,81 @@ function MessagesPageContent() {
         const baseReply = result.content || 'AI応答が生成されませんでした';
         const contact = getThreadPrimaryContact(currentThread);
         
-        // AIが既に完成した返信を生成しているかチェック
-        const isCompleteReply = baseReply.includes('田中') || baseReply.includes('InfuMatch') || baseReply.length > 100;
-        console.log(`🤖 AI返信判定: ${isCompleteReply ? '完成版' : '部分版'} (長さ: ${baseReply.length}文字)`);
-        
         // 基本的な分析結果を取得
         const basicMetadata = result.metadata || {};
         console.log('🔍 交渉エージェント分析結果:', basicMetadata);
+        console.log(`🤖 AI基本返信: "${baseReply.substring(0, 50)}..."`);
         
-        // 基本的な戦略情報をUI用に整形
-        if (basicMetadata.relationship_stage) {
-          console.log(`📊 交渉段階: ${basicMetadata.relationship_stage}`);
-          console.log(`🎯 エージェント: ${basicMetadata.agent || 'NegotiationAgent'}`);
-        }
-        
-        // 将来の高度な分析のためのプレースホルダー
-        console.log('💡 高度な分析機能は次回のバックエンドデプロイで利用可能になります');
-        
-        // 交渉段階を分析
-        const negotiationStage = basicMetadata.relationship_stage || 'initial_contact';
-        let stageReasoning = '';
-        
-        switch(negotiationStage) {
-          case 'initial_contact':
-            stageReasoning = '初回接触段階です。信頼関係構築を重視し、相手の興味を引き出す内容にします';
-            break;
-          case 'warming_up':
-            stageReasoning = 'ウォーミングアップ段階です。具体的な提案に向けて、相手のニーズを探りながら関係を深めます';
-            break;
-          case 'negotiation':
-            stageReasoning = '交渉段階です。価格や条件面での調整を行い、Win-Winの解決策を模索します';
-            break;
-          case 'closing':
-            stageReasoning = 'クロージング段階です。最終確認と次のステップを明確にして、契約に向けて進めます';
-            break;
-          default:
-            stageReasoning = '現在の交渉段階を分析し、適切なアプローチを選択します';
-        }
-        
-        // パターン生成の最終処理
+        // 4エージェントシステムによる3パターン構築
         updateAgentStatus(
-          '🎨 パターン最終生成', 
-          '3つの異なるコミュニケーションスタイルを作成中...', 
-          `${stageReasoning} 協調的・中立・主張的の3パターンを生成しています`,
+          '🎨 Gemini 3パターン生成完了', 
+          'Geminiが3つの異なるトーンで返信を直接生成しました', 
+          '協調的・プロフェッショナル・フォーマルの3パターンをGeminiが生成',
           4,
-          'PatternGenerationAgent',
-          0.92
+          'GeminiDirectGeneration',
+          0.95
         );
-        
-        // 多様性を向上させるためのランダム要素を追加
-        const currentTime = new Date();
-        const variations = {
-          greetings: [
-            'いつもお世話になっております。',
-            'お疲れ様です。',
-            'いつもありがとうございます。'
-          ],
-          closings: [
-            'よろしくお願いいたします。',
-            'ご検討のほど、よろしくお願いいたします。',
-            '何かご不明な点がございましたら、お気軽にお声がけください。'
-          ],
-          meetings: [
-            'お電話やビデオ通話でお話しできればと思います',
-            'オンラインミーティングでご相談させていただければと思います',
-            'お時間のあるときにお打ち合わせをお願いできればと思います'
-          ]
-        };
-        
-        const getRandomItem = (arr: string[]) => arr[Math.floor(Math.random() * arr.length)];
         
         let patterns = [];
         
-        if (isCompleteReply) {
-          // AIが既に完成した返信を生成している場合は、そのまま使用
+        // 4エージェントシステムの結果から3パターンを構築
+        if (result.patterns) {
+          const patternsFromAPI = result.patterns;
           patterns = [
+            // 協調的パターン
             {
-              pattern_type: 'ai_generated_original',
-              pattern_name: 'AI生成オリジナル',
-              tone: 'AIが分析に基づいて最適化したトーン',
-              content: baseReply,
-              reasoning: 'AIが文脈とカスタム指示を理解して生成した完成版の返信',
+              pattern_type: patternsFromAPI.pattern_collaborative?.approach || 'collaborative',
+              pattern_name: '協調的・親しみやすい',
+              tone: patternsFromAPI.pattern_collaborative?.tone || 'friendly_accommodating',
+              content: patternsFromAPI.pattern_collaborative?.content || 'パターン生成に失敗しました',
+              reasoning: 'AIが分析結果に基づいて協調的で親しみやすいトーンで生成',
+              recommendation_score: 0.90
+            },
+            // バランス型パターン  
+            {
+              pattern_type: patternsFromAPI.pattern_balanced?.approach || 'balanced',
+              pattern_name: 'プロフェッショナル・バランス型',
+              tone: patternsFromAPI.pattern_balanced?.tone || 'professional_polite',
+              content: patternsFromAPI.pattern_balanced?.content || 'パターン生成に失敗しました',
+              reasoning: 'AIが分析結果に基づいてプロフェッショナルで中立的なトーンで生成',
               recommendation_score: 0.95
             },
+            // フォーマルパターン
             {
-              pattern_type: 'ai_generated_formal',
-              pattern_name: 'AI生成（フォーマル調整）',
-              tone: 'AIベース + より丁寧なフォーマル表現',
-              content: baseReply
-                .replace(/([^す])。/g, '$1です。')
-                .replace(/です。です。/g, 'です。'),
-              reasoning: 'AI生成内容をベースに、より丁寧な表現に微調整',
+              pattern_type: patternsFromAPI.pattern_formal?.approach || 'formal',
+              pattern_name: '格式高い・正式',
+              tone: patternsFromAPI.pattern_formal?.tone || 'highly_formal',
+              content: patternsFromAPI.pattern_formal?.content || 'パターン生成に失敗しました',
+              reasoning: 'AIが分析結果に基づいて格式高く正式なトーンで生成',
               recommendation_score: 0.85
-            },
-            {
-              pattern_type: 'ai_generated_concise',
-              pattern_name: 'AI生成（簡潔版）',
-              tone: 'AIベース + より簡潔な表現',
-              content: baseReply.split('\n').filter(line => line.trim().length > 0).slice(0, -1).join('\n') + '\n\n簡潔にご連絡いたします。よろしくお願いいたします。',
-              reasoning: 'AI生成内容をベースに、より簡潔で効率的な表現に調整',
-              recommendation_score: 0.80
             }
           ];
         } else {
-          // AIが部分的な返信を生成している場合は、従来のパターン生成
+          // APIからパターンが取得できない場合のフォールバック
           patterns = [
             {
-              pattern_type: 'friendly_enthusiastic',
-              pattern_name: '友好的・積極的',
-              tone: '親しみやすく、前向きで協力的なトーン',
-              content: `${contact}様
-
-${getRandomItem(variations.greetings)}InfuMatchの田中です。
-
-${baseReply}
-
-ぜひ詳細についてお話しさせていただければと思います！
-${getRandomItem(variations.meetings)}が、いかがでしょうか？
-
-お返事お待ちしております。
-
-${getRandomItem(variations.closings)}
-田中`,
-              reasoning: 'AIが生成した基本内容に、積極的で関係構築を重視するアプローチを追加',
-              recommendation_score: 0.85
+              pattern_type: 'collaborative',
+              pattern_name: '協調的・親しみやすい',
+              tone: 'friendly_accommodating',
+              content: `${contact}様\n\nいつもお世話になっております。\n\n${baseReply}\n\nよろしくお願いいたします。\nInfuMatch 田中`,
+              reasoning: 'フォールバック: 協調的なアプローチ',
+              recommendation_score: 0.70
             },
             {
-              pattern_type: 'cautious_professional',
-              pattern_name: '慎重・プロフェッショナル',
-              tone: '丁寧で専門的、詳細を重視するトーン',
-              content: `${contact}様
-
-お忙しい中、ご連絡いただきありがとうございます。
-InfuMatchの田中と申します。
-
-${baseReply}
-
-つきましては、以下の点について詳細を確認させていただけますでしょうか。
-
-・プロジェクトの具体的な内容
-・ご希望のスケジュール  
-・ご予算の範囲
-
-${getRandomItem(variations.closings)}
-
-田中`,
-              reasoning: 'AIが生成した基本内容に、リスクを最小限に抑えた慎重なアプローチを追加',
+              pattern_type: 'balanced',
+              pattern_name: 'プロフェッショナル・バランス型',
+              tone: 'professional_polite',
+              content: `${contact}様\n\nお忙しい中ご連絡いただき、ありがとうございます。\n\n${baseReply}\n\nご検討のほど、よろしくお願いいたします。\nInfuMatch 田中`,
+              reasoning: 'フォールバック: プロフェッショナルなアプローチ',
               recommendation_score: 0.75
             },
             {
-              pattern_type: 'business_focused',
-              pattern_name: 'ビジネス重視・効率的',
-              tone: '簡潔で要点を押さえた、効率を重視するトーン',
-              content: `${contact}様
-
-${baseReply}
-
-具体的な提案内容と次のステップについて、
-近日中に${getRandomItem(variations.meetings)}。
-
-ご都合の良い日時をお聞かせください。
-
-田中（InfuMatch）`,
-              reasoning: 'AIが生成した基本内容を簡潔にまとめ、効率的な進行を重視したアプローチ',
-              recommendation_score: 0.70
+              pattern_type: 'formal',
+              pattern_name: '格式高い・正式',
+              tone: 'highly_formal',
+              content: `${contact}様\n\n平素よりお世話になっております。\n\n${baseReply}\n\n何卒よろしくお願い申し上げます。\nInfuMatch 田中`,
+              reasoning: 'フォールバック: 格式高いアプローチ',
+              recommendation_score: 0.65
             }
           ];
         }

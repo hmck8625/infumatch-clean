@@ -288,11 +288,16 @@ class SimpleNegotiationManager:
         contact_person = company_info.get("contactPerson", "田中美咲")
         
         prompt = f"""
-以下の情報に基づいて、3つのパターンで返信メールを生成してください。
+以下の情報に基づいて、3つの異なるトーンで返信メールを生成してください。
 
 【企業情報】
 会社名: {company_name}
 担当者: {contact_person}
+
+【分析結果】
+- 交渉段階: {thread_analysis.get('negotiation_stage', '初期接触')}
+- 相手の感情: {thread_analysis.get('sentiment', 'neutral')}
+- 戦略アプローチ: {strategy_plan.get('primary_approach', 'balanced')}
 
 【カスタム指示】
 {custom_instructions}
@@ -300,24 +305,26 @@ class SimpleNegotiationManager:
 【生成ルール】
 - 自然で正しい日本語を使用してください
 - 「ますです」「ですです」などの重複表現は避けてください
-- 丁寧語は適切に使用してください（例：「思います」「させていただきます」）
+- 丁寧語は適切に使用してください
+- 完全なメール形式で生成してください（宛先、本文、署名含む）
 
-以下のJSON形式で3パターンを生成してください：
+以下のJSON形式で3つの異なるトーンのパターンを生成してください：
+
 {{
     "pattern_collaborative": {{
         "approach": "collaborative",
-        "content": "相手に合わせる協調的な返信メール",
-        "tone": "accommodating"
+        "content": "相手の意見を尊重し、協調的で親しみやすいトーンの完全なメール文章",
+        "tone": "friendly_accommodating"
     }},
     "pattern_balanced": {{
         "approach": "balanced", 
-        "content": "中立的でバランスの取れた返信メール",
-        "tone": "professional"
+        "content": "プロフェッショナルで中立的、丁寧なトーンの完全なメール文章",
+        "tone": "professional_polite"
     }},
-    "pattern_assertive": {{
-        "approach": "assertive",
-        "content": "自分の要求を通す主張的な返信メール", 
-        "tone": "confident"
+    "pattern_formal": {{
+        "approach": "formal",
+        "content": "より格式高く、正式なビジネストーンの完全なメール文章", 
+        "tone": "highly_formal"
     }}
 }}
 """
@@ -344,24 +351,24 @@ class SimpleNegotiationManager:
         return {
             "pattern_collaborative": {
                 "approach": "collaborative",
-                "content": f"ご提案いただいた条件で、ぜひ進めさせていただきたく思います。詳細につきまして、お話しさせていただければ幸いです。\n\n{company_name} {contact_person}",
-                "tone": "accommodating",
+                "content": f"ご提案いただいた条件で、ぜひ進めさせていただきたく思います。詳細につきまして、お話しさせていただければ幸いです。\n\n{company_name}\n{contact_person}",
+                "tone": "friendly_accommodating",
                 "generated_at": datetime.now().isoformat(),
                 "company_name": company_name,
                 "contact_person": contact_person
             },
             "pattern_balanced": {
                 "approach": "balanced",
-                "content": f"ご提案を検討させていただき、双方にとってメリットのある形でお話しを進められればと思います。詳細をご相談させてください。\n\n{company_name} {contact_person}",
-                "tone": "professional", 
+                "content": f"ご提案を検討させていただき、双方にとってメリットのある形でお話しを進められればと思います。詳細をご相談させてください。\n\n{company_name}\n{contact_person}",
+                "tone": "professional_polite", 
                 "generated_at": datetime.now().isoformat(),
                 "company_name": company_name,
                 "contact_person": contact_person
             },
-            "pattern_assertive": {
-                "approach": "assertive",
-                "content": f"弊社としては以下の条件でのご提案をさせていただきます。品質と実績を重視した最適なプランをご用意いたします。\n\n{company_name} {contact_person}",
-                "tone": "confident",
+            "pattern_formal": {
+                "approach": "formal",
+                "content": f"貴重なお時間をいただき、誠にありがとうございます。弊社といたしましては、慎重に検討させていただいた上で、最適なご提案をお示しさせていただきたく存じます。\n\n{company_name}\n{contact_person}",
+                "tone": "highly_formal",
                 "generated_at": datetime.now().isoformat(),
                 "company_name": company_name,
                 "contact_person": contact_person
