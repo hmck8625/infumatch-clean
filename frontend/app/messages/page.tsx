@@ -53,6 +53,10 @@ function MessagesPageContent() {
   const [searchFilters, setSearchFilters] = useState<SearchFilters>({});
   const [detailedTrace, setDetailedTrace] = useState<any>(null);
   const [showDetailedTrace, setShowDetailedTrace] = useState(false);
+  const [streamingProgress, setStreamingProgress] = useState<number>(0);
+  const [streamingStage, setStreamingStage] = useState<string>('');
+  const [streamingResults, setStreamingResults] = useState<any[]>([]);
+  const [isStreaming, setIsStreaming] = useState<boolean>(false);
   
   // エージェント状況とカスタムプロンプト
   interface ProcessingStep {
@@ -977,6 +981,190 @@ InfuMatchの田中です。
       });
       
     } finally {
+      setIsGeneratingPatterns(false);
+    }
+  };
+
+  // ストリーミング版AI返信生成
+  const generateReplyPatternsStreaming = async () => {
+    if (!currentThread || !currentThread.messages || isGeneratingPatterns) return;
+    
+    setIsGeneratingPatterns(true);
+    setIsStreaming(true);
+    setStreamingProgress(0);
+    setStreamingStage('');
+    setStreamingResults([]);
+    
+    try {
+      // APIURLの準備
+      let apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://infumatch-backend-fuwvv3ux7q-an.a.run.app';
+      if (apiUrl.includes('hackathon-backend-462905-269567634217') || 
+          apiUrl.includes('infumatch-orchestration-269567634217') ||
+          apiUrl.includes('infumatch-backend-fuwvv3ux7q-an.a.run.app')) {
+        apiUrl = 'https://infumatch-backend-269567634217.asia-northeast1.run.app';
+      }
+      
+      // リクエストデータ準備
+      const threadMessages = currentThread.messages.map(message => ({
+        id: message.id,
+        sender: getMessageSender(message),
+        content: getMessagePlainText(message),
+        date: new Date(parseInt(message.internalDate)).toISOString(),
+        subject: getMessageSubject(message)
+      }));
+      
+      const requestData = {
+        conversation_history: threadMessages.map(msg => ({
+          role: msg.sender === 'InfuMatch' ? 'assistant' : 'user',
+          content: msg.content
+        })),
+        new_message: threadMessages.length > 0 ? threadMessages[threadMessages.length - 1].content : '',
+        context: {
+          company_settings: {
+            companyInfo: {
+              companyName: "InfuMatch",
+              contactPerson: "田中美咲",
+              email: "tanaka@infumatch.com"
+            },
+            products: [
+              { name: "健康食品A" },
+              { name: "美容クリーム" }
+            ]
+          },
+          custom_instructions: customPrompt || ""
+        }
+      };
+      
+      // ストリーミング接続
+      const response = await fetch(`${apiUrl}/api/v1/negotiation/stream`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestData)
+      });
+      
+      if (!response.ok) {
+        throw new Error(`ストリーミング接続失敗: ${response.status}`);
+      }
+      
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('ストリーミングレスポンス読み込み失敗');
+      }
+      
+      const decoder = new TextDecoder();
+      let buffer = '';
+      
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+          
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.slice(6));
+                
+                console.log('📡 ストリーミングデータ受信:', data);
+                
+                // 進捗更新
+                if (data.progress !== undefined) {
+                  setStreamingProgress(data.progress);
+                }
+                
+                // ステージ更新
+                if (data.type === 'stage_start') {
+                  setStreamingStage(`${data.stage}. ${data.name}開始`);
+                  updateAgentStatus(
+                    `🎭 Stage ${data.stage}`,
+                    `${data.name}開始`,
+                    `4エージェントシステムのStage ${data.stage}が開始されました`,
+                    data.stage,
+                    `Agent${data.stage}`,
+                    0.7
+                  );
+                } else if (data.type === 'stage_complete') {
+                  setStreamingStage(`${data.stage}. ${data.name}完了`);
+                  setStreamingResults(prev => [...prev, {
+                    stage: data.stage,
+                    name: data.name,
+                    result: data.result
+                  }]);
+                  updateAgentStatus(
+                    `✅ Stage ${data.stage}完了`,
+                    `${data.name}完了`,
+                    `結果: ${JSON.stringify(data.result).slice(0, 100)}...`,
+                    data.stage,
+                    `Agent${data.stage}`,
+                    0.9
+                  );
+                } else if (data.type === 'complete') {
+                  // 最終結果処理
+                  const result = data.result;
+                  console.log('🎉 ストリーミング完了:', result);
+                  
+                  // パターン生成
+                  const patterns = [];
+                  if (result.patterns) {
+                    for (const [key, patternData] of Object.entries(result.patterns)) {
+                      if (key.startsWith('pattern_') && typeof patternData === 'object') {
+                        patterns.push({
+                          pattern_type: patternData.approach || key,
+                          pattern_name: patternData.approach === 'collaborative' ? '協調的' :
+                                       patternData.approach === 'balanced' ? 'バランス型' :
+                                       patternData.approach === 'assertive' ? '主張的' : key,
+                          tone: patternData.tone || 'professional',
+                          content: patternData.content || '',
+                          reasoning: `ストリーミング4エージェントによる${patternData.approach}アプローチ`,
+                          recommendation_score: 0.9
+                        });
+                      }
+                    }
+                  }
+                  
+                  setReplyPatterns(patterns);
+                  setThreadAnalysis({
+                    relationship_stage: result.metadata?.relationship_stage || '4_agent_streaming',
+                    emotional_tone: result.analysis?.sentiment || 'neutral',
+                    urgency_level: result.analysis?.urgency_level || 'normal',
+                    main_topics: result.analysis?.key_topics || ['コラボレーション'],
+                    note: 'ストリーミング4エージェントシステムによる高速生成'
+                  });
+                  
+                  updateAgentStatus(
+                    '🎉 ストリーミング完了',
+                    '4エージェント処理完了',
+                    `${patterns.length}個のパターンが生成されました`,
+                    4,
+                    'StreamingComplete',
+                    1.0
+                  );
+                } else if (data.type === 'error') {
+                  throw new Error(data.message);
+                }
+              } catch (parseError) {
+                console.warn('⚠️ ストリーミングデータ解析エラー:', parseError, line);
+              }
+            }
+          }
+        }
+      } finally {
+        reader.releaseLock();
+      }
+      
+    } catch (error: any) {
+      console.error('❌ ストリーミング生成エラー:', error);
+      updateAgentStatus('❌ ストリーミングエラー', error.message || '不明なエラー');
+      
+      // フォールバック: 通常の生成を試行
+      await generateReplyPatterns();
+    } finally {
+      setIsStreaming(false);
       setIsGeneratingPatterns(false);
     }
   };
@@ -2054,13 +2242,14 @@ InfuMatchの田中です。
               </div>
 
               {/* 生成ボタン */}
-              <div className="flex justify-center mb-6">
+              <div className="flex justify-center gap-4 mb-6">
+                {/* 通常版ボタン */}
                 <button
                   onClick={generateReplyPatterns}
                   disabled={isGeneratingPatterns}
                   className="btn btn-primary"
                 >
-                  {isGeneratingPatterns ? (
+                  {isGeneratingPatterns && !isStreaming ? (
                     <>
                       <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -2077,7 +2266,76 @@ InfuMatchの田中です。
                     </>
                   )}
                 </button>
+
+                {/* ストリーミング版ボタン */}
+                <button
+                  onClick={generateReplyPatternsStreaming}
+                  disabled={isGeneratingPatterns}
+                  className="btn bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-medium px-6 py-3 rounded-lg transition-all duration-200 disabled:opacity-50"
+                >
+                  {isStreaming ? (
+                    <>
+                      <svg className="animate-pulse -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      ⚡ ストリーミング中... ({streamingProgress}%)
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      </svg>
+                      ⚡ 高速ストリーミング生成
+                    </>
+                  )}
+                </button>
               </div>
+
+              {/* ストリーミング進捗表示 */}
+              {isStreaming && (
+                <div className="mb-6 bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg p-4 border border-purple-200">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="font-medium text-purple-800">⚡ リアルタイム処理進捗</h4>
+                    <span className="text-purple-600 font-mono text-sm">{streamingProgress}%</span>
+                  </div>
+                  
+                  {/* 進捗バー */}
+                  <div className="w-full bg-purple-200 rounded-full h-2 mb-3">
+                    <div 
+                      className="bg-gradient-to-r from-purple-600 to-blue-600 h-2 rounded-full transition-all duration-500"
+                      style={{ width: `${streamingProgress}%` }}
+                    ></div>
+                  </div>
+                  
+                  {/* 現在のステージ */}
+                  {streamingStage && (
+                    <div className="text-sm text-purple-700 bg-white rounded px-3 py-1 inline-block">
+                      🎭 {streamingStage}
+                    </div>
+                  )}
+                  
+                  {/* ストリーミング結果プレビュー */}
+                  {streamingResults.length > 0 && (
+                    <div className="mt-3 space-y-2">
+                      <h5 className="text-sm font-medium text-purple-800">📊 完了ステージ:</h5>
+                      <div className="grid grid-cols-2 gap-2">
+                        {streamingResults.map((result, index) => (
+                          <div key={index} className="bg-white rounded p-2 text-xs">
+                            <span className="font-medium text-purple-700">Stage {result.stage}: {result.name}</span>
+                            <div className="text-gray-600 mt-1">
+                              {typeof result.result === 'object' ? 
+                                Object.keys(result.result).join(', ') : 
+                                String(result.result).slice(0, 30) + '...'
+                              }
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
             
             {/* AI生成返信パターン */}

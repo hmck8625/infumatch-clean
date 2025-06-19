@@ -1209,6 +1209,91 @@ async def get_influencer_detail(influencer_id: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/api/v1/negotiation/stream")
+async def stream_negotiation(request: ContinueNegotiationRequest):
+    """ストリーミング交渉継続・返信生成（リアルタイム進捗表示）"""
+    from fastapi.responses import StreamingResponse
+    import asyncio
+    
+    async def generate_stream():
+        try:
+            # 初期設定
+            company_settings = request.context.get("company_settings", {})
+            custom_instructions = request.context.get("custom_instructions", "")
+            
+            yield f"data: {json.dumps({'type': 'init', 'message': '4エージェント処理開始', 'stage': 0, 'progress': 0})}\n\n"
+            await asyncio.sleep(0.1)  # UI更新時間
+            
+            # 4エージェントマネージャーを使用
+            if negotiation_manager:
+                # Stage 1: スレッド分析
+                yield f"data: {json.dumps({'type': 'stage_start', 'stage': 1, 'name': 'スレッド分析', 'progress': 10})}\n\n"
+                await asyncio.sleep(0.1)
+                
+                thread_analysis = await negotiation_manager._analyze_thread(request.new_message, request.conversation_history)
+                yield f"data: {json.dumps({'type': 'stage_complete', 'stage': 1, 'name': 'スレッド分析', 'result': thread_analysis, 'progress': 25})}\n\n"
+                await asyncio.sleep(0.1)
+                
+                # Stage 2: 戦略立案
+                yield f"data: {json.dumps({'type': 'stage_start', 'stage': 2, 'name': '戦略立案', 'progress': 30})}\n\n"
+                await asyncio.sleep(0.1)
+                
+                strategy_plan = await negotiation_manager._plan_strategy(thread_analysis, company_settings, custom_instructions)
+                yield f"data: {json.dumps({'type': 'stage_complete', 'stage': 2, 'name': '戦略立案', 'result': strategy_plan, 'progress': 50})}\n\n"
+                await asyncio.sleep(0.1)
+                
+                # Stage 3: 内容評価
+                yield f"data: {json.dumps({'type': 'stage_start', 'stage': 3, 'name': '内容評価', 'progress': 55})}\n\n"
+                await asyncio.sleep(0.1)
+                
+                evaluation_result = await negotiation_manager._evaluate_content(strategy_plan)
+                yield f"data: {json.dumps({'type': 'stage_complete', 'stage': 3, 'name': '内容評価', 'result': evaluation_result, 'progress': 75})}\n\n"
+                await asyncio.sleep(0.1)
+                
+                # Stage 4: パターン生成
+                yield f"data: {json.dumps({'type': 'stage_start', 'stage': 4, 'name': 'パターン生成', 'progress': 80})}\n\n"
+                await asyncio.sleep(0.1)
+                
+                patterns_result = await negotiation_manager._generate_patterns(thread_analysis, strategy_plan, company_settings, custom_instructions)
+                yield f"data: {json.dumps({'type': 'stage_complete', 'stage': 4, 'name': 'パターン生成', 'result': patterns_result, 'progress': 95})}\n\n"
+                await asyncio.sleep(0.1)
+                
+                # 最終結果
+                selected_pattern = patterns_result.get("pattern_balanced", {})
+                final_result = {
+                    "success": True,
+                    "content": selected_pattern.get("content", "返信生成に失敗しました。"),
+                    "patterns": patterns_result,
+                    "analysis": thread_analysis,
+                    "strategy": strategy_plan,
+                    "evaluation": evaluation_result,
+                    "metadata": {
+                        "relationship_stage": "4_agent_streaming",
+                        "ai_service": "Gemini 1.5 Pro via Streaming 4-Agent System",
+                        "platform": "Google Cloud Run",
+                        "confidence": 0.92
+                    }
+                }
+                
+                yield f"data: {json.dumps({'type': 'complete', 'result': final_result, 'progress': 100})}\n\n"
+                
+            else:
+                # フォールバック
+                yield f"data: {json.dumps({'type': 'error', 'message': '4エージェントシステム利用不可', 'progress': 0})}\n\n"
+                
+        except Exception as e:
+            yield f"data: {json.dumps({'type': 'error', 'message': str(e), 'progress': 0})}\n\n"
+    
+    return StreamingResponse(
+        generate_stream(),
+        media_type="text/plain",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "Content-Type": "text/event-stream"
+        }
+    )
+
 @app.post("/api/v1/ai/recommendations")
 async def get_ai_recommendations(campaign: CampaignData):
     """AI推薦エンドポイント - Firestoreから実データを取得"""
