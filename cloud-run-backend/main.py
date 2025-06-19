@@ -28,29 +28,127 @@ class SimpleNegotiationManager:
             print("🎯 4段階交渉処理開始")
             start_time = datetime.now()
             
+            # 詳細トレーシング用のログ収集
+            detailed_trace = {
+                "processing_stages": [],
+                "intermediate_outputs": {},
+                "agent_reasoning": {},
+                "performance_metrics": {}
+            }
+            
             # Stage 1: スレッド分析
+            stage1_start = datetime.now()
             print("📊 Stage 1: スレッド分析開始")
+            print(f"📥 INPUT - 新メッセージ: '{new_message[:100]}...'")
+            print(f"📥 INPUT - 会話履歴: {len(conversation_history)}件")
+            
             thread_analysis = await self._analyze_thread(new_message, conversation_history)
-            print(f"📤 ThreadAnalysis OUTPUT: {thread_analysis.get('negotiation_stage', '不明')}")
+            stage1_duration = (datetime.now() - stage1_start).total_seconds()
+            
+            print(f"📤 ThreadAnalysis 完全OUTPUT:")
+            print(f"   - 交渉段階: {thread_analysis.get('negotiation_stage', '不明')}")
+            print(f"   - 感情分析: {thread_analysis.get('sentiment', '不明')}")
+            print(f"   - 主要トピック: {thread_analysis.get('key_topics', [])}")
+            print(f"   - 緊急度: {thread_analysis.get('urgency_level', '不明')}")
+            print(f"   - 処理時間: {stage1_duration:.2f}秒")
+            
+            detailed_trace["processing_stages"].append({
+                "stage": 1,
+                "name": "スレッド分析",
+                "duration": stage1_duration,
+                "status": "completed"
+            })
+            detailed_trace["intermediate_outputs"]["thread_analysis"] = thread_analysis
             
             # Stage 2: 戦略立案
+            stage2_start = datetime.now()
             print("🧠 Stage 2: 戦略立案開始")
+            print(f"📥 INPUT - 分析結果: {thread_analysis.get('negotiation_stage', '不明')}")
+            print(f"📥 INPUT - カスタム指示: '{custom_instructions}'" if custom_instructions else "📥 INPUT - カスタム指示: なし")
+            
             strategy_plan = await self._plan_strategy(thread_analysis, company_settings, custom_instructions)
-            print(f"📤 ReplyStrategy OUTPUT: {strategy_plan.get('primary_approach', '不明')}")
+            stage2_duration = (datetime.now() - stage2_start).total_seconds()
+            
+            print(f"📤 ReplyStrategy 完全OUTPUT:")
+            print(f"   - 基本アプローチ: {strategy_plan.get('primary_approach', '不明')}")
+            print(f"   - 重要メッセージ: {strategy_plan.get('key_messages', [])}")
+            print(f"   - トーン設定: {strategy_plan.get('tone_setting', '不明')}")
+            print(f"   - 戦略信頼度: {strategy_plan.get('strategy_confidence', 0)}")
+            print(f"   - 処理時間: {stage2_duration:.2f}秒")
+            
+            detailed_trace["processing_stages"].append({
+                "stage": 2,
+                "name": "戦略立案",
+                "duration": stage2_duration,
+                "status": "completed"
+            })
+            detailed_trace["intermediate_outputs"]["strategy_plan"] = strategy_plan
             
             # Stage 3: 内容評価
+            stage3_start = datetime.now()
             print("🔍 Stage 3: 内容評価開始")
+            print(f"📥 INPUT - 戦略プラン: {strategy_plan.get('primary_approach', '不明')}")
+            
             evaluation_result = await self._evaluate_content(strategy_plan)
-            print(f"📤 ContentEvaluation OUTPUT: {evaluation_result.get('approval_recommendation', '不明')}")
+            stage3_duration = (datetime.now() - stage3_start).total_seconds()
+            
+            print(f"📤 ContentEvaluation 完全OUTPUT:")
+            print(f"   - 評価スコア: {evaluation_result.get('quick_score', 0)}")
+            print(f"   - 承認推奨: {evaluation_result.get('approval_recommendation', '不明')}")
+            print(f"   - リスクフラグ: {evaluation_result.get('risk_flags', [])}")
+            print(f"   - 信頼度: {evaluation_result.get('confidence_level', 0)}")
+            print(f"   - 処理時間: {stage3_duration:.2f}秒")
+            
+            detailed_trace["processing_stages"].append({
+                "stage": 3,
+                "name": "内容評価",
+                "duration": stage3_duration,
+                "status": "completed"
+            })
+            detailed_trace["intermediate_outputs"]["evaluation_result"] = evaluation_result
             
             # Stage 4: 3パターン生成
+            stage4_start = datetime.now()
             print("🎨 Stage 4: パターン生成開始")
+            company_info = company_settings.get("companyInfo", {})
+            print(f"📥 INPUT - 企業名: {company_info.get('companyName', 'InfuMatch')}")
+            print(f"📥 INPUT - 担当者: {company_info.get('contactPerson', '田中美咲')}")
+            
             patterns_result = await self._generate_patterns(thread_analysis, strategy_plan, company_settings, custom_instructions)
-            print(f"📤 PatternGeneration OUTPUT: 3パターン生成完了")
+            stage4_duration = (datetime.now() - stage4_start).total_seconds()
+            
+            print(f"📤 PatternGeneration 完全OUTPUT:")
+            for pattern_type, pattern_data in patterns_result.items():
+                if pattern_type.startswith("pattern_"):
+                    approach = pattern_data.get("approach", "不明")
+                    content_preview = pattern_data.get("content", "")[:50]
+                    print(f"   - {approach}パターン: '{content_preview}...'")
+            print(f"   - 総パターン数: {len([k for k in patterns_result.keys() if k.startswith('pattern_')])}個")
+            print(f"   - 処理時間: {stage4_duration:.2f}秒")
+            
+            detailed_trace["processing_stages"].append({
+                "stage": 4,
+                "name": "パターン生成",
+                "duration": stage4_duration,
+                "status": "completed"
+            })
+            detailed_trace["intermediate_outputs"]["patterns_result"] = patterns_result
             
             end_time = datetime.now()
             processing_duration = (end_time - start_time).total_seconds()
             print(f"✅ 4段階交渉処理完了 ({processing_duration:.2f}秒)")
+            
+            # パフォーマンス統計
+            detailed_trace["performance_metrics"] = {
+                "total_duration": processing_duration,
+                "stage_durations": {
+                    "thread_analysis": stage1_duration,
+                    "strategy_planning": stage2_duration,
+                    "content_evaluation": stage3_duration,
+                    "pattern_generation": stage4_duration
+                },
+                "throughput": f"{4/processing_duration:.2f} stages/sec"
+            }
             
             return {
                 "success": True,
@@ -59,7 +157,8 @@ class SimpleNegotiationManager:
                 "strategy": strategy_plan,
                 "evaluation": evaluation_result,
                 "processing_duration_seconds": processing_duration,
-                "manager_id": self.manager_id
+                "manager_id": self.manager_id,
+                "detailed_trace": detailed_trace  # 新しい詳細トレース情報
             }
             
         except Exception as e:
@@ -1224,7 +1323,16 @@ async def get_ai_recommendations(campaign: CampaignData):
                         "risk": 0.93
                     },
                     "explanation": "エラー時のフォールバック推薦",
-                    "rank": 1
+                    "rank": 1,
+                    # Include fallback database values 
+                    "thumbnail_url": "https://yt3.ggpht.com/sample-gaming.jpg",
+                    "subscriber_count": 150000,
+                    "engagement_rate": 4.2,
+                    "description": "最新ゲームレビューと攻略動画を配信しているゲーミングチャンネル",
+                    "email": "gaming@example.com",
+                    "category": "ゲーム",
+                    "view_count": 5000000,
+                    "video_count": 245
                 }
             ],
             "ai_evaluation": {
@@ -1358,7 +1466,16 @@ async def get_ai_recommendations_query(
                     "risk": round(scores["risk"], 2)
                 },
                 "explanation": explanation,
-                "rank": idx + 1
+                "rank": idx + 1,
+                # Include actual database values for frontend display
+                "thumbnail_url": inf.get("thumbnail_url", ""),
+                "subscriber_count": inf.get("subscriber_count", 0),
+                "engagement_rate": inf.get("engagement_rate", 0.0),
+                "description": inf.get("description", ""),
+                "email": inf.get("email", ""),
+                "category": inf.get("category", "一般"),
+                "view_count": inf.get("view_count", 0),
+                "video_count": inf.get("video_count", 0)
             })
         
         return {
@@ -1412,7 +1529,16 @@ async def get_ai_recommendations_query(
                         "risk": 0.80
                     },
                     "explanation": "データ取得エラーのためフォールバック推薦",
-                    "rank": 1
+                    "rank": 1,
+                    # Include fallback database values
+                    "thumbnail_url": "https://yt3.ggpht.com/sample-cooking.jpg",
+                    "subscriber_count": 75000,
+                    "engagement_rate": 3.8,
+                    "description": "簡単で美味しい家庭料理レシピを毎週配信",
+                    "email": "cooking@example.com", 
+                    "category": "料理",
+                    "view_count": 2800000,
+                    "video_count": 180
                 }
             ],
             "ai_evaluation": {

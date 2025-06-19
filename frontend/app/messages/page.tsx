@@ -51,6 +51,8 @@ function MessagesPageContent() {
   const [showSearch, setShowSearch] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [searchFilters, setSearchFilters] = useState<SearchFilters>({});
+  const [detailedTrace, setDetailedTrace] = useState<any>(null);
+  const [showDetailedTrace, setShowDetailedTrace] = useState(false);
   
   // エージェント状況とカスタムプロンプト
   interface ProcessingStep {
@@ -569,6 +571,48 @@ function MessagesPageContent() {
       
       const result = await response.json();
       console.log('📥 API応答:', result);
+      
+      // 詳細トレース情報を表示（新機能）
+      if (result.detailed_trace) {
+        console.log('🔍 === 4エージェント詳細トレース ===');
+        const trace = result.detailed_trace;
+        
+        // 各ステージの詳細
+        trace.processing_stages?.forEach((stage: any, index: number) => {
+          console.log(`🎭 Stage ${stage.stage}: ${stage.name}`);
+          console.log(`   ⏱️ 処理時間: ${stage.duration.toFixed(2)}秒`);
+          console.log(`   ✅ ステータス: ${stage.status}`);
+        });
+        
+        // 中間生成物の詳細
+        console.log('📊 === 中間生成物 ===');
+        if (trace.intermediate_outputs?.thread_analysis) {
+          console.log('📋 スレッド分析結果:', trace.intermediate_outputs.thread_analysis);
+        }
+        if (trace.intermediate_outputs?.strategy_plan) {
+          console.log('🧠 戦略立案結果:', trace.intermediate_outputs.strategy_plan);
+        }
+        if (trace.intermediate_outputs?.evaluation_result) {
+          console.log('🔍 内容評価結果:', trace.intermediate_outputs.evaluation_result);
+        }
+        if (trace.intermediate_outputs?.patterns_result) {
+          console.log('🎨 パターン生成結果:', Object.keys(trace.intermediate_outputs.patterns_result));
+        }
+        
+        // パフォーマンス統計
+        if (trace.performance_metrics) {
+          console.log('⚡ === パフォーマンス統計 ===');
+          console.log(`   🏃 総処理時間: ${trace.performance_metrics.total_duration.toFixed(2)}秒`);
+          console.log(`   📈 処理効率: ${trace.performance_metrics.throughput}`);
+          console.log('   📊 ステージ別処理時間:');
+          Object.entries(trace.performance_metrics.stage_durations).forEach(([stage, duration]: [string, any]) => {
+            console.log(`      ${stage}: ${duration.toFixed(2)}秒`);
+          });
+        }
+        
+        // 詳細トレース情報をstateに保存
+        setDetailedTrace(trace);
+      }
       
       // API応答を受信
       updateAgentStatus(
@@ -2148,6 +2192,124 @@ InfuMatchの田中です。
                 </div>
               </div>
             ) : null}
+          </div>
+        )}
+
+        {/* 詳細トレース表示パネル */}
+        {detailedTrace && (
+          <div className="mt-6 bg-gray-50 rounded-lg p-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-800">
+                🔍 4エージェント詳細トレース
+              </h3>
+              <button
+                onClick={() => setShowDetailedTrace(!showDetailedTrace)}
+                className="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+              >
+                {showDetailedTrace ? '非表示' : '詳細表示'}
+              </button>
+            </div>
+            
+            {showDetailedTrace && (
+              <div className="space-y-4">
+                {/* パフォーマンス統計 */}
+                {detailedTrace.performance_metrics && (
+                  <div className="bg-white rounded p-3 border">
+                    <h4 className="font-medium text-gray-700 mb-2">⚡ パフォーマンス統計</h4>
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <span className="text-gray-600">総処理時間:</span>
+                        <span className="ml-2 font-mono">{detailedTrace.performance_metrics.total_duration?.toFixed(2)}秒</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-600">処理効率:</span>
+                        <span className="ml-2 font-mono">{detailedTrace.performance_metrics.throughput}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 処理ステージ詳細 */}
+                {detailedTrace.processing_stages && (
+                  <div className="bg-white rounded p-3 border">
+                    <h4 className="font-medium text-gray-700 mb-3">🎭 処理ステージ詳細</h4>
+                    <div className="space-y-2">
+                      {detailedTrace.processing_stages.map((stage: any, index: number) => (
+                        <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                          <div className="flex items-center space-x-3">
+                            <span className="w-6 h-6 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center text-sm font-medium">
+                              {stage.stage}
+                            </span>
+                            <span className="font-medium">{stage.name}</span>
+                          </div>
+                          <div className="flex items-center space-x-4 text-sm text-gray-600">
+                            <span>⏱️ {stage.duration?.toFixed(2)}秒</span>
+                            <span className="px-2 py-1 bg-green-100 text-green-700 rounded text-xs">
+                              {stage.status}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 中間生成物 */}
+                {detailedTrace.intermediate_outputs && (
+                  <div className="bg-white rounded p-3 border">
+                    <h4 className="font-medium text-gray-700 mb-3">📊 中間生成物</h4>
+                    <div className="space-y-3">
+                      {detailedTrace.intermediate_outputs.thread_analysis && (
+                        <div className="border-l-4 border-blue-400 pl-3">
+                          <h5 className="font-medium text-sm text-blue-700">📋 スレッド分析結果</h5>
+                          <div className="text-sm text-gray-600 mt-1">
+                            <div>交渉段階: <span className="font-mono">{detailedTrace.intermediate_outputs.thread_analysis.negotiation_stage}</span></div>
+                            <div>感情分析: <span className="font-mono">{detailedTrace.intermediate_outputs.thread_analysis.sentiment}</span></div>
+                            <div>緊急度: <span className="font-mono">{detailedTrace.intermediate_outputs.thread_analysis.urgency_level}</span></div>
+                          </div>
+                        </div>
+                      )}
+
+                      {detailedTrace.intermediate_outputs.strategy_plan && (
+                        <div className="border-l-4 border-green-400 pl-3">
+                          <h5 className="font-medium text-sm text-green-700">🧠 戦略立案結果</h5>
+                          <div className="text-sm text-gray-600 mt-1">
+                            <div>アプローチ: <span className="font-mono">{detailedTrace.intermediate_outputs.strategy_plan.primary_approach}</span></div>
+                            <div>トーン: <span className="font-mono">{detailedTrace.intermediate_outputs.strategy_plan.tone_setting}</span></div>
+                            <div>信頼度: <span className="font-mono">{detailedTrace.intermediate_outputs.strategy_plan.strategy_confidence}</span></div>
+                          </div>
+                        </div>
+                      )}
+
+                      {detailedTrace.intermediate_outputs.evaluation_result && (
+                        <div className="border-l-4 border-yellow-400 pl-3">
+                          <h5 className="font-medium text-sm text-yellow-700">🔍 内容評価結果</h5>
+                          <div className="text-sm text-gray-600 mt-1">
+                            <div>評価スコア: <span className="font-mono">{detailedTrace.intermediate_outputs.evaluation_result.quick_score}</span></div>
+                            <div>承認推奨: <span className="font-mono">{detailedTrace.intermediate_outputs.evaluation_result.approval_recommendation}</span></div>
+                          </div>
+                        </div>
+                      )}
+
+                      {detailedTrace.intermediate_outputs.patterns_result && (
+                        <div className="border-l-4 border-purple-400 pl-3">
+                          <h5 className="font-medium text-sm text-purple-700">🎨 パターン生成結果</h5>
+                          <div className="text-sm text-gray-600 mt-1">
+                            <div>生成パターン数: <span className="font-mono">{Object.keys(detailedTrace.intermediate_outputs.patterns_result).filter(k => k.startsWith('pattern_')).length}個</span></div>
+                            <div>パターン種類: 
+                              {Object.keys(detailedTrace.intermediate_outputs.patterns_result)
+                                .filter(k => k.startsWith('pattern_'))
+                                .map(k => detailedTrace.intermediate_outputs.patterns_result[k]?.approach)
+                                .join(', ')}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </main>
