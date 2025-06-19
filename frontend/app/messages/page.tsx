@@ -53,10 +53,9 @@ function MessagesPageContent() {
   const [searchFilters, setSearchFilters] = useState<SearchFilters>({});
   const [detailedTrace, setDetailedTrace] = useState<any>(null);
   const [showDetailedTrace, setShowDetailedTrace] = useState(false);
-  const [streamingProgress, setStreamingProgress] = useState<number>(0);
-  const [streamingStage, setStreamingStage] = useState<string>('');
-  const [streamingResults, setStreamingResults] = useState<any[]>([]);
-  const [isStreaming, setIsStreaming] = useState<boolean>(false);
+  const [aiBasicReply, setAiBasicReply] = useState<string>('');
+  const [aiReplyReasoning, setAiReplyReasoning] = useState<string>('');
+  const [showReasoning, setShowReasoning] = useState<boolean>(false);
   
   // エージェント状況とカスタムプロンプト
   interface ProcessingStep {
@@ -72,30 +71,36 @@ function MessagesPageContent() {
     isCompleted: boolean; // 完了フラグ
   }
 
-  // 4段階のシンプルステップ定義
+  // 5段階のシンプルステップ定義
   const PROCESSING_STAGES = [
     { 
       number: 1, 
       name: '📊 スレッド分析', 
       description: 'メッセージ履歴を分析し、現在の交渉状況を把握しています',
-      progressTarget: 25
+      progressTarget: 20
     },
     { 
       number: 2, 
       name: '🧠 戦略立案', 
       description: 'カスタム指示と企業設定を考慮して返信戦略を立案しています',
-      progressTarget: 50
+      progressTarget: 40
     },
     { 
       number: 3, 
       name: '🔍 内容評価', 
       description: '戦略内容の適切性を評価し、リスク要因をチェックしています',
-      progressTarget: 75
+      progressTarget: 60
     },
     { 
       number: 4, 
       name: '🎨 パターン生成', 
       description: '3つの異なるアプローチで返信パターンを生成しています',
+      progressTarget: 80
+    },
+    { 
+      number: 5, 
+      name: '💌 基本返信＆理由生成', 
+      description: 'AI基本返信と選択理由をGeminiで生成しています',
       progressTarget: 100
     }
   ];
@@ -873,6 +878,17 @@ ${baseReply}
         
         setReplyPatterns(patterns);
         setThreadAnalysis(analysis);
+        
+        // 新機能：AI生成基本返信と理由を設定
+        if (result.basic_reply) {
+          console.log('💌 AI基本返信を受信:', result.basic_reply.substring(0, 50) + '...');
+          setAiBasicReply(result.basic_reply);
+        }
+        
+        if (result.reply_reasoning) {
+          console.log('🧠 返信理由を受信:', result.reply_reasoning.substring(0, 50) + '...');
+          setAiReplyReasoning(result.reply_reasoning);
+        }
       } else {
         updateAgentStatus('❌ 生成失敗', result.error || 'API返信が不正な形式です');
         throw new Error(result.error || 'API返信が不正な形式です');
@@ -985,189 +1001,6 @@ InfuMatchの田中です。
     }
   };
 
-  // ストリーミング版AI返信生成
-  const generateReplyPatternsStreaming = async () => {
-    if (!currentThread || !currentThread.messages || isGeneratingPatterns) return;
-    
-    setIsGeneratingPatterns(true);
-    setIsStreaming(true);
-    setStreamingProgress(0);
-    setStreamingStage('');
-    setStreamingResults([]);
-    
-    try {
-      // APIURLの準備
-      let apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://infumatch-backend-fuwvv3ux7q-an.a.run.app';
-      if (apiUrl.includes('hackathon-backend-462905-269567634217') || 
-          apiUrl.includes('infumatch-orchestration-269567634217') ||
-          apiUrl.includes('infumatch-backend-fuwvv3ux7q-an.a.run.app')) {
-        apiUrl = 'https://infumatch-backend-269567634217.asia-northeast1.run.app';
-      }
-      
-      // リクエストデータ準備
-      const threadMessages = currentThread.messages.map(message => ({
-        id: message.id,
-        sender: getMessageSender(message),
-        content: getMessagePlainText(message),
-        date: new Date(parseInt(message.internalDate)).toISOString(),
-        subject: getMessageSubject(message)
-      }));
-      
-      const requestData = {
-        conversation_history: threadMessages.map(msg => ({
-          role: msg.sender === 'InfuMatch' ? 'assistant' : 'user',
-          content: msg.content
-        })),
-        new_message: threadMessages.length > 0 ? threadMessages[threadMessages.length - 1].content : '',
-        context: {
-          company_settings: {
-            companyInfo: {
-              companyName: "InfuMatch",
-              contactPerson: "田中美咲",
-              email: "tanaka@infumatch.com"
-            },
-            products: [
-              { name: "健康食品A" },
-              { name: "美容クリーム" }
-            ]
-          },
-          custom_instructions: customPrompt || ""
-        }
-      };
-      
-      // ストリーミング接続
-      const response = await fetch(`${apiUrl}/api/v1/negotiation/stream`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestData)
-      });
-      
-      if (!response.ok) {
-        throw new Error(`ストリーミング接続失敗: ${response.status}`);
-      }
-      
-      const reader = response.body?.getReader();
-      if (!reader) {
-        throw new Error('ストリーミングレスポンス読み込み失敗');
-      }
-      
-      const decoder = new TextDecoder();
-      let buffer = '';
-      
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop() || '';
-          
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              try {
-                const data = JSON.parse(line.slice(6));
-                
-                console.log('📡 ストリーミングデータ受信:', data);
-                
-                // 進捗更新
-                if (data.progress !== undefined) {
-                  setStreamingProgress(data.progress);
-                }
-                
-                // ステージ更新
-                if (data.type === 'stage_start') {
-                  setStreamingStage(`${data.stage}. ${data.name}開始`);
-                  updateAgentStatus(
-                    `🎭 Stage ${data.stage}`,
-                    `${data.name}開始`,
-                    `4エージェントシステムのStage ${data.stage}が開始されました`,
-                    data.stage,
-                    `Agent${data.stage}`,
-                    0.7
-                  );
-                } else if (data.type === 'stage_complete') {
-                  setStreamingStage(`${data.stage}. ${data.name}完了`);
-                  setStreamingResults(prev => [...prev, {
-                    stage: data.stage,
-                    name: data.name,
-                    result: data.result
-                  }]);
-                  updateAgentStatus(
-                    `✅ Stage ${data.stage}完了`,
-                    `${data.name}完了`,
-                    `結果: ${JSON.stringify(data.result).slice(0, 100)}...`,
-                    data.stage,
-                    `Agent${data.stage}`,
-                    0.9
-                  );
-                } else if (data.type === 'complete') {
-                  // 最終結果処理
-                  const result = data.result;
-                  console.log('🎉 ストリーミング完了:', result);
-                  
-                  // パターン生成
-                  const patterns = [];
-                  if (result.patterns) {
-                    for (const [key, patternData] of Object.entries(result.patterns)) {
-                      if (key.startsWith('pattern_') && typeof patternData === 'object') {
-                        patterns.push({
-                          pattern_type: patternData.approach || key,
-                          pattern_name: patternData.approach === 'collaborative' ? '協調的' :
-                                       patternData.approach === 'balanced' ? 'バランス型' :
-                                       patternData.approach === 'assertive' ? '主張的' : key,
-                          tone: patternData.tone || 'professional',
-                          content: patternData.content || '',
-                          reasoning: `ストリーミング4エージェントによる${patternData.approach}アプローチ`,
-                          recommendation_score: 0.9
-                        });
-                      }
-                    }
-                  }
-                  
-                  setReplyPatterns(patterns);
-                  setThreadAnalysis({
-                    relationship_stage: result.metadata?.relationship_stage || '4_agent_streaming',
-                    emotional_tone: result.analysis?.sentiment || 'neutral',
-                    urgency_level: result.analysis?.urgency_level || 'normal',
-                    main_topics: result.analysis?.key_topics || ['コラボレーション'],
-                    note: 'ストリーミング4エージェントシステムによる高速生成'
-                  });
-                  
-                  updateAgentStatus(
-                    '🎉 ストリーミング完了',
-                    '4エージェント処理完了',
-                    `${patterns.length}個のパターンが生成されました`,
-                    4,
-                    'StreamingComplete',
-                    1.0
-                  );
-                } else if (data.type === 'error') {
-                  throw new Error(data.message);
-                }
-              } catch (parseError) {
-                console.warn('⚠️ ストリーミングデータ解析エラー:', parseError, line);
-              }
-            }
-          }
-        }
-      } finally {
-        reader.releaseLock();
-      }
-      
-    } catch (error: any) {
-      console.error('❌ ストリーミング生成エラー:', error);
-      updateAgentStatus('❌ ストリーミングエラー', error.message || '不明なエラー');
-      
-      // フォールバック: 通常の生成を試行
-      await generateReplyPatterns();
-    } finally {
-      setIsStreaming(false);
-      setIsGeneratingPatterns(false);
-    }
-  };
 
   const handleLogout = async () => {
     try {
@@ -2089,9 +1922,9 @@ InfuMatchの田中です。
                         onClick={() => setShowCustomPrompt(!showCustomPrompt)}
                         className="text-xs text-blue-600 hover:text-blue-800 underline flex items-center space-x-1"
                       >
-                        <span>🔍 7段階詳細表示</span>
+                        <span>🔍 5段階詳細表示</span>
                         <span className="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded text-xs">
-                          {processingSteps.length}/7完了
+                          {processingSteps.length}/5完了
                         </span>
                         <span className="text-xs">
                           {showCustomPrompt ? '▲' : '▼'}
@@ -2152,7 +1985,7 @@ InfuMatchの田中です。
                                 <div className="flex-grow">
                                   <div className="flex items-center space-x-2">
                                     <span className="text-xs font-bold text-blue-700">
-                                      段階{step.stepNumber}/7
+                                      段階{step.stepNumber}/5
                                     </span>
                                     {step.agentType && (
                                       <span className="text-xs text-purple-600 bg-purple-100 px-2 py-0.5 rounded">
@@ -2249,7 +2082,7 @@ InfuMatchの田中です。
                   disabled={isGeneratingPatterns}
                   className="btn btn-primary"
                 >
-                  {isGeneratingPatterns && !isStreaming ? (
+                  {isGeneratingPatterns ? (
                     <>
                       <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -2267,76 +2100,61 @@ InfuMatchの田中です。
                   )}
                 </button>
 
-                {/* ストリーミング版ボタン */}
-                <button
-                  onClick={generateReplyPatternsStreaming}
-                  disabled={isGeneratingPatterns}
-                  className="btn bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-medium px-6 py-3 rounded-lg transition-all duration-200 disabled:opacity-50"
-                >
-                  {isStreaming ? (
-                    <>
-                      <svg className="animate-pulse -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      ⚡ ストリーミング中... ({streamingProgress}%)
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                      </svg>
-                      ⚡ 高速ストリーミング生成
-                    </>
-                  )}
-                </button>
               </div>
 
-              {/* ストリーミング進捗表示 */}
-              {isStreaming && (
-                <div className="mb-6 bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg p-4 border border-purple-200">
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-medium text-purple-800">⚡ リアルタイム処理進捗</h4>
-                    <span className="text-purple-600 font-mono text-sm">{streamingProgress}%</span>
-                  </div>
-                  
-                  {/* 進捗バー */}
-                  <div className="w-full bg-purple-200 rounded-full h-2 mb-3">
-                    <div 
-                      className="bg-gradient-to-r from-purple-600 to-blue-600 h-2 rounded-full transition-all duration-500"
-                      style={{ width: `${streamingProgress}%` }}
-                    ></div>
-                  </div>
-                  
-                  {/* 現在のステージ */}
-                  {streamingStage && (
-                    <div className="text-sm text-purple-700 bg-white rounded px-3 py-1 inline-block">
-                      🎭 {streamingStage}
-                    </div>
-                  )}
-                  
-                  {/* ストリーミング結果プレビュー */}
-                  {streamingResults.length > 0 && (
-                    <div className="mt-3 space-y-2">
-                      <h5 className="text-sm font-medium text-purple-800">📊 完了ステージ:</h5>
-                      <div className="grid grid-cols-2 gap-2">
-                        {streamingResults.map((result, index) => (
-                          <div key={index} className="bg-white rounded p-2 text-xs">
-                            <span className="font-medium text-purple-700">Stage {result.stage}: {result.name}</span>
-                            <div className="text-gray-600 mt-1">
-                              {typeof result.result === 'object' ? 
-                                Object.keys(result.result).join(', ') : 
-                                String(result.result).slice(0, 30) + '...'
-                              }
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
+            
+            {/* AI生成基本返信表示エリア */}
+            {aiBasicReply && (
+              <div className="mb-8 bg-gradient-to-r from-green-50 to-blue-50 rounded-xl p-6 border border-green-200">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-gray-800 flex items-center">
+                    <svg className="w-5 h-5 mr-2 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.847a4.5 4.5 0 003.09 3.09L15.75 12l-2.847.813a4.5 4.5 0 00-3.09 3.09z" />
+                    </svg>
+                    🤖 AI生成基本返信
+                  </h3>
+                  <button
+                    onClick={() => setReplyText(aiBasicReply)}
+                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm"
+                  >
+                    返信欄に適用
+                  </button>
+                </div>
+                
+                <div className="bg-white rounded-lg p-4 border border-green-100 mb-4">
+                  <div className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
+                    {aiBasicReply}
+                  </div>
+                </div>
+                
+                {/* 返信理由表示 */}
+                {aiReplyReasoning && (
+                  <div className="mt-4">
+                    <button
+                      onClick={() => setShowReasoning(!showReasoning)}
+                      className="flex items-center text-sm text-blue-600 hover:text-blue-800 mb-2"
+                    >
+                      <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                      </svg>
+                      💭 なぜこの返信にしたのか - AI判断理由
+                      <span className="ml-2 text-xs">
+                        {showReasoning ? '▲' : '▼'}
+                      </span>
+                    </button>
+                    
+                    {showReasoning && (
+                      <div className="bg-blue-50 rounded-lg p-4 border border-blue-100">
+                        <div className="text-sm text-blue-800 leading-relaxed whitespace-pre-wrap">
+                          {aiReplyReasoning}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
             
             {/* AI生成返信パターン */}
             {isGeneratingPatterns ? (
@@ -2458,7 +2276,7 @@ InfuMatchの田中です。
           <div className="mt-6 bg-gray-50 rounded-lg p-4">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-800">
-                🔍 4エージェント詳細トレース
+                🔍 5段階エージェント詳細トレース
               </h3>
               <button
                 onClick={() => setShowDetailedTrace(!showDetailedTrace)}

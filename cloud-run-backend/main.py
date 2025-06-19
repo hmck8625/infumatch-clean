@@ -134,9 +134,31 @@ class SimpleNegotiationManager:
             })
             detailed_trace["intermediate_outputs"]["patterns_result"] = patterns_result
             
+            # Stage 5: 基本返信生成 + 理由生成
+            stage5_start = datetime.now()
+            print("💌 Stage 5: 基本返信＆理由生成開始")
+            
+            basic_reply_result = await self._generate_basic_reply_with_reasoning(
+                thread_analysis, strategy_plan, patterns_result, company_settings, custom_instructions
+            )
+            stage5_duration = (datetime.now() - stage5_start).total_seconds()
+            
+            print(f"📤 BasicReply 完全OUTPUT:")
+            print(f"   - 基本返信: '{basic_reply_result.get('basic_reply', '')[:50]}...'")
+            print(f"   - 理由長さ: {len(basic_reply_result.get('reasoning', ''))}文字")
+            print(f"   - 処理時間: {stage5_duration:.2f}秒")
+            
+            detailed_trace["processing_stages"].append({
+                "stage": 5,
+                "name": "基本返信＆理由生成",
+                "duration": stage5_duration,
+                "status": "completed"
+            })
+            detailed_trace["intermediate_outputs"]["basic_reply_result"] = basic_reply_result
+            
             end_time = datetime.now()
             processing_duration = (end_time - start_time).total_seconds()
-            print(f"✅ 4段階交渉処理完了 ({processing_duration:.2f}秒)")
+            print(f"✅ 5段階交渉処理完了 ({processing_duration:.2f}秒)")
             
             # パフォーマンス統計
             detailed_trace["performance_metrics"] = {
@@ -145,9 +167,10 @@ class SimpleNegotiationManager:
                     "thread_analysis": stage1_duration,
                     "strategy_planning": stage2_duration,
                     "content_evaluation": stage3_duration,
-                    "pattern_generation": stage4_duration
+                    "pattern_generation": stage4_duration,
+                    "basic_reply_generation": stage5_duration
                 },
-                "throughput": f"{4/processing_duration:.2f} stages/sec"
+                "throughput": f"{5/processing_duration:.2f} stages/sec"
             }
             
             return {
@@ -156,6 +179,8 @@ class SimpleNegotiationManager:
                 "analysis": thread_analysis,
                 "strategy": strategy_plan,
                 "evaluation": evaluation_result,
+                "basic_reply": basic_reply_result.get("basic_reply", ""),
+                "reply_reasoning": basic_reply_result.get("reasoning", ""),
                 "processing_duration_seconds": processing_duration,
                 "manager_id": self.manager_id,
                 "detailed_trace": detailed_trace  # 新しい詳細トレース情報
@@ -336,6 +361,60 @@ class SimpleNegotiationManager:
                 "company_name": company_name,
                 "contact_person": contact_person
             }
+        }
+
+    async def _generate_basic_reply_with_reasoning(self, thread_analysis, strategy_plan, patterns_result, company_settings, custom_instructions):
+        """基本返信＋理由生成エージェント（新機能）"""
+        company_info = company_settings.get("companyInfo", {})
+        company_name = company_info.get("companyName", "InfuMatch")
+        contact_person = company_info.get("contactPerson", "田中美咲")
+        
+        # 3パターンから最適なものを選択（balanced）
+        selected_pattern = patterns_result.get("pattern_balanced", {})
+        basic_reply = selected_pattern.get("content", "返信内容の生成に失敗しました。")
+        
+        # Geminiに理由生成を依頼
+        reasoning_prompt = f"""
+あなたは優秀な営業戦略アナリストです。以下の情報に基づいて、なぜこの返信内容を選択したのかを詳しく説明してください。
+
+【選択された返信内容】
+{basic_reply}
+
+【分析データ】
+- 交渉段階: {thread_analysis.get('negotiation_stage', '不明')}
+- 相手の感情: {thread_analysis.get('sentiment', '不明')}
+- 主要トピック: {thread_analysis.get('key_topics', [])}
+- 戦略アプローチ: {strategy_plan.get('primary_approach', '不明')}
+- 推奨トーン: {strategy_plan.get('tone_setting', '不明')}
+
+【カスタム指示】
+{custom_instructions if custom_instructions else "指定なし"}
+
+【企業設定】
+- 会社名: {company_name}
+- 担当者: {contact_person}
+
+以下の観点から、この返信を選択した理由を200-300文字で詳しく説明してください：
+
+1. 相手の状況に対する適切性
+2. 交渉戦略との整合性  
+3. カスタム指示への対応
+4. リスク回避とメリット最大化
+5. 関係構築への配慮
+
+説明文のみを出力してください（ここでは理由のみを述べ、返信内容は再度出力しないでください）：
+"""
+        
+        try:
+            reasoning_response = self.gemini_model.generate_content(reasoning_prompt)
+            reasoning = reasoning_response.text.strip()
+        except Exception as e:
+            print(f"⚠️ 理由生成エラー: {e}")
+            reasoning = f"この返信は{strategy_plan.get('primary_approach', 'バランス型')}アプローチを採用し、相手の{thread_analysis.get('negotiation_stage', '現在の状況')}に適切に対応する内容になっています。カスタム指示「{custom_instructions}」も考慮し、関係構築を重視した内容としています。"
+        
+        return {
+            "basic_reply": basic_reply,
+            "reasoning": reasoning
         }
 
 app = FastAPI(
