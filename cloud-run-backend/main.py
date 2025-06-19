@@ -11,7 +11,233 @@ import json
 from google.cloud import firestore
 from google.auth import default
 import google.generativeai as genai
-# from services.ai_agents.simple_agents.simple_negotiation_manager import SimpleNegotiationManager
+import logging
+from datetime import datetime
+
+# 4エージェント統合マネージャー（インライン実装）
+class SimpleNegotiationManager:
+    """Cloud Run用シンプル交渉マネージャー"""
+    
+    def __init__(self, gemini_model):
+        self.gemini_model = gemini_model
+        self.manager_id = "simple_negotiation_manager_cloudrun"
+        
+    async def process_negotiation(self, conversation_history, new_message, company_settings, custom_instructions=""):
+        """4段階の交渉処理を実行"""
+        try:
+            print("🎯 4段階交渉処理開始")
+            start_time = datetime.now()
+            
+            # Stage 1: スレッド分析
+            print("📊 Stage 1: スレッド分析開始")
+            thread_analysis = await self._analyze_thread(new_message, conversation_history)
+            print(f"📤 ThreadAnalysis OUTPUT: {thread_analysis.get('negotiation_stage', '不明')}")
+            
+            # Stage 2: 戦略立案
+            print("🧠 Stage 2: 戦略立案開始")
+            strategy_plan = await self._plan_strategy(thread_analysis, company_settings, custom_instructions)
+            print(f"📤 ReplyStrategy OUTPUT: {strategy_plan.get('primary_approach', '不明')}")
+            
+            # Stage 3: 内容評価
+            print("🔍 Stage 3: 内容評価開始")
+            evaluation_result = await self._evaluate_content(strategy_plan)
+            print(f"📤 ContentEvaluation OUTPUT: {evaluation_result.get('approval_recommendation', '不明')}")
+            
+            # Stage 4: 3パターン生成
+            print("🎨 Stage 4: パターン生成開始")
+            patterns_result = await self._generate_patterns(thread_analysis, strategy_plan, company_settings, custom_instructions)
+            print(f"📤 PatternGeneration OUTPUT: 3パターン生成完了")
+            
+            end_time = datetime.now()
+            processing_duration = (end_time - start_time).total_seconds()
+            print(f"✅ 4段階交渉処理完了 ({processing_duration:.2f}秒)")
+            
+            return {
+                "success": True,
+                "patterns": patterns_result,
+                "analysis": thread_analysis,
+                "strategy": strategy_plan,
+                "evaluation": evaluation_result,
+                "processing_duration_seconds": processing_duration,
+                "manager_id": self.manager_id
+            }
+            
+        except Exception as e:
+            print(f"❌ 4段階交渉処理エラー: {str(e)}")
+            return {"success": False, "error": str(e), "manager_id": self.manager_id}
+    
+    async def _analyze_thread(self, new_message, conversation_history):
+        """スレッド分析エージェント"""
+        prompt = f"""
+以下のメッセージを分析してください。
+
+【最新メッセージ】
+{new_message}
+
+【会話履歴】
+{len(conversation_history)}件の過去のやり取り
+
+以下のJSON形式で分析結果を出力してください：
+{{
+  "negotiation_stage": "初期接触",
+  "sentiment": "neutral",
+  "key_topics": ["コラボレーション"],
+  "urgency_level": "中",
+  "partner_concerns": [],
+  "analysis_confidence": 0.8
+}}
+"""
+        
+        try:
+            response = self.gemini_model.generate_content(prompt)
+            return json.loads(response.text.strip())
+        except Exception as e:
+            print(f"⚠️ スレッド分析JSON解析失敗: {e}")
+            return {
+                "negotiation_stage": "関心表明",
+                "sentiment": "neutral",
+                "key_topics": ["コラボレーション"],
+                "urgency_level": "中",
+                "partner_concerns": [],
+                "analysis_confidence": 0.5
+            }
+    
+    async def _plan_strategy(self, thread_analysis, company_settings, custom_instructions):
+        """戦略立案エージェント"""
+        company_info = company_settings.get("companyInfo", {})
+        company_name = company_info.get("companyName", "InfuMatch")
+        
+        prompt = f"""
+企業{company_name}の営業戦略を立案してください。
+
+【分析結果】
+交渉段階: {thread_analysis.get('negotiation_stage', '不明')}
+相手の感情: {thread_analysis.get('sentiment', '不明')}
+
+【カスタム指示】
+{custom_instructions}
+
+以下のJSON形式で戦略を出力してください：
+{{
+  "primary_approach": "balanced",
+  "key_messages": ["協力的な提案", "双方にメリットのある内容"],
+  "tone_setting": "丁寧",
+  "language_setting": "Japanese",
+  "strategy_confidence": 0.7
+}}
+"""
+        
+        try:
+            response = self.gemini_model.generate_content(prompt)
+            return json.loads(response.text.strip())
+        except Exception as e:
+            print(f"⚠️ 戦略立案JSON解析失敗: {e}")
+            return {
+                "primary_approach": "balanced",
+                "key_messages": ["協力的な提案", "双方にメリットのある内容"],
+                "tone_setting": "丁寧",
+                "language_setting": "Japanese",
+                "strategy_confidence": 0.7
+            }
+    
+    async def _evaluate_content(self, strategy_plan):
+        """内容評価エージェント"""
+        score = 0.8
+        approval = "承認"
+        risk_flags = []
+        
+        if "assertive" in strategy_plan.get("primary_approach", ""):
+            score -= 0.1
+            risk_flags.append("主張的アプローチ")
+        
+        return {
+            "quick_score": score,
+            "approval_recommendation": approval,
+            "risk_flags": risk_flags,
+            "confidence_level": 0.8
+        }
+    
+    async def _generate_patterns(self, thread_analysis, strategy_plan, company_settings, custom_instructions):
+        """3パターン生成エージェント"""
+        company_info = company_settings.get("companyInfo", {})
+        company_name = company_info.get("companyName", "InfuMatch")  
+        contact_person = company_info.get("contactPerson", "田中美咲")
+        
+        prompt = f"""
+以下の情報に基づいて、3つのパターンで返信メールを生成してください。
+
+【企業情報】
+会社名: {company_name}
+担当者: {contact_person}
+
+【カスタム指示】
+{custom_instructions}
+
+以下のJSON形式で3パターンを生成してください：
+{{
+    "pattern_collaborative": {{
+        "approach": "collaborative",
+        "content": "相手に合わせる協調的な返信メール",
+        "tone": "accommodating"
+    }},
+    "pattern_balanced": {{
+        "approach": "balanced", 
+        "content": "中立的でバランスの取れた返信メール",
+        "tone": "professional"
+    }},
+    "pattern_assertive": {{
+        "approach": "assertive",
+        "content": "自分の要求を通す主張的な返信メール", 
+        "tone": "confident"
+    }}
+}}
+"""
+        
+        try:
+            response = self.gemini_model.generate_content(prompt)
+            patterns = json.loads(response.text.strip())
+            
+            # メタデータを追加
+            for pattern_key in patterns:
+                if isinstance(patterns[pattern_key], dict):
+                    patterns[pattern_key]['generated_at'] = datetime.now().isoformat()
+                    patterns[pattern_key]['company_name'] = company_name
+                    patterns[pattern_key]['contact_person'] = contact_person
+            
+            return patterns
+            
+        except Exception as e:
+            print(f"⚠️ パターン生成JSON解析失敗: {e}")
+            return self._create_fallback_patterns(company_name, contact_person)
+    
+    def _create_fallback_patterns(self, company_name, contact_person):
+        """フォールバック3パターンを作成"""
+        return {
+            "pattern_collaborative": {
+                "approach": "collaborative",
+                "content": f"ご提案いただいた条件で、ぜひ進めさせていただきたく思います。詳細につきまして、お話しさせていただければ幸いです。\n\n{company_name} {contact_person}",
+                "tone": "accommodating",
+                "generated_at": datetime.now().isoformat(),
+                "company_name": company_name,
+                "contact_person": contact_person
+            },
+            "pattern_balanced": {
+                "approach": "balanced",
+                "content": f"ご提案を検討させていただき、双方にとってメリットのある形でお話しを進められればと思います。詳細をご相談させてください。\n\n{company_name} {contact_person}",
+                "tone": "professional", 
+                "generated_at": datetime.now().isoformat(),
+                "company_name": company_name,
+                "contact_person": contact_person
+            },
+            "pattern_assertive": {
+                "approach": "assertive",
+                "content": f"弊社としては以下の条件でのご提案をさせていただきます。品質と実績を重視した最適なプランをご用意いたします。\n\n{company_name} {contact_person}",
+                "tone": "confident",
+                "generated_at": datetime.now().isoformat(),
+                "company_name": company_name,
+                "contact_person": contact_person
+            }
+        }
 
 app = FastAPI(
     title="InfuMatch Cloud Run API",
@@ -50,8 +276,17 @@ except Exception as e:
     print(f"❌ Gemini API initialization failed: {e}")
     gemini_model = None
 
-# 4エージェント統合マネージャー初期化（無効化）
-negotiation_manager = None
+# 4エージェント統合マネージャー初期化
+try:
+    if gemini_model:
+        negotiation_manager = SimpleNegotiationManager(gemini_model)
+        print("✅ Simple Negotiation Manager initialized successfully")
+    else:
+        negotiation_manager = None
+        print("⚠️ Negotiation Manager not initialized (Gemini model unavailable)")
+except Exception as e:
+    print(f"❌ Negotiation Manager initialization failed: {e}")
+    negotiation_manager = None
 
 def get_firestore_influencers():
     """Firestoreからインフルエンサーデータを取得"""
@@ -933,7 +1168,16 @@ async def get_ai_recommendations(campaign: CampaignData):
                     "risk": scores["risk"]
                 },
                 "explanation": generate_recommendation_explanation(inf, campaign, scores),
-                "rank": idx + 1
+                "rank": idx + 1,
+                # Include actual database values for frontend display
+                "thumbnail_url": inf.get("thumbnail_url", ""),
+                "subscriber_count": inf.get("subscriber_count", 0),
+                "engagement_rate": inf.get("engagement_rate", 0.0),
+                "description": inf.get("description", ""),
+                "email": inf.get("email", ""),
+                "category": inf.get("category", "一般"),
+                "view_count": inf.get("view_count", 0),
+                "video_count": inf.get("video_count", 0)
             })
         
         return {
