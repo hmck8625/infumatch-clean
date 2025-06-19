@@ -256,11 +256,29 @@ class SimpleNegotiationManager:
             return json.loads(response.text.strip())
         except Exception as e:
             print(f"⚠️ 戦略立案JSON解析失敗: {e}")
+            
+            # カスタム指示に基づくフォールバック設定
+            language_setting = "Japanese"
+            tone_setting = "丁寧"
+            primary_approach = "balanced"
+            
+            if custom_instructions:
+                if "英語" in custom_instructions or "English" in custom_instructions:
+                    language_setting = "English"
+                if "中国語" in custom_instructions or "Chinese" in custom_instructions:
+                    language_setting = "Chinese"
+                if "値引き" in custom_instructions:
+                    primary_approach = "cost_negotiation"
+                if "積極的" in custom_instructions:
+                    tone_setting = "積極的"
+                if "丁寧" in custom_instructions:
+                    tone_setting = "非常に丁寧"
+            
             return {
-                "primary_approach": "balanced",
+                "primary_approach": primary_approach,
                 "key_messages": ["協力的な提案", "双方にメリットのある内容"],
-                "tone_setting": "丁寧",
-                "language_setting": "Japanese",
+                "tone_setting": tone_setting,
+                "language_setting": language_setting,
                 "strategy_confidence": 0.7
             }
     
@@ -287,37 +305,63 @@ class SimpleNegotiationManager:
         company_name = company_info.get("companyName", "InfuMatch")  
         contact_person = company_info.get("contactPerson", "田中美咲")
         
+        # 戦略結果から言語設定を取得
+        language_setting = strategy_plan.get('language_setting', 'Japanese')
+        tone_setting = strategy_plan.get('tone_setting', '丁寧')
+        
         prompt = f"""
-以下の情報に基づいて、3つのパターンで返信メールを生成してください。
+以下の情報に基づいて、3つの異なるトーンで返信メールを生成してください。
 
 【企業情報】
 会社名: {company_name}
 担当者: {contact_person}
 
+【分析結果】
+- 交渉段階: {thread_analysis.get('negotiation_stage', '初期接触')}
+- 相手の感情: {thread_analysis.get('sentiment', 'neutral')}
+- 戦略アプローチ: {strategy_plan.get('primary_approach', 'balanced')}
+- 言語設定: {language_setting}
+- トーン設定: {tone_setting}
+
 【カスタム指示】
 {custom_instructions}
 
-【生成ルール】
-- 自然で正しい日本語を使用してください
-- 「ますです」「ですです」などの重複表現は避けてください
-- 丁寧語は適切に使用してください（例：「思います」「させていただきます」）
+【重要な言語ルール】
+言語設定: {language_setting}
 
-以下のJSON形式で3パターンを生成してください：
+**このルールを必ず守ってください:**
+- 言語設定が"English"の場合 → **ALL CONTENT MUST BE IN ENGLISH**
+- 言語設定が"Chinese"の場合 → **ALL CONTENT MUST BE IN CHINESE**
+- 言語設定が"Japanese"の場合 → **ALL CONTENT MUST BE IN JAPANESE**
+
+【追加の生成ルール】
+- カスタム指示に「値引き」が含まれる場合、料金交渉に前向きな内容を含めてください
+- カスタム指示に「積極的」が含まれる場合、より前向きで積極的なトーンを使用してください
+- カスタム指示に「丁寧」が含まれる場合、より丁寧で敬語を多用してください
+- カスタム指示に「急ぎ」が含まれる場合、迅速な対応を表現してください
+- 「ますです」「ですです」などの重複表現は避けてください
+- メール本文のみを生成してください（署名は後で自動追加されます）
+- 宛先や「○○様」「署名」「会社名」「担当者名」は含めないでください
+
+以下のJSON形式で3つの異なるトーンのパターンを生成してください：
+
+**重要: 言語設定が"{language_setting}"なので、content内のメール本文は必ず{language_setting}で書いてください**
+
 {{
     "pattern_collaborative": {{
         "approach": "collaborative",
-        "content": "相手に合わせる協調的な返信メール",
-        "tone": "accommodating"
+        "content": "協調的で親しみやすいトーンのメール本文（{language_setting}で記述、署名なし）",
+        "tone": "friendly_accommodating"
     }},
     "pattern_balanced": {{
         "approach": "balanced", 
-        "content": "中立的でバランスの取れた返信メール",
-        "tone": "professional"
+        "content": "プロフェッショナルで丁寧なトーンのメール本文（{language_setting}で記述、署名なし）",
+        "tone": "professional_polite"
     }},
-    "pattern_assertive": {{
-        "approach": "assertive",
-        "content": "自分の要求を通す主張的な返信メール", 
-        "tone": "confident"
+    "pattern_formal": {{
+        "approach": "formal",
+        "content": "格式高く正式なビジネストーンのメール本文（{language_setting}で記述、署名なし）", 
+        "tone": "highly_formal"
     }}
 }}
 """
@@ -337,36 +381,65 @@ class SimpleNegotiationManager:
             
         except Exception as e:
             print(f"⚠️ パターン生成JSON解析失敗: {e}")
-            return self._create_fallback_patterns(company_name, contact_person)
+            return self._create_fallback_patterns(company_name, contact_person, language_setting)
     
-    def _create_fallback_patterns(self, company_name, contact_person):
+    def _create_fallback_patterns(self, company_name, contact_person, language_setting="Japanese"):
         """フォールバック3パターンを作成"""
-        return {
-            "pattern_collaborative": {
-                "approach": "collaborative",
-                "content": f"ご提案いただいた条件で、ぜひ進めさせていただきたく思います。詳細につきまして、お話しさせていただければ幸いです。\n\n{company_name} {contact_person}",
-                "tone": "accommodating",
-                "generated_at": datetime.now().isoformat(),
-                "company_name": company_name,
-                "contact_person": contact_person
-            },
-            "pattern_balanced": {
-                "approach": "balanced",
-                "content": f"ご提案を検討させていただき、双方にとってメリットのある形でお話しを進められればと思います。詳細をご相談させてください。\n\n{company_name} {contact_person}",
-                "tone": "professional", 
-                "generated_at": datetime.now().isoformat(),
-                "company_name": company_name,
-                "contact_person": contact_person
-            },
-            "pattern_assertive": {
-                "approach": "assertive",
-                "content": f"弊社としては以下の条件でのご提案をさせていただきます。品質と実績を重視した最適なプランをご用意いたします。\n\n{company_name} {contact_person}",
-                "tone": "confident",
-                "generated_at": datetime.now().isoformat(),
-                "company_name": company_name,
-                "contact_person": contact_person
+        if language_setting == "English":
+            return {
+                "pattern_collaborative": {
+                    "approach": "collaborative",
+                    "content": f"Thank you for your proposal. We would be pleased to move forward with your suggestions. Let's discuss the details further.\n\nBest regards,\n{company_name} {contact_person}",
+                    "tone": "friendly_accommodating",
+                    "generated_at": datetime.now().isoformat(),
+                    "company_name": company_name,
+                    "contact_person": contact_person
+                },
+                "pattern_balanced": {
+                    "approach": "balanced",
+                    "content": f"We would like to consider your proposal and proceed in a way that benefits both parties. Please let us discuss the details.\n\nBest regards,\n{company_name} {contact_person}",
+                    "tone": "professional_polite", 
+                    "generated_at": datetime.now().isoformat(),
+                    "company_name": company_name,
+                    "contact_person": contact_person
+                },
+                "pattern_formal": {
+                    "approach": "formal",
+                    "content": f"Thank you for taking the time to reach out to us. We would like to carefully consider your proposal and present you with our optimal offer.\n\nSincerely,\n{company_name} {contact_person}",
+                    "tone": "highly_formal",
+                    "generated_at": datetime.now().isoformat(),
+                    "company_name": company_name,
+                    "contact_person": contact_person
+                }
             }
-        }
+        else:
+            # Japanese fallback patterns
+            return {
+                "pattern_collaborative": {
+                    "approach": "collaborative",
+                    "content": f"ご提案いただいた条件で、ぜひ進めさせていただきたく思います。詳細につきまして、お話しさせていただければ幸いです。\n\nよろしくお願いいたします。\n{company_name} {contact_person}",
+                    "tone": "friendly_accommodating",
+                    "generated_at": datetime.now().isoformat(),
+                    "company_name": company_name,
+                    "contact_person": contact_person
+                },
+                "pattern_balanced": {
+                    "approach": "balanced",
+                    "content": f"ご提案を検討させていただき、双方にとってメリットのある形でお話しを進められればと思います。詳細をご相談させてください。\n\nご検討のほど、よろしくお願いいたします。\n{company_name} {contact_person}",
+                    "tone": "professional_polite", 
+                    "generated_at": datetime.now().isoformat(),
+                    "company_name": company_name,
+                    "contact_person": contact_person
+                },
+                "pattern_formal": {
+                    "approach": "formal",
+                    "content": f"貴重なお時間をいただき、誠にありがとうございます。弊社といたしましては、慎重に検討させていただいた上で、最適なご提案をお示しさせていただきたく存じます。\n\nご検討のほど、よろしくお願いいたします。\n{company_name} {contact_person}",
+                    "tone": "highly_formal",
+                    "generated_at": datetime.now().isoformat(),
+                    "company_name": company_name,
+                    "contact_person": contact_person
+                }
+            }
 
     async def _generate_basic_reply_with_reasoning(self, thread_analysis, strategy_plan, patterns_result, company_settings, custom_instructions):
         """基本返信＋理由生成エージェント（新機能）"""
