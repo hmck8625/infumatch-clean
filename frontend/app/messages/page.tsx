@@ -1087,11 +1087,36 @@ InfuMatchの田中です。
       
       // 添付ファイルがある場合はFormDataを使用
       if (attachmentFiles.length > 0) {
+        const lastMessageId = lastMessage.id;
+        
+        // 正しい返信ヘッダーを取得
+        let replyHeaders = null;
+        try {
+          const response = await fetch(`/api/gmail/threads/${currentThread.id}/reply-headers?messageId=${lastMessageId}`);
+          if (response.ok) {
+            const headerData = await response.json();
+            replyHeaders = headerData.replyHeaders;
+            console.log('📧 Retrieved reply headers for attachment email:', replyHeaders);
+          }
+        } catch (error) {
+          console.error('❌ Error getting reply headers for attachment email:', error);
+        }
+        
         const formData = new FormData();
         formData.append('to', fromHeader);
-        formData.append('subject', subjectHeader.startsWith('Re:') ? subjectHeader : `Re: ${subjectHeader}`);
+        
+        // 正しい件名を使用
+        const replySubject = replyHeaders?.subject || 
+          (subjectHeader.startsWith('Re:') ? subjectHeader : `Re: ${subjectHeader}`);
+        formData.append('subject', replySubject);
         formData.append('message', replyText);
         formData.append('threadId', currentThread.id);
+        formData.append('replyToMessageId', lastMessageId);
+        
+        // 返信ヘッダー情報を追加
+        if (replyHeaders) {
+          formData.append('replyHeaders', JSON.stringify(replyHeaders));
+        }
         
         // 添付ファイルを追加
         attachmentFiles.forEach((file, index) => {

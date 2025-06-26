@@ -17,42 +17,46 @@ export async function GET(
       );
     }
 
-    const threadId = params.threadId;
+    const { threadId } = params;
     const { searchParams } = new URL(request.url);
     const messageId = searchParams.get('messageId');
 
-    if (!messageId) {
+    if (!threadId || !messageId) {
       return NextResponse.json(
-        { error: 'messageId parameter is required' },
+        { error: 'Missing threadId or messageId' },
         { status: 400 }
       );
     }
 
-    console.log('📧 Getting reply headers for threadId:', threadId, 'messageId:', messageId);
+    console.log('🔍 Getting reply headers for thread:', threadId, 'message:', messageId);
 
-    // GmailServiceのインスタンスを作成
-    const gmailService = new GmailService(session.accessToken);
-    
-    // 返信ヘッダー情報を取得
+    // Gmail Serviceを使用して返信ヘッダーを取得
+    const gmailService = new GmailService(session.accessToken, session.user?.email || 'default');
     const replyHeaders = await gmailService.getReplyHeaders(messageId);
-    
+
     console.log('📧 Reply headers retrieved:', replyHeaders);
 
-    return NextResponse.json(replyHeaders);
+    return NextResponse.json({
+      success: true,
+      replyHeaders,
+      threadId,
+      messageId
+    });
+
   } catch (error: any) {
-    console.error('❌ Reply headers API error:', error);
+    console.error('Reply headers API error:', error);
     
-    // トークンエラーの場合
+    // トークンエラーをクライアントに伝える
     if (error.message === 'TOKEN_EXPIRED') {
       return NextResponse.json(
-        { error: 'Token expired', requiresReauth: true },
+        { error: 'TOKEN_EXPIRED', message: 'Authentication token has expired' },
         { status: 401 }
       );
     }
     
     return NextResponse.json(
       { 
-        error: 'Failed to get reply headers',
+        error: 'Failed to get reply headers', 
         details: error.message || 'Unknown error'
       },
       { status: 500 }
