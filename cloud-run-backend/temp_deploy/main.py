@@ -230,9 +230,37 @@ class SimpleNegotiationManager:
         """戦略立案エージェント"""
         company_info = company_settings.get("companyInfo", {})
         company_name = company_info.get("companyName", "InfuMatch")
+        negotiation_settings = company_settings.get("negotiationSettings", {})
+        products = company_settings.get("products", [])
+        
+        # 商品情報の整理
+        products_text = ""
+        if products:
+            product_names = [p.get("name", "") for p in products[:3] if p.get("name")]
+            if product_names:
+                products_text = f"主要商品: {', '.join(product_names)}"
+        
+        # 交渉設定の整理
+        preferred_tone = negotiation_settings.get("preferredTone", "professional")
+        key_priorities = negotiation_settings.get("keyPriorities", [])
+        avoid_topics = negotiation_settings.get("avoidTopics", [])
+        special_instructions = negotiation_settings.get("specialInstructions", "")
         
         prompt = f"""
 企業{company_name}の営業戦略を立案してください。
+
+【企業情報】
+- 会社名: {company_name}
+- 業界: {company_info.get('industry', '不明')}
+- 従業員数: {company_info.get('employeeCount', '不明')}
+- 企業説明: {company_info.get('description', '').strip()[:100] if company_info.get('description') else '不明'}
+{products_text}
+
+【交渉設定】
+- 希望トーン: {preferred_tone}
+- 重要な優先事項: {', '.join(key_priorities) if key_priorities else 'なし'}
+- 避けるべき話題: {', '.join(avoid_topics) if avoid_topics else 'なし'}
+- 特別指示: {special_instructions if special_instructions else 'なし'}
 
 【分析結果】
 交渉段階: {thread_analysis.get('negotiation_stage', '不明')}
@@ -257,11 +285,12 @@ class SimpleNegotiationManager:
         except Exception as e:
             print(f"⚠️ 戦略立案JSON解析失敗: {e}")
             
-            # カスタム指示に基づくフォールバック設定
+            # カスタム指示と企業設定に基づくフォールバック設定
             language_setting = "Japanese"
-            tone_setting = "丁寧"
+            tone_setting = negotiation_settings.get("preferredTone", "丁寧")
             primary_approach = "balanced"
             
+            # カスタム指示を優先適用
             if custom_instructions:
                 if "英語" in custom_instructions or "English" in custom_instructions:
                     language_setting = "English"
@@ -273,6 +302,14 @@ class SimpleNegotiationManager:
                     tone_setting = "積極的"
                 if "丁寧" in custom_instructions:
                     tone_setting = "非常に丁寧"
+            
+            # 企業設定のトーンを反映
+            if preferred_tone == "casual":
+                tone_setting = "親しみやすい"
+            elif preferred_tone == "formal":
+                tone_setting = "格式高い"
+            elif preferred_tone == "assertive":
+                tone_setting = "積極的"
             
             return {
                 "primary_approach": primary_approach,
@@ -304,17 +341,37 @@ class SimpleNegotiationManager:
         company_info = company_settings.get("companyInfo", {})
         company_name = company_info.get("companyName", "InfuMatch")  
         contact_person = company_info.get("contactPerson", "田中美咲")
+        negotiation_settings = company_settings.get("negotiationSettings", {})
+        products = company_settings.get("products", [])
         
         # 戦略結果から言語設定を取得
         language_setting = strategy_plan.get('language_setting', 'Japanese')
         tone_setting = strategy_plan.get('tone_setting', '丁寧')
         
+        # 商品情報の整理
+        products_text = ""
+        if products:
+            product_names = [p.get("name", "") for p in products[:2] if p.get("name")]
+            if product_names:
+                products_text = f"主要商品: {', '.join(product_names)}"
+        
+        # 企業の特徴や避けるべき話題
+        avoid_topics = negotiation_settings.get("avoidTopics", [])
+        key_priorities = negotiation_settings.get("keyPriorities", [])
+        
         prompt = f"""
 以下の情報に基づいて、3つの異なるトーンで返信メールを生成してください。
 
 【企業情報】
-会社名: {company_name}
-担当者: {contact_person}
+- 会社名: {company_name}
+- 担当者: {contact_person}
+- 業界: {company_info.get('industry', '不明')}
+- 企業説明: {company_info.get('description', '').strip()[:50] if company_info.get('description') else '不明'}
+{products_text}
+
+【企業の交渉方針】
+- 重要な優先事項: {', '.join(key_priorities) if key_priorities else 'なし'}
+- 避けるべき話題: {', '.join(avoid_topics) if avoid_topics else 'なし'}
 
 【分析結果】
 - 交渉段階: {thread_analysis.get('negotiation_stage', '初期接触')}
@@ -334,11 +391,18 @@ class SimpleNegotiationManager:
 - 言語設定が"Chinese"の場合 → **ALL CONTENT MUST BE IN CHINESE**
 - 言語設定が"Japanese"の場合 → **ALL CONTENT MUST BE IN JAPANESE**
 
-【追加の生成ルール】
+【企業設定に基づく生成ルール】
+- 企業の重要な優先事項を意識した内容にしてください
+- 避けるべき話題は絶対に含めないでください
+- 企業の業界や商品特性を活かした提案を含めてください
+
+【カスタム指示による調整】
 - カスタム指示に「値引き」が含まれる場合、料金交渉に前向きな内容を含めてください
 - カスタム指示に「積極的」が含まれる場合、より前向きで積極的なトーンを使用してください
 - カスタム指示に「丁寧」が含まれる場合、より丁寧で敬語を多用してください
 - カスタム指示に「急ぎ」が含まれる場合、迅速な対応を表現してください
+
+【形式ルール】
 - 「ますです」「ですです」などの重複表現は避けてください
 - メール本文のみを生成してください（署名は後で自動追加されます）
 - 宛先や「○○様」「署名」「会社名」「担当者名」は含めないでください
@@ -1260,13 +1324,24 @@ async def generate_detailed_ai_response(
                 content = msg.get("content", "")
                 conversation_context += f"{role}: {content}\n"
         
+        # 企業設定から追加情報を取得
+        negotiation_settings = company_settings.get("negotiationSettings", {})
+        avoid_topics = negotiation_settings.get("avoidTopics", [])
+        key_priorities = negotiation_settings.get("keyPriorities", [])
+        
         # 応答生成用のプロンプト
         response_prompt = f"""
-あなたは{company_name}の営業担当者「田中美咲」として、YouTubeインフルエンサーとの交渉メールを作成してください。
+あなたは{company_name}の営業担当者「{contact_person}」として、YouTubeインフルエンサーとの交渉メールを作成してください。
 
 【企業情報】
 - 会社名: {company_name}
+- 業界: {company_info.get('industry', '不明')}
+- 企業説明: {company_info.get('description', '').strip()[:100] if company_info.get('description') else '不明'}
 {products_text}
+
+【企業の交渉方針】
+- 重要な優先事項: {', '.join(key_priorities) if key_priorities else 'なし'}
+- 避けるべき話題: {', '.join(avoid_topics) if avoid_topics else 'なし'}
 
 【会話履歴】
 {conversation_context}
@@ -1286,14 +1361,17 @@ async def generate_detailed_ai_response(
 
 【作成ルール】
 1. 【最重要】カスタム指示を最優先で反映してください
-2. カスタム指示に「英語」「English」が含まれる場合、全体を英語で作成してください
-3. カスタム指示に「中国語」「Chinese」が含まれる場合、全体を中国語で作成してください
-4. 分析結果に基づいて適切なトーンで応答してください
-5. 相手のメッセージに適切に応答してください
-6. 自然で丁寧なビジネスメールの文体を使用してください
-7. メール本文のみを生成してください（署名は自動で追加されます）
-8. 宛先や署名は含めないでください
-9. 200文字以内で簡潔に作成してください
+2. 【重要】企業の重要な優先事項を意識した内容にしてください
+3. 【重要】避けるべき話題は絶対に含めないでください
+4. 企業の業界や商品特性を活かした提案を含めてください
+5. カスタム指示に「英語」「English」が含まれる場合、全体を英語で作成してください
+6. カスタム指示に「中国語」「Chinese」が含まれる場合、全体を中国語で作成してください
+7. 分析結果に基づいて適切なトーンで応答してください
+8. 相手のメッセージに適切に応答してください
+9. 自然で丁寧なビジネスメールの文体を使用してください
+10. メール本文のみを生成してください（署名は自動で追加されます）
+11. 宛先や署名は含めないでください
+12. 200文字以内で簡潔に作成してください
 
 メール本文のみを出力してください（宛先や署名は含めません）：
 """

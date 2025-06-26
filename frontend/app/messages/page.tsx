@@ -490,6 +490,14 @@ function MessagesPageContent() {
           const products = companySettings.products || [];
           const negotiationSettings = companySettings.negotiationSettings || {};
           
+          console.log('📋 企業設定詳細:');
+          console.log('  - 会社名:', companyInfo.companyName);
+          console.log('  - 業界:', companyInfo.industry);
+          console.log('  - 商品数:', products.length);
+          console.log('  - 交渉トーン:', negotiationSettings.preferredTone);
+          console.log('  - 重要事項:', negotiationSettings.keyPriorities);
+          console.log('  - 避ける話題:', negotiationSettings.avoidTopics);
+          
           // 段階3: 内容評価 (設定読み込み完了後)
           updateAgentStatus(
             '🔍 内容評価', 
@@ -510,13 +518,50 @@ function MessagesPageContent() {
       // 企業設定を統合
       if (companySettings.companyInfo) {
         const companyInfo = companySettings.companyInfo;
-        requestData.context.company_settings.companyInfo.companyName = companyInfo.companyName || "InfuMatch";
-        requestData.context.company_settings.companyInfo.contactPerson = companyInfo.contactPerson || "田中美咲";
-        requestData.context.company_settings.companyInfo.email = companyInfo.email || "tanaka@infumatch.com";
-        
-        if (companySettings.products && companySettings.products.length > 0) {
-          requestData.context.company_settings.products = companySettings.products;
-        }
+        requestData.context.company_settings.companyInfo = {
+          companyName: companyInfo.companyName || "InfuMatch",
+          contactPerson: companyInfo.contactPerson || "田中美咲",
+          industry: companyInfo.industry || "",
+          employeeCount: companyInfo.employeeCount || "",
+          website: companyInfo.website || "",
+          description: companyInfo.description || "",
+          contactEmail: companyInfo.contactEmail || ""
+        };
+      }
+      
+      // 商品情報を追加
+      if (companySettings.products && companySettings.products.length > 0) {
+        requestData.context.company_settings.products = companySettings.products;
+      }
+      
+      // 交渉設定を追加
+      if (companySettings.negotiationSettings) {
+        const negSettings = companySettings.negotiationSettings;
+        requestData.context.company_settings.negotiationSettings = {
+          preferredTone: negSettings.preferredTone || "professional",
+          responseTimeExpectation: negSettings.responseTimeExpectation || "normal",
+          budgetFlexibility: negSettings.budgetFlexibility || "moderate",
+          decisionMakers: negSettings.decisionMakers || [],
+          communicationPreferences: negSettings.communicationPreferences || [],
+          specialInstructions: negSettings.specialInstructions || "",
+          keyPriorities: negSettings.keyPriorities || [],
+          avoidTopics: negSettings.avoidTopics || []
+        };
+      }
+      
+      // マッチング設定を追加
+      if (companySettings.matchingSettings) {
+        const matchSettings = companySettings.matchingSettings;
+        requestData.context.company_settings.matchingSettings = {
+          priorityCategories: matchSettings.priorityCategories || [],
+          minSubscribers: matchSettings.minSubscribers || 0,
+          maxSubscribers: matchSettings.maxSubscribers || 1000000,
+          minEngagementRate: matchSettings.minEngagementRate || 0,
+          excludeCategories: matchSettings.excludeCategories || [],
+          geographicFocus: matchSettings.geographicFocus || [],
+          priorityKeywords: matchSettings.priorityKeywords || [],
+          excludeKeywords: matchSettings.excludeKeywords || []
+        };
       }
       
       // カスタムプロンプトを追加
