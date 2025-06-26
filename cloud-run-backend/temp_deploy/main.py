@@ -66,7 +66,7 @@ class SimpleNegotiationManager:
             print(f"📥 INPUT - 分析結果: {thread_analysis.get('negotiation_stage', '不明')}")
             print(f"📥 INPUT - カスタム指示: '{custom_instructions}'" if custom_instructions else "📥 INPUT - カスタム指示: なし")
             
-            strategy_plan = await self._plan_strategy(thread_analysis, company_settings, custom_instructions)
+            strategy_plan = await self._plan_strategy(thread_analysis, company_settings, custom_instructions, conversation_history)
             stage2_duration = (datetime.now() - stage2_start).total_seconds()
             
             print(f"📤 ReplyStrategy 完全OUTPUT:")
@@ -114,7 +114,7 @@ class SimpleNegotiationManager:
             print(f"📥 INPUT - 企業名: {company_info.get('companyName', 'InfuMatch')}")
             print(f"📥 INPUT - 担当者: {company_info.get('contactPerson', '田中美咲')}")
             
-            patterns_result = await self._generate_patterns(thread_analysis, strategy_plan, company_settings, custom_instructions)
+            patterns_result = await self._generate_patterns(thread_analysis, strategy_plan, company_settings, custom_instructions, conversation_history)
             stage4_duration = (datetime.now() - stage4_start).total_seconds()
             
             print(f"📤 PatternGeneration 完全OUTPUT:")
@@ -192,22 +192,47 @@ class SimpleNegotiationManager:
     
     async def _analyze_thread(self, new_message, conversation_history):
         """スレッド分析エージェント"""
+        
+        # 会話履歴を詳細にフォーマット
+        conversation_context = ""
+        if conversation_history:
+            conversation_context = "【会話履歴詳細】\n"
+            for i, msg in enumerate(conversation_history):
+                role = msg.get("role", "unknown")
+                content = msg.get("content", "")
+                timestamp = msg.get("timestamp", "")
+                conversation_context += f"{i+1}. {role}: {content}\n"
+                if timestamp:
+                    conversation_context += f"   時刻: {timestamp}\n"
+            conversation_context += f"\n総会話数: {len(conversation_history)}件\n"
+        else:
+            conversation_context = "【会話履歴】\n初回のやり取りです\n"
+        
         prompt = f"""
-以下のメッセージを分析してください。
+以下のメッセージと会話履歴を分析してください。
 
 【最新メッセージ】
 {new_message}
 
-【会話履歴】
-{len(conversation_history)}件の過去のやり取り
+{conversation_context}
+
+【分析指示】
+1. 会話の流れを理解し、交渉がどの段階にあるかを判定してください
+2. 相手の感情や態度の変化を追跡してください
+3. 過去に言及されたトピックや懸念事項を特定してください
+4. 相手の関心度合いや緊急度を評価してください
+5. 交渉の進捗と相手の反応パターンを分析してください
 
 以下のJSON形式で分析結果を出力してください：
 {{
-  "negotiation_stage": "初期接触",
-  "sentiment": "neutral",
-  "key_topics": ["コラボレーション"],
-  "urgency_level": "中",
-  "partner_concerns": [],
+  "negotiation_stage": "初期接触|関心表明|条件交渉|最終調整|合意形成|保留|拒否",
+  "sentiment": "positive|neutral|negative|frustrated|interested|hesitant",
+  "key_topics": ["過去に言及された重要トピック"],
+  "urgency_level": "高|中|低",
+  "partner_concerns": ["相手の懸念事項や要求"],
+  "past_proposals": ["過去に提示された提案内容"],
+  "conversation_flow": "会話の流れの簡潔な要約",
+  "response_pattern": "相手の返信パターンの特徴",
   "analysis_confidence": 0.8
 }}
 """
@@ -226,7 +251,7 @@ class SimpleNegotiationManager:
                 "analysis_confidence": 0.5
             }
     
-    async def _plan_strategy(self, thread_analysis, company_settings, custom_instructions):
+    async def _plan_strategy(self, thread_analysis, company_settings, custom_instructions, conversation_history):
         """戦略立案エージェント"""
         company_info = company_settings.get("companyInfo", {})
         company_name = company_info.get("companyName", "InfuMatch")
@@ -245,6 +270,27 @@ class SimpleNegotiationManager:
         key_priorities = negotiation_settings.get("keyPriorities", [])
         avoid_topics = negotiation_settings.get("avoidTopics", [])
         special_instructions = negotiation_settings.get("specialInstructions", "")
+        
+        # 会話履歴から重要なポイントを抽出
+        conversation_insights = ""
+        if conversation_history:
+            conversation_insights = "【会話履歴からの洞察】\n"
+            # 直近の3つの重要なやり取りを抽出
+            recent_important = conversation_history[-3:] if len(conversation_history) >= 3 else conversation_history
+            for i, msg in enumerate(recent_important):
+                role = msg.get("role", "unknown")
+                content = msg.get("content", "")[:200]  # 200文字に制限
+                conversation_insights += f"- {role}: {content}\n"
+            
+            # 分析結果から過去の提案や懸念事項を抽出
+            past_proposals = thread_analysis.get('past_proposals', [])
+            partner_concerns = thread_analysis.get('partner_concerns', [])
+            if past_proposals:
+                conversation_insights += f"\n過去の提案: {', '.join(past_proposals)}\n"
+            if partner_concerns:
+                conversation_insights += f"相手の懸念事項: {', '.join(partner_concerns)}\n"
+        else:
+            conversation_insights = "【会話履歴】\n初回接触のため、基本的なアプローチを採用\n"
         
         prompt = f"""
 企業{company_name}の営業戦略を立案してください。
@@ -265,16 +311,29 @@ class SimpleNegotiationManager:
 【分析結果】
 交渉段階: {thread_analysis.get('negotiation_stage', '不明')}
 相手の感情: {thread_analysis.get('sentiment', '不明')}
+会話の流れ: {thread_analysis.get('conversation_flow', '不明')}
+相手の返信パターン: {thread_analysis.get('response_pattern', '不明')}
+
+{conversation_insights}
 
 【カスタム指示】
 {custom_instructions}
 
+【戦略立案指示】
+1. 過去の会話履歴を踏まえ、一貫性のある戦略を立案してください
+2. 相手の懸念事項や要求に対する具体的な対応策を含めてください
+3. 過去に提示した内容と矛盾しないよう注意してください
+4. 交渉の進捗段階に応じた適切なアプローチを選択してください
+5. 企業の優先事項と避けるべき話題を厳守してください
+
 以下のJSON形式で戦略を出力してください：
 {{
-  "primary_approach": "balanced",
-  "key_messages": ["協力的な提案", "双方にメリットのある内容"],
-  "tone_setting": "丁寧",
-  "language_setting": "Japanese",
+  "primary_approach": "balanced|aggressive|conservative|relationship_building",
+  "key_messages": ["具体的な訴求ポイント", "相手のメリット"],
+  "tone_setting": "丁寧|積極的|親しみやすい|格式高い",
+  "language_setting": "Japanese|English|Chinese",
+  "consistency_notes": "過去の会話との整合性確保方法",
+  "response_to_concerns": ["相手の懸念への具体的対応"],
   "strategy_confidence": 0.7
 }}
 """
@@ -336,7 +395,7 @@ class SimpleNegotiationManager:
             "confidence_level": 0.8
         }
     
-    async def _generate_patterns(self, thread_analysis, strategy_plan, company_settings, custom_instructions):
+    async def _generate_patterns(self, thread_analysis, strategy_plan, company_settings, custom_instructions, conversation_history):
         """3パターン生成エージェント"""
         company_info = company_settings.get("companyInfo", {})
         company_name = company_info.get("companyName", "InfuMatch")  
@@ -359,6 +418,38 @@ class SimpleNegotiationManager:
         avoid_topics = negotiation_settings.get("avoidTopics", [])
         key_priorities = negotiation_settings.get("keyPriorities", [])
         
+        # 会話履歴から重複回避のための情報を抽出
+        conversation_analysis = ""
+        past_content_points = []
+        if conversation_history:
+            conversation_analysis = "【会話履歴分析（重複回避用）】\n"
+            for msg in conversation_history[-5:]:  # 直近5件の会話をチェック
+                content = msg.get("content", "")
+                role = msg.get("role", "unknown")
+                if content:
+                    # 過去の返信パターンから重要なフレーズを抽出
+                    if "ご提案" in content:
+                        past_content_points.append("ご提案について言及済み")
+                    if "料金" in content or "価格" in content:
+                        past_content_points.append("料金について言及済み")
+                    if "コラボ" in content or "協力" in content:
+                        past_content_points.append("コラボレーションについて言及済み")
+                    if "検討" in content:
+                        past_content_points.append("検討について言及済み")
+                    
+                    conversation_analysis += f"- {role}: {content[:100]}...\n"
+            
+            if past_content_points:
+                conversation_analysis += f"\n【重複回避ポイント】\n"
+                for point in set(past_content_points):  # 重複削除
+                    conversation_analysis += f"- {point}\n"
+        else:
+            conversation_analysis = "【会話履歴】\n初回の返信のため、基本的な内容で作成"
+        
+        # 戦略結果から一貫性確保のための情報を取得
+        consistency_notes = strategy_plan.get('consistency_notes', '')
+        response_to_concerns = strategy_plan.get('response_to_concerns', [])
+        
         prompt = f"""
 以下の情報に基づいて、3つの異なるトーンで返信メールを生成してください。
 
@@ -379,6 +470,12 @@ class SimpleNegotiationManager:
 - 戦略アプローチ: {strategy_plan.get('primary_approach', 'balanced')}
 - 言語設定: {language_setting}
 - トーン設定: {tone_setting}
+
+{conversation_analysis}
+
+【一貫性確保情報】
+- 過去の会話との整合性: {consistency_notes}
+- 相手の懸念への対応: {', '.join(response_to_concerns) if response_to_concerns else 'なし'}
 
 【カスタム指示】
 {custom_instructions}
@@ -401,6 +498,11 @@ class SimpleNegotiationManager:
 - カスタム指示に「積極的」が含まれる場合、より前向きで積極的なトーンを使用してください
 - カスタム指示に「丁寧」が含まれる場合、より丁寧で敬語を多用してください
 - カスタム指示に「急ぎ」が含まれる場合、迅速な対応を表現してください
+
+【重複回避ルール】
+- 過去の返信で使用した表現や内容の繰り返しを避けてください
+- 同じような提案や説明を重複して書かないでください
+- 過去に言及済みの内容は簡潔に触れるか、新しい角度で表現してください
 
 【形式ルール】
 - 「ますです」「ですです」などの重複表現は避けてください
@@ -1315,14 +1417,37 @@ async def generate_detailed_ai_response(
             if product_names:
                 products_text = f"取り扱い商品: {', '.join(product_names)}"
         
-        # 会話履歴の文字列化
+        # 会話履歴の完全活用（3件制限を撤廃）
         conversation_context = ""
         if conversation_history:
-            recent_messages = conversation_history[-3:]  # 直近3件
-            for msg in recent_messages:
+            conversation_context += "【完全な会話履歴】\n"
+            for i, msg in enumerate(conversation_history):
                 role = msg.get("role", "user")
                 content = msg.get("content", "")
-                conversation_context += f"{role}: {content}\n"
+                timestamp = msg.get("timestamp", "")
+                
+                # 重要度判定（長いメッセージや特定キーワードを含むものを重要とする）
+                is_important = (
+                    len(content) > 100 or 
+                    any(keyword in content for keyword in ["料金", "価格", "予算", "条件", "提案", "スケジュール", "期限"])
+                )
+                importance_mark = "🔴" if is_important else ""
+                
+                conversation_context += f"{i+1}. {importance_mark}{role}: {content}\n"
+                if timestamp:
+                    conversation_context += f"    時刻: {timestamp}\n"
+            
+            # 会話の要約統計
+            total_messages = len(conversation_history)
+            user_messages = len([msg for msg in conversation_history if msg.get("role") == "user"])
+            assistant_messages = len([msg for msg in conversation_history if msg.get("role") == "assistant"])
+            
+            conversation_context += f"\n【会話統計】\n"
+            conversation_context += f"総メッセージ数: {total_messages}件\n"
+            conversation_context += f"相手からのメッセージ: {user_messages}件\n"
+            conversation_context += f"当方からの返信: {assistant_messages}件\n"
+        else:
+            conversation_context = "【会話履歴】\n初回のやり取りです。"
         
         # 企業設定から追加情報を取得
         negotiation_settings = company_settings.get("negotiationSettings", {})
