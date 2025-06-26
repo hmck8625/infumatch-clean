@@ -112,47 +112,68 @@ interface MatchingPreferences {
   priorityKeywords: string[];
 }
 
+// 🎯 デフォルト設定データ
+const getDefaultSettings = (): UserSettings => ({
+  userId: '',
+  companyInfo: {
+    companyName: 'InfuMatch株式会社',
+    industry: 'マーケティング・テクノロジー',
+    employeeCount: '10-50名',
+    website: 'https://infumatch.com',
+    description: 'YouTubeインフルエンサーと企業を繋ぐAIマッチングプラットフォームを提供しています。',
+    contactPerson: '田中美咲',
+    contactEmail: 'contact@infumatch.com'
+  },
+  products: [
+    {
+      id: '1',
+      name: 'スマートフィットネスアプリ',
+      category: 'フィットネス・健康',
+      targetAudience: '20-40代、健康志向の男女',
+      priceRange: '月額980円',
+      description: 'AI技術を活用したパーソナルトレーニングアプリ。ユーザーの運動レベルに合わせて最適なワークアウトプランを提案します。'
+    },
+    {
+      id: '2', 
+      name: 'オーガニック美容液',
+      category: '美容・コスメ',
+      targetAudience: '25-45歳女性、美容意識の高い層',
+      priceRange: '3,980円-12,800円',
+      description: '100%天然成分で作られた高品質美容液。敏感肌にも優しく、エイジングケアに効果的な成分を厳選配合。'
+    }
+  ],
+  negotiationSettings: {
+    preferredTone: 'friendly',
+    responseTimeExpectation: '48時間以内',
+    budgetFlexibility: 'medium',
+    decisionMakers: ['マーケティング部長', 'CMO'],
+    communicationPreferences: ['email', 'ビデオ通話'],
+    specialInstructions: '長期的なパートナーシップを重視し、コンテンツの質を最優先に考えています。',
+    keyPriorities: ['ブランドイメージ適合性', 'エンゲージメント率', '長期関係構築'],
+    avoidTopics: ['政治的発言', '競合他社との比較']
+  },
+  matchingSettings: {
+    priorityCategories: ['フィットネス', '美容・コスメ', 'ライフスタイル'],
+    minSubscribers: 10000,
+    maxSubscribers: 500000,
+    minEngagementRate: 3.0,
+    excludeCategories: ['ギャンブル', '成人向けコンテンツ'],
+    geographicFocus: ['日本'],
+    priorityKeywords: ['健康', '美容', 'ライフスタイル', 'レビュー'],
+    excludeKeywords: ['炎上', '批判', '悪評']
+  },
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString()
+});
+
 export default function SettingsPage() {
   const { data: session, status } = useSession();
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [hasUserData, setHasUserData] = useState(false); // ユーザーデータ存在フラグ
   
-  const [settings, setSettings] = useState<UserSettings>({
-    userId: '',
-    companyInfo: {
-      companyName: '',
-      industry: '',
-      employeeCount: '',
-      website: '',
-      description: '',
-      contactPerson: '',
-      contactEmail: ''
-    },
-    products: [],
-    negotiationSettings: {
-      preferredTone: 'professional',
-      responseTimeExpectation: '24時間以内',
-      budgetFlexibility: 'medium',
-      decisionMakers: [],
-      communicationPreferences: ['email'],
-      specialInstructions: '',
-      keyPriorities: [],
-      avoidTopics: []
-    },
-    matchingSettings: {
-      priorityCategories: [],
-      minSubscribers: 1000,
-      maxSubscribers: 1000000,
-      minEngagementRate: 2.0,
-      excludeCategories: [],
-      geographicFocus: ['日本'],
-      priorityKeywords: [],
-      excludeKeywords: []
-    },
-    createdAt: '',
-    updatedAt: ''
-  });
+  const [settings, setSettings] = useState<UserSettings>(getDefaultSettings());
 
   const [newProduct, setNewProduct] = useState({
     name: '',
@@ -184,59 +205,51 @@ export default function SettingsPage() {
         if (result.success && result.data) {
           console.log('✅ Settings loaded successfully');
           
-          // データの整合性をチェックして安全にセット
-          const safeData = {
-            ...result.data,
-            matchingSettings: {
-              priorityCategories: result.data.matchingSettings?.priorityCategories || [],
-              minSubscribers: result.data.matchingSettings?.minSubscribers || 1000,
-              maxSubscribers: result.data.matchingSettings?.maxSubscribers || 1000000,
-              minEngagementRate: result.data.matchingSettings?.minEngagementRate || 2.0,
-              excludeCategories: result.data.matchingSettings?.excludeCategories || [],
-              geographicFocus: result.data.matchingSettings?.geographicFocus || ['日本'],
-              priorityKeywords: result.data.matchingSettings?.priorityKeywords || [],
-              excludeKeywords: result.data.matchingSettings?.excludeKeywords || []
-            },
-            companyInfo: {
-              companyName: result.data.companyInfo?.companyName || '',
-              industry: result.data.companyInfo?.industry || '',
-              employeeCount: result.data.companyInfo?.employeeCount || '',
-              website: result.data.companyInfo?.website || '',
-              description: result.data.companyInfo?.description || '',
-              contactPerson: result.data.companyInfo?.contactPerson || '',
-              contactEmail: result.data.companyInfo?.contactEmail || ''
-            },
-            products: result.data.products || [],
-            negotiationSettings: {
-              preferredTone: result.data.negotiationSettings?.preferredTone || 'professional',
-              responseTimeExpectation: result.data.negotiationSettings?.responseTimeExpectation || '24時間以内',
-              budgetFlexibility: result.data.negotiationSettings?.budgetFlexibility || 'medium',
-              decisionMakers: result.data.negotiationSettings?.decisionMakers || [],
-              communicationPreferences: result.data.negotiationSettings?.communicationPreferences || ['email'],
-              specialInstructions: result.data.negotiationSettings?.specialInstructions || '',
-              keyPriorities: result.data.negotiationSettings?.keyPriorities || [],
-              avoidTopics: result.data.negotiationSettings?.avoidTopics || []
-            }
-          };
+          // ユーザーデータが存在するかチェック
+          const hasUserSettings = result.data.companyInfo?.companyName || 
+                                  result.data.products?.length > 0 ||
+                                  result.data.negotiationSettings?.specialInstructions;
           
-          setSettings(safeData);
-          
-          if (result.fallback) {
-            setSaveMessage(result.message || 'デフォルト設定を使用しています');
+          if (hasUserSettings) {
+            // ユーザーデータが存在する場合：デフォルトとマージ
+            console.log('🔄 Merging user data with defaults');
+            const defaultSettings = getDefaultSettings();
+            const mergedSettings = {
+              ...defaultSettings,
+              ...result.data,
+              companyInfo: { ...defaultSettings.companyInfo, ...result.data.companyInfo },
+              products: result.data.products?.length > 0 ? result.data.products : defaultSettings.products,
+              negotiationSettings: { ...defaultSettings.negotiationSettings, ...result.data.negotiationSettings },
+              matchingSettings: { ...defaultSettings.matchingSettings, ...result.data.matchingSettings }
+            };
+            
+            setSettings(mergedSettings);
+            setHasUserData(true);
+            console.log('👤 Using saved user settings');
+          } else {
+            // ユーザーデータが存在しない場合：デフォルト設定使用
+            console.log('📝 Using default settings');
+            setSettings(getDefaultSettings());
+            setHasUserData(false);
+            setSaveMessage('デフォルト設定を表示しています。お好みに合わせて編集・保存してください。');
           }
         } else {
           console.error('❌ Failed to load settings:', result.error);
-          setSaveMessage('設定の読み込みに失敗しました。デフォルト設定を使用します。');
+          setSettings(getDefaultSettings());
+          setHasUserData(false);
+          setSaveMessage('デフォルト設定を使用しています。');
         }
       } else {
         console.error('❌ API Error:', response.status);
-        const errorText = await response.text();
-        console.error('❌ Error details:', errorText);
-        setSaveMessage('設定の読み込みに失敗しました。デフォルト設定を使用します。');
+        setSettings(getDefaultSettings());
+        setHasUserData(false);
+        setSaveMessage('デフォルト設定を使用しています。');
       }
     } catch (error) {
       console.error('❌ Settings load error:', error);
-      setSaveMessage('設定の読み込み中にエラーが発生しました。デフォルト設定を使用します。');
+      setSettings(getDefaultSettings());
+      setHasUserData(false);
+      setSaveMessage('デフォルト設定を使用しています。');
     } finally {
       setIsLoading(false);
     }
@@ -260,6 +273,7 @@ export default function SettingsPage() {
       if (response.ok && result.success) {
         console.log('✅ Settings saved successfully');
         setSaveMessage('設定が正常に保存されました');
+        setHasUserData(true); // 保存後はユーザーデータありに設定
         if (result.data) {
           setSettings(result.data);
         }
@@ -430,6 +444,17 @@ export default function SettingsPage() {
             </AlertDescription>
           </Alert>
         )}
+
+        {/* 設定状態インジケーター */}
+        <Alert className={`mb-6 ${hasUserData ? 'border-blue-200 bg-blue-50' : 'border-yellow-200 bg-yellow-50'}`}>
+          <Info className="h-4 w-4" />
+          <AlertDescription className={hasUserData ? 'text-blue-800' : 'text-yellow-800'}>
+            {hasUserData ? 
+              '💾 保存された設定を表示しています' : 
+              '📝 デフォルト設定を表示しています。お好みに合わせて編集・保存してください。'
+            }
+          </AlertDescription>
+        </Alert>
 
         <Tabs defaultValue="company" className="space-y-6">
           <TabsList className="grid w-full grid-cols-4">

@@ -370,12 +370,39 @@ class SimpleNegotiationManager:
             response = self.gemini_model.generate_content(prompt)
             patterns = json.loads(response.text.strip())
             
-            # メタデータを追加
+            # メタデータを追加し、署名を統一的に追加
             for pattern_key in patterns:
                 if isinstance(patterns[pattern_key], dict):
                     patterns[pattern_key]['generated_at'] = datetime.now().isoformat()
                     patterns[pattern_key]['company_name'] = company_name
                     patterns[pattern_key]['contact_person'] = contact_person
+                    
+                    # Gemini生成コンテンツの後処理と署名追加
+                    content = patterns[pattern_key].get('content', '')
+                    if content:
+                        import re
+                        
+                        # 宛先行を削除（○○様で始まる行）
+                        content = re.sub(r'^.*?様\s*\n*', '', content, flags=re.MULTILINE)
+                        
+                        # 既存の署名を削除
+                        signature_patterns = [
+                            rf'\n*よろしくお願いいたします。?\s*\n*{re.escape(company_name)}.*?\n*',
+                            rf'\n*{re.escape(company_name)}\s*{re.escape(contact_person)}\s*\n*',
+                            rf'\n*{re.escape(contact_person)}\s*\n*',
+                            rf'\n*Best regards,?\s*\n*{re.escape(company_name)}.*?\n*',
+                            rf'\n*Sincerely,?\s*\n*{re.escape(company_name)}.*?\n*'
+                        ]
+                        
+                        for pattern in signature_patterns:
+                            content = re.sub(pattern, '', content, flags=re.IGNORECASE)
+                        
+                        # 末尾クリーンアップと統一署名追加
+                        content = content.strip()
+                        if language_setting == "English":
+                            patterns[pattern_key]['content'] = f"{content}\n\nBest regards,\n{company_name} {contact_person}"
+                        else:
+                            patterns[pattern_key]['content'] = f"{content}\n\nよろしくお願いいたします。\n{company_name} {contact_person}"
             
             return patterns
             
@@ -1264,10 +1291,11 @@ async def generate_detailed_ai_response(
 4. 分析結果に基づいて適切なトーンで応答してください
 5. 相手のメッセージに適切に応答してください
 6. 自然で丁寧なビジネスメールの文体を使用してください
-7. 署名は言語に関係なく「{contact_person}, {company_name}」の形式を使用してください
-8. 200文字以内で簡潔に作成してください
+7. メール本文のみを生成してください（署名は自動で追加されます）
+8. 宛先や署名は含めないでください
+9. 200文字以内で簡潔に作成してください
 
-メールのみを出力してください（説明文は不要）：
+メール本文のみを出力してください（宛先や署名は含めません）：
 """
         
         print(f"🤖 Gemini API で応答生成中...")
@@ -1286,6 +1314,33 @@ async def generate_detailed_ai_response(
         
         ai_response = response.text.strip()
         print(f"✅ Gemini API 応答生成完了: {len(ai_response)}文字")
+        
+        # Geminiが宛先や余分な署名を含めた場合の後処理
+        import re
+        
+        # 宛先行を削除（○○様で始まる行）
+        ai_response = re.sub(r'^.*?様\s*\n*', '', ai_response, flags=re.MULTILINE)
+        
+        # 既存の署名を削除（会社名+人名を含む行とその前後）
+        signature_patterns = [
+            rf'\n*よろしくお願いいたします。?\s*\n*{re.escape(company_name)}.*?\n*',
+            rf'\n*{re.escape(company_name)}\s*{re.escape(contact_person)}\s*\n*',
+            rf'\n*{re.escape(contact_person)}\s*\n*',
+            rf'\n*Best regards,?\s*\n*{re.escape(company_name)}.*?\n*',
+            rf'\n*Sincerely,?\s*\n*{re.escape(company_name)}.*?\n*'
+        ]
+        
+        for pattern in signature_patterns:
+            ai_response = re.sub(pattern, '', ai_response, flags=re.IGNORECASE)
+        
+        # 末尾の空白や改行をクリーンアップ
+        ai_response = ai_response.strip()
+        
+        # 統一署名を追加
+        if custom_instructions and ("英語" in custom_instructions or "English" in custom_instructions):
+            ai_response = f"{ai_response}\n\nBest regards,\n{company_name} {contact_person}"
+        else:
+            ai_response = f"{ai_response}\n\nよろしくお願いいたします。\n{company_name} {contact_person}"
         
         # 詳細な思考過程を構築
         thinking_process = {
