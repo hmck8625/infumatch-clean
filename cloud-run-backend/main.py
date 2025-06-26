@@ -274,17 +274,40 @@ class SimpleNegotiationManager:
             response = self.gemini_model.generate_content(prompt)
             response_text = response.text.strip()
             
-            # JSONの抽出を試行
+            print(f"🔍 Gemini生レスポンス: {response_text[:300]}...")
+            
+            # JSONの抽出を試行（複数の方法で試す）
+            json_data = None
+            
+            # 方法1: 完全なJSONブロックを探す
             if '{' in response_text and '}' in response_text:
-                # JSON部分のみを抽出
                 start_idx = response_text.find('{')
                 end_idx = response_text.rfind('}') + 1
                 json_text = response_text[start_idx:end_idx]
                 
-                print(f"🔍 抽出されたJSON: {json_text[:200]}...")
-                return json.loads(json_text)
+                try:
+                    json_data = json.loads(json_text)
+                    print(f"✅ JSON解析成功 (方法1): {json_text[:100]}...")
+                except json.JSONDecodeError as e:
+                    print(f"⚠️ JSON解析失敗 (方法1): {e}")
+                    
+                    # 方法2: より厳密な JSON 抽出
+                    import re
+                    json_pattern = r'(\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\})'
+                    matches = re.findall(json_pattern, response_text, re.DOTALL)
+                    
+                    for match in matches:
+                        try:
+                            json_data = json.loads(match)
+                            print(f"✅ JSON解析成功 (方法2): {match[:100]}...")
+                            break
+                        except json.JSONDecodeError:
+                            continue
+            
+            if json_data:
+                return json_data
             else:
-                raise ValueError("JSONフォーマットが見つかりません")
+                raise ValueError("有効なJSONフォーマットが見つかりません")
         except Exception as e:
             print(f"⚠️ スレッド分析JSON解析失敗: {e}")
             print(f"🔍 Gemini応答内容: {response.text[:500] if 'response' in locals() else 'レスポンス取得失敗'}")
@@ -415,7 +438,42 @@ class SimpleNegotiationManager:
         
         try:
             response = self.gemini_model.generate_content(prompt)
-            return json.loads(response.text.strip())
+            response_text = response.text.strip()
+            
+            print(f"🧠 戦略立案レスポンス: {response_text[:200]}...")
+            
+            # JSONの抽出を試行（複数の方法で試す）
+            strategy_data = None
+            
+            # 方法1: 完全なJSONブロックを探す
+            if '{' in response_text and '}' in response_text:
+                start_idx = response_text.find('{')
+                end_idx = response_text.rfind('}') + 1
+                json_text = response_text[start_idx:end_idx]
+                
+                try:
+                    strategy_data = json.loads(json_text)
+                    print(f"✅ 戦略JSON解析成功 (方法1)")
+                except json.JSONDecodeError as e:
+                    print(f"⚠️ 戦略JSON解析失敗 (方法1): {e}")
+                    
+                    # 方法2: より厳密な JSON 抽出
+                    import re
+                    json_pattern = r'(\{.*?\})'
+                    matches = re.findall(json_pattern, response_text, re.DOTALL)
+                    
+                    for match in matches:
+                        try:
+                            strategy_data = json.loads(match)
+                            print(f"✅ 戦略JSON解析成功 (方法2)")
+                            break
+                        except json.JSONDecodeError:
+                            continue
+            
+            if strategy_data:
+                return strategy_data
+            else:
+                raise ValueError("有効なJSONフォーマットが見つかりません")
         except Exception as e:
             print(f"⚠️ 戦略立案JSON解析失敗: {e}")
             
@@ -609,7 +667,40 @@ class SimpleNegotiationManager:
         
         try:
             response = self.gemini_model.generate_content(prompt)
-            patterns = json.loads(response.text.strip())
+            response_text = response.text.strip()
+            
+            print(f"🎨 パターン生成レスポンス: {response_text[:200]}...")
+            
+            # JSONの抽出を試行（複数の方法で試す）
+            patterns = None
+            
+            # 方法1: 完全なJSONブロックを探す
+            if '{' in response_text and '}' in response_text:
+                start_idx = response_text.find('{')
+                end_idx = response_text.rfind('}') + 1
+                json_text = response_text[start_idx:end_idx]
+                
+                try:
+                    patterns = json.loads(json_text)
+                    print(f"✅ パターンJSON解析成功 (方法1)")
+                except json.JSONDecodeError as e:
+                    print(f"⚠️ パターンJSON解析失敗 (方法1): {e}")
+                    
+                    # 方法2: より厳密な JSON 抽出
+                    import re
+                    json_pattern = r'(\{.*?\})'
+                    matches = re.findall(json_pattern, response_text, re.DOTALL)
+                    
+                    for match in matches:
+                        try:
+                            patterns = json.loads(match)
+                            print(f"✅ パターンJSON解析成功 (方法2)")
+                            break
+                        except json.JSONDecodeError:
+                            continue
+            
+            if not patterns:
+                raise ValueError("有効なJSONフォーマットが見つかりません")
             
             # メタデータを追加し、署名を統一的に追加
             for pattern_key in patterns:
