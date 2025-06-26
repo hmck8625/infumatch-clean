@@ -737,12 +737,13 @@ function MessagesPageContent() {
           ];
         } else {
           // APIからパターンが取得できない場合のフォールバック
+          // baseReplyには既に署名が含まれているため、追加の署名は不要
           patterns = [
             {
               pattern_type: 'collaborative',
               pattern_name: '協調的・親しみやすい',
               tone: 'friendly_accommodating',
-              content: `${contact}様\n\nいつもお世話になっております。\n\n${baseReply}\n\nよろしくお願いいたします。\nInfuMatch 田中`,
+              content: `${contact}様\n\nいつもお世話になっております。\n\n${baseReply}`,
               reasoning: 'フォールバック: 協調的なアプローチ',
               recommendation_score: 0.70
             },
@@ -750,7 +751,7 @@ function MessagesPageContent() {
               pattern_type: 'balanced',
               pattern_name: 'プロフェッショナル・バランス型',
               tone: 'professional_polite',
-              content: `${contact}様\n\nお忙しい中ご連絡いただき、ありがとうございます。\n\n${baseReply}\n\nご検討のほど、よろしくお願いいたします。\nInfuMatch 田中`,
+              content: `${contact}様\n\nお忙しい中ご連絡いただき、ありがとうございます。\n\n${baseReply}`,
               reasoning: 'フォールバック: プロフェッショナルなアプローチ',
               recommendation_score: 0.75
             },
@@ -758,7 +759,7 @@ function MessagesPageContent() {
               pattern_type: 'formal',
               pattern_name: '格式高い・正式',
               tone: 'highly_formal',
-              content: `${contact}様\n\n平素よりお世話になっております。\n\n${baseReply}\n\n何卒よろしくお願い申し上げます。\nInfuMatch 田中`,
+              content: `${contact}様\n\n平素よりお世話になっております。\n\n${baseReply}`,
               reasoning: 'フォールバック: 格式高いアプローチ',
               recommendation_score: 0.65
             }
