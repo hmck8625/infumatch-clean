@@ -92,8 +92,15 @@ class ComprehensiveChannelCollector:
                 search_response = search_request.execute()
                 
                 for item in search_response.get('items', []):
-                    channel_id = item['id']['channelId']
-                    if channel_id not in seen_channel_ids:
+                    # チャンネルIDの安全な取得
+                    channel_id = None
+                    if 'id' in item:
+                        if isinstance(item['id'], dict) and 'channelId' in item['id']:
+                            channel_id = item['id']['channelId']
+                        elif isinstance(item['id'], str):
+                            channel_id = item['id']
+                    
+                    if channel_id and channel_id not in seen_channel_ids:
                         seen_channel_ids.add(channel_id)
                         all_channels.append({
                             'channel_id': channel_id,

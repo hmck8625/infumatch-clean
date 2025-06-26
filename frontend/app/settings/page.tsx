@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useSession, signOut } from 'next-auth/react';
 import Header from '@/components/Header';
 // UserSettings型定義を追加
@@ -69,7 +70,8 @@ import {
   MessageSquare,
   CheckCircle,
   Info,
-  LogOut
+  LogOut,
+  Bot
 } from 'lucide-react';
 
 
@@ -167,6 +169,7 @@ const getDefaultSettings = (): UserSettings => ({
 });
 
 export default function SettingsPage() {
+  const router = useRouter();
   const { data: session, status } = useSession();
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -455,6 +458,32 @@ export default function SettingsPage() {
             }
           </AlertDescription>
         </Alert>
+
+        {/* 自動交渉設定への案内 */}
+        <Card className="mb-6 border-purple-200 bg-gradient-to-r from-purple-50 to-indigo-50">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-4">
+                <div className="p-3 bg-gradient-to-r from-purple-500 to-indigo-600 rounded-xl text-white">
+                  <Bot className="h-6 w-6" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">自動交渉エージェント</h3>
+                  <p className="text-sm text-gray-600">
+                    AIが自動でインフルエンサーとの交渉を行う設定を管理
+                  </p>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                className="bg-white hover:bg-purple-50 border-purple-200"
+                onClick={() => router.push('/settings/auto-negotiation')}
+              >
+                設定を開く
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
 
         <Tabs defaultValue="company" className="space-y-6">
           <TabsList className="grid w-full grid-cols-4">

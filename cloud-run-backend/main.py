@@ -5,7 +5,7 @@ Google Cloud Run用の最小限のFastAPIアプリケーション
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 import os
 import json
 from google.cloud import firestore
@@ -13,6 +13,15 @@ from google.auth import default
 import google.generativeai as genai
 import logging
 from datetime import datetime
+from gemini_matching_agent import GeminiMatchingAgent
+
+# 自動交渉マネージャーをインポート  
+try:
+    from auto_negotiation_manager import AutoNegotiationManager
+    print("✅ AutoNegotiationManager imported successfully")
+except ImportError as e:
+    print(f"⚠️ AutoNegotiationManager import failed: {e}")
+    AutoNegotiationManager = None
 
 # 4エージェント統合マネージャー（インライン実装）
 class SimpleNegotiationManager:
@@ -896,12 +905,34 @@ try:
     if gemini_model:
         negotiation_manager = SimpleNegotiationManager(gemini_model)
         print("✅ Simple Negotiation Manager initialized successfully")
+        
+        # 自動交渉マネージャーの初期化
+        if AutoNegotiationManager:
+            auto_negotiation_manager = AutoNegotiationManager(gemini_model)
+            print("✅ Auto Negotiation Manager initialized successfully")
+        else:
+            auto_negotiation_manager = None
+            print("⚠️ Auto Negotiation Manager not initialized (class unavailable)")
     else:
         negotiation_manager = None
-        print("⚠️ Negotiation Manager not initialized (Gemini model unavailable)")
+        auto_negotiation_manager = None
+        print("⚠️ Negotiation Managers not initialized (Gemini model unavailable)")
 except Exception as e:
     print(f"❌ Negotiation Manager initialization failed: {e}")
     negotiation_manager = None
+    auto_negotiation_manager = None
+
+# Geminiマッチングエージェントの初期化（既存のgemini_api_keyを使用）
+try:
+    if gemini_api_key:
+        gemini_matching_agent = GeminiMatchingAgent(gemini_api_key)
+        print("✅ Gemini Matching Agent initialized successfully")
+    else:
+        gemini_matching_agent = None
+        print("⚠️ Gemini Matching Agent not initialized (no API key)")
+except Exception as e:
+    print(f"❌ Gemini Matching Agent initialization failed: {e}")
+    gemini_matching_agent = None
 
 def get_firestore_influencers():
     """Firestoreからインフルエンサーデータを取得"""
@@ -1012,6 +1043,49 @@ class ContinueNegotiationRequest(BaseModel):
     conversation_history: List[dict] = []
     new_message: str
     context: dict
+
+# Geminiマッチングエージェント用のリクエストモデル
+class ProductInfo(BaseModel):
+    name: str
+    category: str
+    description: str
+    target_audience: str
+    price_range: str
+    unique_selling_points: List[str] = []
+    marketing_goals: List[str] = []
+
+class CompanyProfile(BaseModel):
+    name: str
+    industry: str
+    description: str
+    brand_values: List[str] = []
+    target_demographics: List[str] = []
+    communication_style: str = ""
+    previous_campaigns: List[str] = []
+
+class ProductPortfolio(BaseModel):
+    products: List[ProductInfo]
+
+class CampaignObjectives(BaseModel):
+    primary_goals: List[str]
+    success_metrics: List[str]
+    budget_range: Dict[str, int]
+    timeline: str = "3-6ヶ月"
+    geographic_focus: List[str] = ["日本"]
+
+class InfluencerPreferences(BaseModel):
+    preferred_categories: List[str] = []
+    avoid_categories: List[str] = []
+    min_engagement_rate: float = 2.0
+    subscriber_range: Dict[str, int]
+    content_style_preferences: List[str] = []
+    collaboration_types: List[str] = []
+
+class GeminiMatchingRequest(BaseModel):
+    company_profile: CompanyProfile
+    product_portfolio: ProductPortfolio
+    campaign_objectives: CampaignObjectives
+    influencer_preferences: InfluencerPreferences
 
 def calculate_match_scores(influencer: dict, campaign: CampaignData, campaign_category: str) -> dict:
     """インフルエンサーとキャンペーンのマッチングスコアを計算"""
@@ -2607,10 +2681,155 @@ async def get_agents_status():
         "uptime": "99.9%"
     }
 
+@app.post("/api/v1/ai/gemini-matching")
+async def gemini_matching_analysis(request: GeminiMatchingRequest):
+    """🧠 Gemini高度マッチング分析エンドポイント"""
+    start_time = datetime.now()
+    
+    try:
+        logger.info("🧠 Gemini高度マッチング分析開始")
+        
+        # Geminiエージェントが利用可能かチェック
+        if not gemini_matching_agent:
+            raise HTTPException(
+                status_code=503, 
+                detail="Gemini マッチングエージェントが利用できません。GEMINI_API_KEYを確認してください。"
+            )
+        
+        # リクエストデータをdictに変換
+        request_data = {
+            "company_profile": request.company_profile.dict(),
+            "product_portfolio": request.product_portfolio.dict(),
+            "campaign_objectives": request.campaign_objectives.dict(),
+            "influencer_preferences": request.influencer_preferences.dict()
+        }
+        
+        logger.info(f"📊 リクエストデータ: 企業={request_data['company_profile']['name']}, 商品数={len(request_data['product_portfolio']['products'])}")
+        
+        # Gemini分析実行
+        analysis_result = await gemini_matching_agent.analyze_deep_matching(request_data)
+        
+        # 処理時間計算
+        processing_duration = (datetime.now() - start_time).total_seconds()
+        
+        if analysis_result.get("success"):
+            logger.info(f"✅ Gemini分析完了: {len(analysis_result.get('analysis_results', []))}件の結果, 処理時間={processing_duration:.2f}秒")
+            
+            # メタデータを更新
+            if "processing_metadata" in analysis_result:
+                analysis_result["processing_metadata"]["total_processing_time"] = processing_duration
+                analysis_result["processing_metadata"]["endpoint"] = "/api/v1/ai/gemini-matching"
+            
+            return analysis_result
+        else:
+            logger.error(f"❌ Gemini分析失敗: {analysis_result.get('error', '不明なエラー')}")
+            raise HTTPException(status_code=500, detail=analysis_result.get("error", "分析に失敗しました"))
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        processing_duration = (datetime.now() - start_time).total_seconds()
+        logger.error(f"❌ Gemini高度マッチング分析エラー: {e}, 処理時間={processing_duration:.2f}秒")
+        raise HTTPException(
+            status_code=500, 
+            detail=f"サーバー内部エラー: {str(e)}"
+        )
+
+@app.post("/api/v1/ai/gemini-matching/stream")
+async def gemini_matching_stream(request: GeminiMatchingRequest):
+    """🧠 Gemini高度マッチング分析 - ストリーミング版（将来実装用）"""
+    # 現在は通常版と同じ処理を返す
+    return await gemini_matching_analysis(request)
+
+@app.post("/api/v1/negotiation/auto")
+async def auto_negotiation(request: dict):
+    """自動交渉エンドポイント - インフルエンサーからの返信を自動分析して最適な応答を生成"""
+    try:
+        # リクエストデータの取得
+        conversation_history = request.get("conversation_history", [])
+        new_message = request.get("new_message", "")
+        company_settings = request.get("company_settings", {})
+        negotiation_settings = request.get("negotiation_settings", {})
+        
+        # 自動交渉マネージャーの使用確認
+        if not auto_negotiation_manager:
+            return {
+                "success": False,
+                "error": "Auto negotiation manager not available",
+                "message": "自動交渉システムが利用できません。"
+            }
+        
+        print(f"🤖 自動交渉処理開始")
+        print(f"📧 新着メッセージ: {new_message[:100]}...")
+        
+        # 自動交渉マネージャーで処理 (ラウンド1として開始)
+        thread_id = request.get("thread_id", f"auto_thread_{datetime.now().timestamp()}")
+        round_number = request.get("round_number", 1)
+        
+        result = await auto_negotiation_manager.process_auto_negotiation_round(
+            thread_id=thread_id,
+            new_message=new_message,
+            conversation_history=conversation_history,
+            company_settings=company_settings,
+            round_number=round_number
+        )
+        
+        if result["success"]:
+            action = result.get("action", "unknown")
+            print(f"✅ 自動交渉処理成功 - Action: {action}")
+            
+            response = {
+                "success": True,
+                "action": action,
+                "thread_id": result.get("thread_id"),
+                "round_number": result.get("round_number", round_number),
+                "confidence": result.get("confidence", 0.85),
+                "metadata": {
+                    "ai_service": "Auto Negotiation System",
+                    "model": "Gemini 1.5 Flash", 
+                    "platform": "Google Cloud Run",
+                    "timestamp": result.get("timestamp")
+                }
+            }
+            
+            # アクションに応じてレスポンス内容を調整
+            if action == "auto_send":
+                response["reply_content"] = result.get("selected_pattern", {}).get("content", "")
+                response["pattern_used"] = result.get("selected_pattern", {})
+                response["reasoning"] = result.get("reasoning", "")
+                response["auto_sent"] = True
+            elif action == "escalation_required":
+                response["escalation_reason"] = result.get("escalation_reason")
+                response["escalation_details"] = result.get("escalation_details", [])
+                response["requires_human_intervention"] = True
+                response["message"] = result.get("message", "")
+            elif action == "approval_required":
+                response["pending_approval"] = True
+                response["approval_reason"] = result.get("approval_reason", "")
+                response["negotiation_result"] = result.get("negotiation_result", {})
+                response["deadline"] = result.get("deadline")
+            
+            # 共通の分析情報を追加
+            if "context" in result:
+                response["analysis"] = result["context"]
+                
+            return response
+        else:
+            print(f"❌ 自動交渉処理失敗: {result.get('error', 'Unknown error')}")
+            return {
+                "success": False,
+                "error": result.get("error", "自動交渉処理に失敗しました"),
+                "message": "自動交渉システムでエラーが発生しました。手動での対応をお勧めします。"
+            }
+            
+    except Exception as e:
+        print(f"❌ 自動交渉エンドポイントエラー: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"自動交渉処理エラー: {str(e)}"
+        )
+
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 8000))
-    uvicorn.run(app, host="0.0.0.0", port=port)# Force rebuild #午後
-# JSON parsing improvements #午後
-# Fix patterns key error #午後
-# Fix patterns access for reply_not_needed #午後
+    uvicorn.run(app, host="0.0.0.0", port=port)

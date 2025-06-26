@@ -95,15 +95,31 @@ export interface SearchParams {
 
 export interface CampaignRequest {
   product_name: string;
+  product_details?: Array<{
+    name: string;
+    category: string;
+    targetAudience: string;
+    description: string;
+    priceRange: string;
+  }>;
+  company_name?: string;
+  company_industry?: string;
+  company_description?: string;
   budget_min: number;
   budget_max: number;
   target_audience: string[];
   required_categories: string[];
+  exclude_categories?: string[];
   campaign_goals: string;
   min_engagement_rate?: number;
   min_subscribers?: number;
   max_subscribers?: number;
   geographic_focus?: string;
+  priority_keywords?: string[];
+  exclude_keywords?: string[];
+  negotiation_tone?: string;
+  key_priorities?: string[];
+  special_instructions?: string;
 }
 
 export interface AIRecommendation {
@@ -165,6 +181,111 @@ export interface CollaborationProposalResponse {
     agent?: string;
     campaign_info?: any;
     type?: string;
+  };
+}
+
+// Geminiマッチングエージェント用の型定義
+export interface GeminiMatchingRequest {
+  company_profile: {
+    name: string;
+    industry: string;
+    description: string;
+    brand_values: string[];
+    target_demographics: string[];
+    communication_style: string;
+    previous_campaigns?: string[];
+  };
+  product_portfolio: {
+    products: Array<{
+      name: string;
+      category: string;
+      description: string;
+      target_audience: string;
+      price_range: string;
+      unique_selling_points: string[];
+      marketing_goals: string[];
+    }>;
+  };
+  campaign_objectives: {
+    primary_goals: string[];
+    success_metrics: string[];
+    budget_range: { min: number; max: number };
+    timeline: string;
+    geographic_focus: string[];
+  };
+  influencer_preferences: {
+    preferred_categories: string[];
+    avoid_categories: string[];
+    min_engagement_rate: number;
+    subscriber_range: { min: number; max: number };
+    content_style_preferences: string[];
+    collaboration_types: string[];
+  };
+}
+
+export interface GeminiAnalysisResult {
+  influencer_id: string;
+  overall_compatibility_score: number; // 0-100
+  detailed_analysis: {
+    brand_alignment: {
+      score: number;
+      reasoning: string;
+      key_strengths: string[];
+      potential_concerns: string[];
+    };
+    audience_synergy: {
+      score: number;
+      demographic_overlap: string;
+      engagement_quality: string;
+      conversion_potential: string;
+    };
+    content_fit: {
+      score: number;
+      style_compatibility: string;
+      content_themes_match: string[];
+      creative_opportunities: string[];
+    };
+    business_viability: {
+      score: number;
+      roi_prediction: string;
+      risk_assessment: string;
+      long_term_potential: string;
+    };
+  };
+  recommendation_summary: {
+    confidence_level: 'High' | 'Medium' | 'Low';
+    primary_recommendation_reason: string;
+    success_scenario: string;
+    collaboration_strategy: string;
+    expected_outcomes: string[];
+  };
+  strategic_insights: {
+    best_collaboration_types: string[];
+    optimal_campaign_timing: string;
+    content_suggestions: string[];
+    budget_recommendations: { min: number; max: number; reasoning: string };
+  };
+}
+
+export interface GeminiMatchingResponse {
+  success: boolean;
+  analysis_results: GeminiAnalysisResult[];
+  portfolio_insights: {
+    overall_strategy_score: number;
+    portfolio_balance: string;
+    diversity_analysis: string;
+    optimization_suggestions: string[];
+  };
+  market_context: {
+    industry_trends: string[];
+    competitive_landscape: string;
+    timing_considerations: string;
+  };
+  processing_metadata: {
+    analysis_duration_ms: number;
+    confidence_score: number;
+    gemini_model_used: string;
+    analysis_timestamp: string;
   };
 }
 
@@ -447,6 +568,35 @@ class APIClient {
    */
   async getResearchCategories(): Promise<any> {
     return this.request<any>('/api/channel-research/research/categories');
+  }
+
+  /**
+   * Geminiマッチングエージェント - 高度な分析API
+   */
+  async getGeminiMatching(request: GeminiMatchingRequest): Promise<GeminiMatchingResponse> {
+    return this.request<GeminiMatchingResponse>('/api/v1/ai/gemini-matching', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    });
+  }
+
+  /**
+   * Geminiマッチングエージェント - ストリーミング分析API（リアルタイム結果）
+   */
+  async getGeminiMatchingStream(request: GeminiMatchingRequest): Promise<ReadableStream<GeminiAnalysisResult>> {
+    const response = await fetch(`${this.baseURL}/api/v1/ai/gemini-matching/stream`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(request),
+    });
+
+    if (!response.ok) {
+      throw new APIError(`HTTP ${response.status}: ${response.statusText}`, response.status);
+    }
+
+    return response.body as ReadableStream<GeminiAnalysisResult>;
   }
 }
 
