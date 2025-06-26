@@ -46,11 +46,40 @@ class SimpleNegotiationManager:
             stage1_duration = (datetime.now() - stage1_start).total_seconds()
             
             print(f"📤 ThreadAnalysis 完全OUTPUT:")
+            print(f"   - メール種別: {thread_analysis.get('email_type', '不明')}")
+            print(f"   - 返信適切性: {thread_analysis.get('reply_appropriateness', '不明')}")
+            print(f"   - 判定理由: {thread_analysis.get('reply_reason', '不明')}")
             print(f"   - 交渉段階: {thread_analysis.get('negotiation_stage', '不明')}")
             print(f"   - 感情分析: {thread_analysis.get('sentiment', '不明')}")
             print(f"   - 主要トピック: {thread_analysis.get('key_topics', [])}")
             print(f"   - 緊急度: {thread_analysis.get('urgency_level', '不明')}")
             print(f"   - 処理時間: {stage1_duration:.2f}秒")
+            
+            # 返信適切性チェック
+            if thread_analysis.get('reply_appropriateness') == 'not_needed':
+                print("⚠️ このメールは返信不要と判定されました")
+                return {
+                    "success": True,
+                    "reply_not_needed": True,
+                    "email_type": thread_analysis.get('email_type'),
+                    "reason": thread_analysis.get('reply_reason'),
+                    "analysis": thread_analysis,
+                    "message": "このメールには返信は不要です。システム通知や運営メールのようです。",
+                    "processing_duration_seconds": (datetime.now() - start_time).total_seconds(),
+                    "manager_id": self.manager_id
+                }
+            elif thread_analysis.get('reply_appropriateness') == 'caution_required':
+                print("⚠️ このメールには注意が必要です")
+                return {
+                    "success": True,
+                    "caution_required": True,
+                    "email_type": thread_analysis.get('email_type'),
+                    "reason": thread_analysis.get('reply_reason'),
+                    "analysis": thread_analysis,
+                    "message": "このメールへの返信は注意が必要です。個人メールやスパムの可能性があります。",
+                    "processing_duration_seconds": (datetime.now() - start_time).total_seconds(),
+                    "manager_id": self.manager_id
+                }
             
             detailed_trace["processing_stages"].append({
                 "stage": 1,
@@ -175,12 +204,12 @@ class SimpleNegotiationManager:
             
             return {
                 "success": True,
-                "patterns": patterns_result,
+                "patterns": patterns_result if 'patterns_result' in locals() else {},
                 "analysis": thread_analysis,
-                "strategy": strategy_plan,
-                "evaluation": evaluation_result,
-                "basic_reply": basic_reply_result.get("basic_reply", ""),
-                "reply_reasoning": basic_reply_result.get("reasoning", ""),
+                "strategy": strategy_plan if 'strategy_plan' in locals() else {},
+                "evaluation": evaluation_result if 'evaluation_result' in locals() else {},
+                "basic_reply": basic_reply_result.get("basic_reply", "") if 'basic_reply_result' in locals() else "",
+                "reply_reasoning": basic_reply_result.get("reasoning", "") if 'basic_reply_result' in locals() else "",
                 "processing_duration_seconds": processing_duration,
                 "manager_id": self.manager_id,
                 "detailed_trace": detailed_trace  # 新しい詳細トレース情報
@@ -209,47 +238,93 @@ class SimpleNegotiationManager:
             conversation_context = "【会話履歴】\n初回のやり取りです\n"
         
         prompt = f"""
-以下のメッセージと会話履歴を分析してください。
+メッセージを分析し、JSON形式で回答してください。
 
-【最新メッセージ】
+【メッセージ】
 {new_message}
 
-{conversation_context}
+【判定ルール】
+1. メール種別
+   - ビズリーチ、運営事務局、システム、登録、更新、通知 → system_notification
+   - 営業提案、コラボ、パートナーシップ → business_proposal  
+   - その他 → personal
 
-【分析指示】
-1. 会話の流れを理解し、交渉がどの段階にあるかを判定してください
-2. 相手の感情や態度の変化を追跡してください
-3. 過去に言及されたトピックや懸念事項を特定してください
-4. 相手の関心度合いや緊急度を評価してください
-5. 交渉の進捗と相手の反応パターンを分析してください
+2. 返信適切性
+   - system_notification → not_needed
+   - business_proposal → recommended
+   - personal → caution_required
 
-以下のJSON形式で分析結果を出力してください：
+【出力形式】JSONのみ出力。説明不要。
 {{
-  "negotiation_stage": "初期接触|関心表明|条件交渉|最終調整|合意形成|保留|拒否",
-  "sentiment": "positive|neutral|negative|frustrated|interested|hesitant",
-  "key_topics": ["過去に言及された重要トピック"],
-  "urgency_level": "高|中|低",
-  "partner_concerns": ["相手の懸念事項や要求"],
-  "past_proposals": ["過去に提示された提案内容"],
-  "conversation_flow": "会話の流れの簡潔な要約",
-  "response_pattern": "相手の返信パターンの特徴",
+  "email_type": "business_proposal",
+  "reply_appropriateness": "recommended", 
+  "reply_reason": "判定理由を簡潔に",
+  "negotiation_stage": "初期接触",
+  "sentiment": "neutral",
+  "key_topics": ["トピック"],
+  "urgency_level": "中",
+  "partner_concerns": [],
+  "past_proposals": [],
+  "conversation_flow": "簡潔な要約",
+  "response_pattern": "パターン",
   "analysis_confidence": 0.8
-}}
-"""
+}}"""
         
         try:
             response = self.gemini_model.generate_content(prompt)
-            return json.loads(response.text.strip())
+            response_text = response.text.strip()
+            
+            # JSONの抽出を試行
+            if '{' in response_text and '}' in response_text:
+                # JSON部分のみを抽出
+                start_idx = response_text.find('{')
+                end_idx = response_text.rfind('}') + 1
+                json_text = response_text[start_idx:end_idx]
+                
+                print(f"🔍 抽出されたJSON: {json_text[:200]}...")
+                return json.loads(json_text)
+            else:
+                raise ValueError("JSONフォーマットが見つかりません")
         except Exception as e:
             print(f"⚠️ スレッド分析JSON解析失敗: {e}")
-            return {
-                "negotiation_stage": "関心表明",
-                "sentiment": "neutral",
-                "key_topics": ["コラボレーション"],
-                "urgency_level": "中",
-                "partner_concerns": [],
-                "analysis_confidence": 0.5
-            }
+            print(f"🔍 Gemini応答内容: {response.text[:500] if 'response' in locals() else 'レスポンス取得失敗'}")
+            
+            # ビズリーチや運営メールを検出する簡易判定
+            is_system_notification = any(keyword in new_message.lower() for keyword in [
+                'ビズリーチ', 'bizreach', '運営事務局', 'システム', '登録内容', '更新', 
+                'お知らせ', '通知', 'アカウント', '設定', '確認', 'メンテナンス'
+            ])
+            
+            if is_system_notification:
+                return {
+                    "email_type": "system_notification",
+                    "reply_appropriateness": "not_needed",
+                    "reply_reason": "システム通知や運営メールと判定されたため返信不要",
+                    "negotiation_stage": "該当なし",
+                    "sentiment": "neutral",
+                    "key_topics": ["システム通知"],
+                    "urgency_level": "低",
+                    "partner_concerns": [],
+                    "past_proposals": [],
+                    "conversation_flow": "システム通知メール",
+                    "response_pattern": "一方向通知",
+                    "analysis_confidence": 0.8
+                }
+            else:
+                return {
+                    "email_type": "business_proposal",
+                    "reply_appropriateness": "recommended",
+                    "reply_reason": "営業・商談メールと判定されたため返信推奨",
+                    "negotiation_stage": "関心表明",
+                    "sentiment": "neutral",
+                    "key_topics": ["コラボレーション"],
+                    "urgency_level": "中",
+                    "partner_concerns": [],
+                    "past_proposals": [],
+                    "conversation_flow": "初期商談",
+                    "response_pattern": "一般的なビジネス提案",
+                    "analysis_confidence": 0.5
+                }
     
     async def _plan_strategy(self, thread_analysis, company_settings, custom_instructions, conversation_history):
         """戦略立案エージェント"""
@@ -1708,10 +1783,16 @@ async def continue_negotiation(request: ContinueNegotiationRequest):
             )
             
             if result["success"]:
-                # 3パターンから最適なものを選択（今回はbalanced）
-                patterns = result["patterns"]
-                selected_pattern = patterns.get("pattern_balanced", {})
-                content = selected_pattern.get("content", "返信生成に失敗しました。")
+                # 返信不要・注意の場合は特別なメッセージを返す
+                if result.get("reply_not_needed"):
+                    content = result.get("message", "このメールには返信は不要です。システム通知や運営メールのようです。")
+                elif result.get("caution_required"):
+                    content = result.get("message", "このメールへの返信は注意が必要です。個人メールやスパムの可能性があります。")
+                else:
+                    # 通常のパターン生成の場合
+                    patterns = result.get("patterns", {})
+                    selected_pattern = patterns.get("pattern_balanced", {})
+                    content = selected_pattern.get("content", "返信生成に失敗しました。")
                 
                 return {
                     "success": True,
@@ -1731,11 +1812,11 @@ async def continue_negotiation(request: ContinueNegotiationRequest):
                         "analysis": result.get("analysis", {}),
                         "strategy": result.get("strategy", {}),
                         "evaluation": result.get("evaluation", {}),
-                        "patterns_generated": len([k for k in patterns.keys() if k.startswith("pattern_")])
+                        "patterns_generated": len([k for k in patterns.keys() if k.startswith("pattern_")]) if 'patterns' in locals() else 0
                     },
                     "alternative_patterns": {
-                        "collaborative": patterns.get("pattern_collaborative", {}),
-                        "assertive": patterns.get("pattern_assertive", {})
+                        "collaborative": patterns.get("pattern_collaborative", {}) if 'patterns' in locals() else {},
+                        "assertive": patterns.get("pattern_assertive", {}) if 'patterns' in locals() else {}
                     }
                 }
             else:
@@ -2438,4 +2519,7 @@ async def get_agents_status():
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 8000))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    uvicorn.run(app, host="0.0.0.0", port=port)# Force rebuild #午後
+# JSON parsing improvements #午後
+# Fix patterns key error #午後
+# Fix patterns access for reply_not_needed #午後

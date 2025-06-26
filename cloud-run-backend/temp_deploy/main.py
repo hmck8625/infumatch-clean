@@ -46,11 +46,40 @@ class SimpleNegotiationManager:
             stage1_duration = (datetime.now() - stage1_start).total_seconds()
             
             print(f"📤 ThreadAnalysis 完全OUTPUT:")
+            print(f"   - メール種別: {thread_analysis.get('email_type', '不明')}")
+            print(f"   - 返信適切性: {thread_analysis.get('reply_appropriateness', '不明')}")
+            print(f"   - 判定理由: {thread_analysis.get('reply_reason', '不明')}")
             print(f"   - 交渉段階: {thread_analysis.get('negotiation_stage', '不明')}")
             print(f"   - 感情分析: {thread_analysis.get('sentiment', '不明')}")
             print(f"   - 主要トピック: {thread_analysis.get('key_topics', [])}")
             print(f"   - 緊急度: {thread_analysis.get('urgency_level', '不明')}")
             print(f"   - 処理時間: {stage1_duration:.2f}秒")
+            
+            # 返信適切性チェック
+            if thread_analysis.get('reply_appropriateness') == 'not_needed':
+                print("⚠️ このメールは返信不要と判定されました")
+                return {
+                    "success": True,
+                    "reply_not_needed": True,
+                    "email_type": thread_analysis.get('email_type'),
+                    "reason": thread_analysis.get('reply_reason'),
+                    "analysis": thread_analysis,
+                    "message": "このメールには返信は不要です。システム通知や運営メールのようです。",
+                    "processing_duration_seconds": (datetime.now() - start_time).total_seconds(),
+                    "manager_id": self.manager_id
+                }
+            elif thread_analysis.get('reply_appropriateness') == 'caution_required':
+                print("⚠️ このメールには注意が必要です")
+                return {
+                    "success": True,
+                    "caution_required": True,
+                    "email_type": thread_analysis.get('email_type'),
+                    "reason": thread_analysis.get('reply_reason'),
+                    "analysis": thread_analysis,
+                    "message": "このメールへの返信は注意が必要です。個人メールやスパムの可能性があります。",
+                    "processing_duration_seconds": (datetime.now() - start_time).total_seconds(),
+                    "manager_id": self.manager_id
+                }
             
             detailed_trace["processing_stages"].append({
                 "stage": 1,
@@ -217,15 +246,27 @@ class SimpleNegotiationManager:
 {conversation_context}
 
 【分析指示】
-1. 会話の流れを理解し、交渉がどの段階にあるかを判定してください
-2. 相手の感情や態度の変化を追跡してください
-3. 過去に言及されたトピックや懸念事項を特定してください
-4. 相手の関心度合いや緊急度を評価してください
-5. 交渉の進捗と相手の反応パターンを分析してください
+1. **メールの種別判定**：このメールが以下のどの種類かを判定してください
+   - 営業・商談メール（新規営業、コラボ提案、パートナーシップ等）
+   - 運営・通知メール（システム通知、登録更新依頼、事務連絡等）
+   - 個人間コミュニケーション（友人、知人との個人的やり取り）
+   - スパム・不適切メール
+
+2. **返信の適切性**：このメールに対してビジネス返信が適切かを判定してください
+   - 返信推奨：営業・商談関連で返信が期待される
+   - 返信不要：運営通知、システムメール等で返信不要
+   - 返信注意：個人メールやスパム等で注意が必要
+
+3. 会話の流れを理解し、交渉がどの段階にあるかを判定してください
+4. 相手の感情や態度の変化を追跡してください
+5. 過去に言及されたトピックや懸念事項を特定してください
 
 以下のJSON形式で分析結果を出力してください：
 {{
-  "negotiation_stage": "初期接触|関心表明|条件交渉|最終調整|合意形成|保留|拒否",
+  "email_type": "business_proposal|system_notification|personal|spam",
+  "reply_appropriateness": "recommended|not_needed|caution_required",
+  "reply_reason": "なぜその判定になったかの理由",
+  "negotiation_stage": "初期接触|関心表明|条件交渉|最終調整|合意形成|保留|拒否|該当なし",
   "sentiment": "positive|neutral|negative|frustrated|interested|hesitant",
   "key_topics": ["過去に言及された重要トピック"],
   "urgency_level": "高|中|低",

@@ -420,15 +420,9 @@ function MessagesPageContent() {
       console.log('🤖 AIエージェントが返信パターンを生成中...');
       
       // バックエンドの交渉エージェントAPIを呼び出し
-      let apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://infumatch-backend-fuwvv3ux7q-an.a.run.app';
-      
-      // 最新のオーケストレーションシステムURLに更新
-      if (apiUrl.includes('hackathon-backend-462905-269567634217') || 
-          apiUrl.includes('infumatch-orchestration-269567634217') ||
-          apiUrl.includes('infumatch-backend-fuwvv3ux7q-an.a.run.app')) {
-        console.warn('⚠️ 古いAPI URLが検出されました。最新の4エージェントシステムURLに修正します。');
-        apiUrl = 'https://infumatch-backend-269567634217.asia-northeast1.run.app';
-      }
+      // 最新の改善版バックエンドを常に使用（メール種別判定・会話履歴参照機能付き）
+      const apiUrl = 'https://infumatch-backend-269567634217.asia-northeast1.run.app';
+      console.log('🔄 最新改善版バックエンドを使用（メール種別判定・会話履歴参照機能搭載）');
       
       console.log('🔗 使用するAPI URL:', apiUrl);
       console.log('🔧 環境変数 NEXT_PUBLIC_API_URL:', process.env.NEXT_PUBLIC_API_URL);
@@ -482,8 +476,9 @@ function MessagesPageContent() {
         const settingsResponse = await fetch('/api/settings');
         if (settingsResponse.ok) {
           const settingsData = await settingsResponse.json();
-          companySettings = settingsData.settings || {};
+          companySettings = settingsData.data || {};
           console.log('🏢 企業設定を取得:', companySettings);
+          console.log('🔍 設定API応答全体:', settingsData);
           
           // 設定の詳細をログ出力
           const companyInfo = companySettings.companyInfo || {};
@@ -625,6 +620,41 @@ function MessagesPageContent() {
       
       const result = await response.json();
       console.log('📥 API応答:', result);
+      
+      // 返信不要・注意フラグのチェック
+      if (result.reply_not_needed) {
+        updateAgentStatus(
+          '⚠️ 返信不要', 
+          `${result.email_type}として判定されました`, 
+          `理由: ${result.reason}`
+        );
+        setReplyPatterns([{
+          approach: 'system_message',
+          content: result.message,
+          tone: 'informational',
+          isSystemMessage: true
+        }]);
+        setAiBasicReply(result.message);
+        setAiReplyReasoning(result.reason);
+        return;
+      }
+      
+      if (result.caution_required) {
+        updateAgentStatus(
+          '⚠️ 返信注意', 
+          `${result.email_type}として判定されました`, 
+          `理由: ${result.reason}`
+        );
+        setReplyPatterns([{
+          approach: 'caution_message',
+          content: result.message,
+          tone: 'warning',
+          isSystemMessage: true
+        }]);
+        setAiBasicReply(result.message);
+        setAiReplyReasoning(result.reason);
+        return;
+      }
       
       // 詳細トレース情報を表示（新機能）
       if (result.detailed_trace) {
