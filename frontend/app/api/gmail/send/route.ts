@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { to, subject, body: messageBody, message: messageText, replyToMessageId, threadId } = body;
+    const { to, subject, body: messageBody, message: messageText, replyToMessageId, threadId, replyHeaders } = body;
     
     // 🔍 DEBUG: リクエストボディの詳細をログ出力
     console.log('=== EMAIL SEND DEBUG START ===');
@@ -25,6 +25,7 @@ export async function POST(request: NextRequest) {
     console.log('📧 messageText:', messageText);
     console.log('📧 replyToMessageId:', replyToMessageId);
     console.log('📧 threadId:', threadId);
+    console.log('📧 replyHeaders:', replyHeaders);
     
     // messageBodyまたはmessageTextのどちらかを使用
     const finalMessageBody = messageBody || messageText;
@@ -99,17 +100,29 @@ export async function POST(request: NextRequest) {
       'Content-Transfer-Encoding: base64',
     ];
 
-    // 返信の場合、スレッド用ヘッダーを追加
-    if (replyToMessageId) {
-      console.log('📧 Adding reply headers for threadId:', threadId, 'replyToMessageId:', replyToMessageId);
-      // Gmail のMessage-IDは実際のIDをそのまま使用
+    // 返信の場合、正しいスレッド用ヘッダーを追加
+    if (replyHeaders && replyToMessageId) {
+      console.log('📧 Adding correct reply headers for threadId:', threadId);
+      console.log('📧 Using replyHeaders:', replyHeaders);
+      
+      // RFC 2822準拠の正しいヘッダーを設定
+      if (replyHeaders.inReplyTo) {
+        emailLines.push(`In-Reply-To: ${replyHeaders.inReplyTo}`);
+      }
+      if (replyHeaders.references) {
+        emailLines.push(`References: ${replyHeaders.references}`);
+      }
+      
+      // 件名も正しい返信形式を使用
+      if (replyHeaders.subject && !subject) {
+        // subjectが指定されていない場合は、replyHeadersの件名を使用
+        console.log('📧 Using reply subject from headers:', replyHeaders.subject);
+      }
+    } else if (replyToMessageId) {
+      // フォールバック: 旧形式（互換性のため）
+      console.log('📧 Adding fallback reply headers for threadId:', threadId, 'replyToMessageId:', replyToMessageId);
       emailLines.push(`In-Reply-To: <${replyToMessageId}>`);
       emailLines.push(`References: <${replyToMessageId}>`);
-    }
-    
-    if (threadId) {
-      // ThreadIdをGmail形式で設定
-      emailLines.push(`Thread-Topic: ${threadId}`);
     }
 
     console.log('📧 Email headers constructed:', emailLines);
@@ -139,11 +152,18 @@ export async function POST(request: NextRequest) {
     // Gmail Send APIエンドポイント
     const gmailUrl = 'https://gmail.googleapis.com/gmail/v1/users/me/messages/send';
     
-    const requestPayload = {
+    const requestPayload: any = {
       raw: encodedMessage
     };
     
+    // 返信の場合はthreadIdを指定（重要！）
+    if (threadId) {
+      requestPayload.threadId = threadId;
+      console.log('📧 Including threadId in request:', threadId);
+    }
+    
     console.log('📧 Gmail API request payload keys:', Object.keys(requestPayload));
+    console.log('📧 Final request payload:', JSON.stringify(requestPayload, null, 2));
     
     const response = await fetch(gmailUrl, {
       method: 'POST',

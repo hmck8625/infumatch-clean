@@ -386,13 +386,22 @@ export class GmailService {
     }
   }
 
-  // メールを送信
-  async sendReply(threadId: string, to: string, subject: string, body: string): Promise<void> {
+  // メールを送信（正しいスレッド返信）
+  async sendReply(threadId: string, to: string, subject: string, body: string, replyToMessageId?: string): Promise<void> {
     try {
       // レート制限チェック
       await this.checkRateLimit('messages.send');
       
-      const raw = this.createRawMessage(to, subject, body, threadId);
+      let raw: string;
+      
+      if (replyToMessageId) {
+        // 正しい返信ヘッダーを取得して使用
+        const replyHeaders = await this.getReplyHeaders(replyToMessageId);
+        raw = this.createRawReplyMessage(to, replyHeaders.subject, body, replyHeaders);
+      } else {
+        // フォールバック: 従来の方法
+        raw = this.createRawMessage(to, subject, body, threadId);
+      }
       
       await this.gmail.users.messages.send({
         userId: 'me',
@@ -468,13 +477,19 @@ export class GmailService {
     subject: string, 
     body: string, 
     attachments: File[] = [],
-    threadId?: string
+    threadId?: string,
+    replyToMessageId?: string
   ): Promise<void> {
     try {
       // レート制限チェック
       await this.checkRateLimit('messages.send');
       
-      const raw = await this.createMultipartMessage(to, subject, body, attachments, threadId);
+      let replyHeaders;
+      if (replyToMessageId) {
+        replyHeaders = await this.getReplyHeaders(replyToMessageId);
+      }
+      
+      const raw = await this.createMultipartMessage(to, subject, body, attachments, threadId, replyHeaders);
       
       await this.gmail.users.messages.send({
         userId: 'me',
@@ -552,24 +567,57 @@ export class GmailService {
     return Buffer.from(message).toString('base64').replace(/\+/g, '-').replace(/\//g, '_');
   }
 
+  // 正しい返信用RAWメッセージを作成（RFC 2822準拠）
+  private createRawReplyMessage(to: string, subject: string, body: string, replyHeaders: {
+    messageId: string;
+    references: string;
+    subject: string;
+    inReplyTo: string;
+  }): string {
+    const messageParts = [
+      `To: ${to}`,
+      `Subject: ${replyHeaders.subject}`,
+      `In-Reply-To: ${replyHeaders.inReplyTo}`,
+      `References: ${replyHeaders.references}`,
+      'Content-Type: text/html; charset=utf-8',
+      'MIME-Version: 1.0',
+      '',
+      body,
+    ];
+
+    const message = messageParts.join('\r\n');
+    return Buffer.from(message).toString('base64').replace(/\+/g, '-').replace(/\//g, '_');
+  }
+
   // マルチパート（添付ファイル付き）メッセージを作成
   private async createMultipartMessage(
     to: string, 
     subject: string, 
     body: string, 
     attachments: File[] = [],
-    threadId?: string
+    threadId?: string,
+    replyHeaders?: {
+      messageId: string;
+      references: string;
+      subject: string;
+      inReplyTo: string;
+    }
   ): Promise<string> {
     const boundary = `boundary_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
     const messageParts = [
       `To: ${to}`,
-      `Subject: ${subject}`,
+      `Subject: ${replyHeaders?.subject || subject}`,
       'MIME-Version: 1.0',
       `Content-Type: multipart/mixed; boundary="${boundary}"`,
     ];
 
-    if (threadId) {
+    if (replyHeaders) {
+      // RFC 2822準拠の正しい返信ヘッダーを使用
+      messageParts.push(`In-Reply-To: ${replyHeaders.inReplyTo}`);
+      messageParts.push(`References: ${replyHeaders.references}`);
+    } else if (threadId) {
+      // フォールバック: 従来の方法
       messageParts.push(`In-Reply-To: ${threadId}`);
       messageParts.push(`References: ${threadId}`);
     }
@@ -694,6 +742,74 @@ export class GmailService {
       h => h.name.toLowerCase() === headerName.toLowerCase()
     );
     return header?.value || '';
+  }
+
+  // 返信用のヘッダー情報を取得
+  async getReplyHeaders(messageId: string): Promise<{
+    messageId: string;
+    references: string;
+    subject: string;
+    inReplyTo: string;
+  }> {
+    try {
+      // レート制限チェック
+      await this.checkRateLimit('messages.get');
+      
+      const response = await this.gmail.users.messages.get({
+        userId: 'me',
+        id: messageId,
+        format: 'metadata',
+        metadataHeaders: ['Message-ID', 'References', 'Subject', 'In-Reply-To']
+      });
+
+      const headers = response.data.payload?.headers || [];
+      let originalMessageId = '';
+      let originalReferences = '';
+      let originalSubject = '';
+      let originalInReplyTo = '';
+
+      headers.forEach((header: any) => {
+        const name = header.name.toLowerCase();
+        if (name === 'message-id') {
+          originalMessageId = header.value;
+        } else if (name === 'references') {
+          originalReferences = header.value;
+        } else if (name === 'subject') {
+          originalSubject = header.value;
+        } else if (name === 'in-reply-to') {
+          originalInReplyTo = header.value;
+        }
+      });
+
+      // 返信用の件名を作成（Re:を付加、既にある場合は追加しない）
+      const replySubject = originalSubject.toLowerCase().startsWith('re:') 
+        ? originalSubject 
+        : `Re: ${originalSubject}`;
+
+      // References ヘッダーを構築（RFC 2822準拠）
+      // 既存のReferenceesに元メッセージのMessage-IDを追加
+      const updatedReferences = originalReferences 
+        ? `${originalReferences} ${originalMessageId}`.trim()
+        : originalMessageId;
+
+      return {
+        messageId: originalMessageId,
+        references: updatedReferences,
+        subject: replySubject,
+        inReplyTo: originalMessageId
+      };
+    } catch (error) {
+      console.error('返信ヘッダー取得エラー:', error);
+      this.checkTokenError(error);
+      
+      // フォールバック: 基本的な返信ヘッダーを返す
+      return {
+        messageId: `<${messageId}@gmail.googlemail.com>`,
+        references: `<${messageId}@gmail.googlemail.com>`,
+        subject: 'Re: (Subject unavailable)',
+        inReplyTo: `<${messageId}@gmail.googlemail.com>`
+      };
+    }
   }
 
   // 添付ファイルの種類を判定

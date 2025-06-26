@@ -1118,9 +1118,29 @@ InfuMatchの田中です。
           alert('メール送信に失敗しました');
         }
       } else {
-        // 添付ファイルなしの場合は既存のAPIを使用
-        const replySubject = subjectHeader.startsWith('Re:') ? subjectHeader : `Re: ${subjectHeader}`;
+        // 添付ファイルなしの場合は正しい返信ヘッダーを取得してAPIを使用
         const lastMessageId = lastMessage.id;
+        
+        console.log('📧 Getting reply headers for message:', lastMessageId);
+        
+        // 正しい返信ヘッダーを取得
+        let replyHeaders = null;
+        try {
+          // GmailServiceを使って正しいヘッダー情報を取得
+          const response = await fetch(`/api/gmail/threads/${currentThread.id}/reply-headers?messageId=${lastMessageId}`);
+          if (response.ok) {
+            replyHeaders = await response.json();
+            console.log('📧 Retrieved reply headers:', replyHeaders);
+          } else {
+            console.warn('⚠️ Failed to get reply headers, using fallback');
+          }
+        } catch (error) {
+          console.error('❌ Error getting reply headers:', error);
+        }
+        
+        // 件名を設定（ヘッダーから取得した件名を優先）
+        const replySubject = replyHeaders?.subject || 
+          (subjectHeader.startsWith('Re:') ? subjectHeader : `Re: ${subjectHeader}`);
         
         // 🔍 DEBUG: 送信するデータの詳細をログ出力
         const sendData = {
@@ -1129,6 +1149,7 @@ InfuMatchの田中です。
           message: replyText,
           threadId: currentThread.id,
           replyToMessageId: lastMessageId,
+          replyHeaders: replyHeaders // 新しく追加
         };
         
         console.log('=== FRONTEND EMAIL SEND DEBUG START ===');
@@ -1139,6 +1160,7 @@ InfuMatchの田中です。
         console.log('📧 Reply text:', replyText);
         console.log('📧 Thread ID:', currentThread.id);
         console.log('📧 Reply to message ID:', lastMessageId);
+        console.log('📧 Reply headers:', replyHeaders);
         console.log('📧 Last message details:', lastMessage);
         
         const response = await fetch('/api/gmail/send', {
