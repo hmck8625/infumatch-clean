@@ -10,6 +10,8 @@ RUN pip install --no-cache-dir --upgrade pip && \
 
 # アプリケーションファイルのコピー
 COPY main.py .
+COPY gemini_matching_agent.py .
+COPY auto_negotiation_manager.py .
 # COPY services/ ./services/
 
 # ポートの設定
