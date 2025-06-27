@@ -15,6 +15,10 @@ import logging
 from datetime import datetime
 from gemini_matching_agent import GeminiMatchingAgent
 
+# ロガーの設定
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
+
 # 自動交渉マネージャーをインポート  
 try:
     from auto_negotiation_manager import AutoNegotiationManager
@@ -2698,10 +2702,10 @@ async def gemini_matching_analysis(request: GeminiMatchingRequest):
         
         # リクエストデータをdictに変換
         request_data = {
-            "company_profile": request.company_profile.dict(),
-            "product_portfolio": request.product_portfolio.dict(),
-            "campaign_objectives": request.campaign_objectives.dict(),
-            "influencer_preferences": request.influencer_preferences.dict()
+            "company_profile": request.company_profile.model_dump() if hasattr(request.company_profile, 'model_dump') else request.company_profile.dict(),
+            "product_portfolio": request.product_portfolio.model_dump() if hasattr(request.product_portfolio, 'model_dump') else request.product_portfolio.dict(),
+            "campaign_objectives": request.campaign_objectives.model_dump() if hasattr(request.campaign_objectives, 'model_dump') else request.campaign_objectives.dict(),
+            "influencer_preferences": request.influencer_preferences.model_dump() if hasattr(request.influencer_preferences, 'model_dump') else request.influencer_preferences.dict()
         }
         
         logger.info(f"📊 リクエストデータ: 企業={request_data['company_profile']['name']}, 商品数={len(request_data['product_portfolio']['products'])}")

@@ -7,13 +7,30 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 import logging
 
+# スレッド状態管理をインポート
+try:
+    from thread_state_manager import ThreadStateManager, NegotiationStage, ThreadStatus
+    print("✅ ThreadStateManager imported successfully")
+except ImportError as e:
+    print(f"⚠️ ThreadStateManager import failed: {e}")
+    ThreadStateManager = None
+    NegotiationStage = None
+    ThreadStatus = None
+
 # 既存のSimpleNegotiationManagerを拡張
 class AutoNegotiationManager:
     """自動交渉マネージャー - 既存の4段階処理を自動化"""
     
-    def __init__(self, gemini_model):
+    def __init__(self, gemini_model, db_client=None):
         self.gemini_model = gemini_model
         self.manager_id = "auto_negotiation_manager_v1"
+        
+        # スレッド状態管理の初期化
+        if ThreadStateManager:
+            self.thread_state_manager = ThreadStateManager(db_client)
+        else:
+            self.thread_state_manager = None
+            print("⚠️ ThreadStateManager not available")
         
         # 自動交渉設定のデフォルト値
         self.default_settings = {
@@ -45,6 +62,19 @@ class AutoNegotiationManager:
         try:
             print(f"🤖 自動交渉ラウンド {round_number} 開始 - Thread: {thread_id}")
             start_time = datetime.now()
+            
+            # スレッド状態を取得/更新
+            if self.thread_state_manager:
+                thread_state = await self.thread_state_manager.get_thread_state(thread_id)
+                
+                # 新しいラウンドとして記録
+                await self.thread_state_manager.record_negotiation_event(
+                    thread_id,
+                    "round_started",
+                    {"round_number": round_number, "message": new_message[:100]}
+                )
+            else:
+                thread_state = {"thread_id": thread_id, "round_number": round_number}
             
             # 1. 自動交渉設定を取得
             auto_settings = self._get_auto_negotiation_settings(company_settings)

@@ -19,7 +19,11 @@ class GeminiMatchingAgent:
         self.gemini_api_key = gemini_api_key
         genai.configure(api_key=gemini_api_key)
         self.model = genai.GenerativeModel('gemini-1.5-flash')
-        self.db = firestore.Client()
+        try:
+            self.db = firestore.Client(project="hackathon-462905")
+        except Exception as e:
+            logger.warning(f"Firestore initialization failed: {e}")
+            self.db = None
         
     async def analyze_deep_matching(self, request_data: Dict[str, Any]) -> Dict[str, Any]:
         """企業プロファイルとインフルエンサーデータの戦略的マッチング分析"""
@@ -94,6 +98,11 @@ class GeminiMatchingAgent:
         """マッチング候補となるインフルエンサーを取得"""
         try:
             logger.info("📊 インフルエンサー候補データ取得開始")
+            
+            # Firestoreが利用できない場合はモックデータを返す
+            if not self.db:
+                logger.warning("Firestore not available, using mock data")
+                return self._get_mock_influencers()
             
             # Firestoreからインフルエンサーデータを取得
             influencers_ref = self.db.collection('influencers')
@@ -421,3 +430,47 @@ class GeminiMatchingAgent:
         ]
         
         return sum(confidences) / len(confidences)
+    
+    def _get_mock_influencers(self) -> List[Dict[str, Any]]:
+        """モックインフルエンサーデータを返す"""
+        return [
+            {
+                "id": "mock_1",
+                "channel_id": "UCMock1",
+                "channel_name": "ゲーム実況チャンネル",
+                "channel_title": "ゲーム実況チャンネル",
+                "description": "人気ゲームの実況動画を毎日配信",
+                "subscriber_count": 150000,
+                "video_count": 500,
+                "view_count": 50000000,
+                "category": "ゲーム",
+                "engagement_rate": 0.08,
+                "thumbnail_url": "https://via.placeholder.com/240x240"
+            },
+            {
+                "id": "mock_2",
+                "channel_id": "UCMock2",
+                "channel_name": "料理チャンネル",
+                "channel_title": "料理チャンネル",
+                "description": "簡単レシピと料理のコツを紹介",
+                "subscriber_count": 80000,
+                "video_count": 300,
+                "view_count": 20000000,
+                "category": "料理",
+                "engagement_rate": 0.10,
+                "thumbnail_url": "https://via.placeholder.com/240x240"
+            },
+            {
+                "id": "mock_3",
+                "channel_id": "UCMock3",
+                "channel_name": "フィットネスチャンネル",
+                "channel_title": "フィットネスチャンネル",
+                "description": "健康的なライフスタイルとワークアウト",
+                "subscriber_count": 120000,
+                "video_count": 400,
+                "view_count": 35000000,
+                "category": "フィットネス",
+                "engagement_rate": 0.09,
+                "thumbnail_url": "https://via.placeholder.com/240x240"
+            }
+        ]
