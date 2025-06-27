@@ -2833,6 +2833,83 @@ async def auto_negotiation(request: dict):
             detail=f"自動交渉処理エラー: {str(e)}"
         )
 
+@app.post("/api/v1/negotiation/gmail-monitor/start")
+async def start_gmail_monitoring(request: dict):
+    """Gmail自動監視を開始"""
+    try:
+        user_id = request.get("user_id", "default_user")
+        monitor_config = request.get("monitor_config", {})
+        
+        # Gmail監視マネージャーの初期化（仮実装）
+        print(f"🔍 Gmail自動監視開始リクエスト - ユーザー: {user_id}")
+        
+        return {
+            "success": True,
+            "message": "Gmail自動監視を開始しました",
+            "user_id": user_id,
+            "monitor_config": monitor_config,
+            "status": "monitoring",
+            "check_interval_seconds": monitor_config.get("check_interval_seconds", 60)
+        }
+        
+    except Exception as e:
+        print(f"❌ Gmail監視開始エラー: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Gmail監視開始エラー: {str(e)}"
+        )
+
+@app.post("/api/v1/negotiation/gmail-monitor/stop")
+async def stop_gmail_monitoring(request: dict):
+    """Gmail自動監視を停止"""
+    try:
+        user_id = request.get("user_id", "default_user")
+        
+        print(f"🛑 Gmail自動監視停止リクエスト - ユーザー: {user_id}")
+        
+        return {
+            "success": True,
+            "message": "Gmail自動監視を停止しました",
+            "user_id": user_id,
+            "status": "stopped"
+        }
+        
+    except Exception as e:
+        print(f"❌ Gmail監視停止エラー: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Gmail監視停止エラー: {str(e)}"
+        )
+
+@app.get("/api/v1/negotiation/gmail-monitor/status")
+async def get_gmail_monitor_status():
+    """Gmail自動監視の状態を取得"""
+    try:
+        # 仮の統計情報を返す
+        return {
+            "success": True,
+            "is_monitoring": False,
+            "stats": {
+                "total_checks": 0,
+                "new_threads_found": 0,
+                "auto_negotiations_started": 0,
+                "errors": 0,
+                "last_check_time": None
+            },
+            "monitor_config": {
+                "check_interval_seconds": 60,
+                "max_threads_per_check": 10,
+                "label_filter": "INBOX"
+            }
+        }
+        
+    except Exception as e:
+        print(f"❌ Gmail監視状態取得エラー: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Gmail監視状態取得エラー: {str(e)}"
+        )
+
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 8000))

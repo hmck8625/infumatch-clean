@@ -26,6 +26,7 @@ import {
   ArrowLeft,
   Info
 } from 'lucide-react';
+import GmailMonitor from '@/components/GmailMonitor';
 
 interface AutoNegotiationSettings {
   enabled: boolean;
@@ -555,6 +556,11 @@ export default function AutoNegotiationSettingsPage() {
             </Alert>
           </TabsContent>
         </Tabs>
+
+        {/* Gmail監視モニター */}
+        <div className="mt-6">
+          <GmailMonitor />
+        </div>
 
         {/* 保存ボタン */}
         <div className="flex justify-end gap-4">

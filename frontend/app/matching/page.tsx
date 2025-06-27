@@ -505,17 +505,17 @@ export default function MatchingPage() {
   const convertGeminiResultsToMatchingResults = (geminiResults: GeminiAnalysisResult[]): MatchingResult[] => {
     return geminiResults.map((result, index) => ({
       id: result.influencer_id,
-      influencerName: `Gemini推薦 ${index + 1}`,
+      influencerName: result.influencer_data?.channel_name || result.influencer_data?.channel_title || `Gemini推薦 ${index + 1}`,
       score: result.overall_compatibility_score,
-      category: '高度AI分析',
+      category: result.influencer_data?.category || '高度AI分析',
       reason: result.recommendation_summary.primary_recommendation_reason,
-      estimatedReach: Math.floor(Math.random() * 100000) + 50000, // TODO: 実際のデータから取得
+      estimatedReach: result.influencer_data?.subscriber_count || Math.floor(Math.random() * 100000) + 50000,
       estimatedCost: result.strategic_insights.budget_recommendations.min,
-      thumbnailUrl: undefined,
-      subscriberCount: undefined,
-      engagementRate: undefined,
-      description: result.recommendation_summary.success_scenario,
-      email: undefined,
+      thumbnailUrl: result.influencer_data?.thumbnail_url,
+      subscriberCount: result.influencer_data?.subscriber_count,
+      engagementRate: result.influencer_data?.engagement_rate,
+      description: result.influencer_data?.description || result.recommendation_summary.success_scenario,
+      email: result.influencer_data?.email,
       compatibility: {
         audience: result.detailed_analysis.audience_synergy.score,
         content: result.detailed_analysis.content_fit.score,

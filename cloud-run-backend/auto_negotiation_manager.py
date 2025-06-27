@@ -169,15 +169,10 @@ class AutoNegotiationManager:
             if any(keyword in content for keyword in urgency_keywords):
                 context["urgency_indicators"].append("high_urgency")
                 
-        # 交渉段階を判定
-        if round_number == 1:
-            context["stage"] = "initial_contact"
-        elif round_number <= 2:
-            context["stage"] = "interest_confirmation"
-        elif round_number <= 4:
-            context["stage"] = "condition_negotiation"
-        else:
-            context["stage"] = "final_agreement"
+        # 動的に交渉段階を判定
+        context["stage"] = await self._determine_negotiation_stage(
+            conversation_history, round_number, context
+        )
             
         return context
     
@@ -461,6 +456,60 @@ class AutoNegotiationManager:
             }
         
         return {"extracted_amounts": [], "max_amount": None, "exceeds_limit": False}
+
+    async def _determine_negotiation_stage(
+        self, 
+        conversation_history: List[Dict],
+        round_number: int,
+        context: Dict
+    ) -> str:
+        """会話内容に基づいて動的に交渉段階を判定"""
+        
+        # スレッド状態管理から現在のステージを取得
+        if self.thread_state_manager and context.get("thread_id"):
+            try:
+                thread_state = await self.thread_state_manager.get_thread_state(
+                    context["thread_id"]
+                )
+                current_stage = thread_state.get("negotiation_stage")
+                if current_stage:
+                    return current_stage
+            except Exception:
+                pass
+        
+        # 会話内容から段階を推定
+        if len(conversation_history) <= 2:
+            return "initial_contact"
+        
+        # 最近のメッセージから段階判定のキーワードを検索
+        recent_messages = " ".join([
+            msg.get("content", "") for msg in conversation_history[-3:]
+        ]).lower()
+        
+        # 最終合意段階のシグナル
+        final_signals = ["契約", "合意", "確定", "決定", "締結", "了承"]
+        if any(signal in recent_messages for signal in final_signals):
+            return "final_agreement"
+        
+        # 条件交渉段階のシグナル
+        negotiation_signals = ["価格", "条件", "期間", "納期", "支払", "料金"]
+        if any(signal in recent_messages for signal in negotiation_signals):
+            return "condition_negotiation"
+        
+        # 興味確認段階のシグナル
+        interest_signals = ["興味", "関心", "詳細", "もっと", "教えて"]
+        if any(signal in recent_messages for signal in interest_signals):
+            return "interest_confirmation"
+        
+        # デフォルトはラウンド数ベース
+        if round_number <= 1:
+            return "initial_contact"
+        elif round_number <= 2:
+            return "interest_confirmation"
+        elif round_number <= 4:
+            return "condition_negotiation"
+        else:
+            return "final_agreement"
 
     # 管理・統計機能
     async def get_auto_negotiation_stats(self, company_id: str, days: int = 7) -> Dict:

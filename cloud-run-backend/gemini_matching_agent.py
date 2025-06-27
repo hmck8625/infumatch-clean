@@ -158,6 +158,19 @@ class GeminiMatchingAgent:
             
             return {
                 "influencer_id": influencer.get('id', ''),
+                "influencer_data": {
+                    "channel_id": influencer.get('channel_id', ''),
+                    "channel_name": influencer.get('channel_name', influencer.get('channel_title', influencer.get('name', ''))),
+                    "channel_title": influencer.get('channel_title', ''),
+                    "description": influencer.get('description', ''),
+                    "subscriber_count": influencer.get('subscriber_count', 0),
+                    "video_count": influencer.get('video_count', 0),
+                    "view_count": influencer.get('view_count', 0),
+                    "engagement_rate": influencer.get('engagement_rate', 0.0),
+                    "thumbnail_url": influencer.get('thumbnail_url', ''),
+                    "category": influencer.get('category', ''),
+                    "email": influencer.get('email', '')
+                },
                 "overall_compatibility_score": parsed_response.get('overall_compatibility_score', 75),
                 "detailed_analysis": {
                     "brand_alignment": {

@@ -225,6 +225,19 @@ export interface GeminiMatchingRequest {
 
 export interface GeminiAnalysisResult {
   influencer_id: string;
+  influencer_data?: {
+    channel_id: string;
+    channel_name: string;
+    channel_title: string;
+    description: string;
+    subscriber_count: number;
+    video_count: number;
+    view_count: number;
+    engagement_rate: number;
+    thumbnail_url: string;
+    category: string;
+    email?: string;
+  };
   overall_compatibility_score: number; // 0-100
   detailed_analysis: {
     brand_alignment: {
