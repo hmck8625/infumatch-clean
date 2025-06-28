@@ -1855,6 +1855,7 @@ InfuMatchの田中です。
                       </div>
                     </div>
                   </div>
+                  </div>
                 </div>
               ) : (
                 <div className="card p-12 text-center">
@@ -1871,7 +1872,6 @@ InfuMatchの田中です。
               )}
             </div>
           </div>
-        </div>
 
         {/* AI返信候補エリア */}
         {currentThread && (
@@ -2469,7 +2469,8 @@ InfuMatchの田中です。
             )}
           </div>
         )}
-      </main>
+            </div>
+          </main>
         </div>
       </ErrorBoundary>
     </AuthGuard>
