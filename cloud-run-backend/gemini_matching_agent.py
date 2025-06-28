@@ -25,6 +25,9 @@ class GeminiMatchingAgent:
             logger.warning(f"Firestore initialization failed: {e}")
             self.db = None
         
+        # メタデータ管理
+        self.mock_metadata = {}
+        
     async def analyze_deep_matching(self, request_data: Dict[str, Any]) -> Dict[str, Any]:
         """企業プロファイルとインフルエンサーデータの戦略的マッチング分析"""
         try:
@@ -32,13 +35,24 @@ class GeminiMatchingAgent:
             logger.info("🧠 Gemini高度マッチング分析開始")
             
             # Step 1: インフルエンサーデータの取得
-            influencer_candidates = await self._fetch_influencer_candidates(request_data)
+            fetch_result = await self._fetch_influencer_candidates_with_metadata(request_data)
+            influencer_candidates = fetch_result["candidates"]
+            pickup_metadata = fetch_result["metadata"]
             
             logger.info(f"📊 取得したインフルエンサー候補数: {len(influencer_candidates)}")
             if influencer_candidates:
                 logger.info(f"📋 候補カテゴリ: {[c.get('category', 'unknown') for c in influencer_candidates[:10]]}")
                 preferences = request_data.get('influencer_preferences', {})
                 logger.info(f"🎯 カスタム希望: {preferences.get('custom_preference', 'なし')}")
+                
+                # モックデータ使用時のコンソール出力
+                if pickup_metadata.get("data_source") == "mock":
+                    print("🔄 " + "="*50)
+                    print("📌 モックデータを使用しています")
+                    print(f"   理由: {pickup_metadata.get('mock_reason', '不明')}")
+                    print(f"   データセット: {pickup_metadata.get('mock_dataset_name', '標準')}")
+                    print(f"   チャンネル数: {len(influencer_candidates)}件")
+                    print("🔄 " + "="*50)
             
             if not influencer_candidates:
                 return {
@@ -89,13 +103,16 @@ class GeminiMatchingAgent:
                 "analysis_results": analysis_results,
                 "portfolio_insights": portfolio_insights,
                 "market_context": market_context,
+                "pickup_logic_details": pickup_metadata.get("pickup_logic", {}),
                 "processing_metadata": {
                     "analysis_duration_ms": int(processing_duration * 1000),
                     "confidence_score": self._calculate_overall_confidence(analysis_results),
                     "gemini_model_used": "gemini-1.5-flash",
                     "analysis_timestamp": datetime.now().isoformat(),
                     "total_candidates_analyzed": len(analysis_results),
-                    "total_candidates_available": len(influencer_candidates)
+                    "total_candidates_available": len(influencer_candidates),
+                    "data_source": pickup_metadata.get("data_source", "unknown"),
+                    "filtering_summary": pickup_metadata.get("filtering_applied", {})
                 }
             }
             
@@ -106,6 +123,28 @@ class GeminiMatchingAgent:
                 "error": f"分析中にエラーが発生しました: {str(e)}"
             }
     
+    async def _fetch_influencer_candidates_with_metadata(self, request_data: Dict[str, Any]) -> Dict[str, Any]:
+        """メタデータ付きでマッチング候補となるインフルエンサーを取得"""
+        candidates = await self._fetch_influencer_candidates(request_data)
+        
+        # メタデータを構築
+        preferences = request_data.get('influencer_preferences', {})
+        metadata = {
+            "data_source": "firestore" if self.db else "mock",
+            "total_candidates": len(candidates),
+            "filtering_applied": {
+                "custom_preference": preferences.get('custom_preference', ''),
+                "subscriber_range": preferences.get('subscriber_range', {}),
+                "preferred_categories": preferences.get('preferred_categories', [])
+            },
+            "pickup_logic": self._build_pickup_logic_summary(request_data, candidates)
+        }
+        
+        return {
+            "candidates": candidates,
+            "metadata": metadata
+        }
+    
     async def _fetch_influencer_candidates(self, request_data: Dict[str, Any]) -> List[Dict[str, Any]]:
         """マッチング候補となるインフルエンサーを取得"""
         try:
@@ -114,7 +153,9 @@ class GeminiMatchingAgent:
             # Firestoreが利用できない場合はモックデータを返す
             if not self.db:
                 logger.warning("⚠️ Firestore not available, using mock data")
-                return self._get_mock_influencers()
+                mock_data = self._get_mock_influencers()
+                self._set_mock_metadata("firestore_unavailable", "Firestoreクライアントが利用不可")
+                return mock_data
             
             # Firestoreからインフルエンサーデータを取得
             influencers_ref = self.db.collection('influencers')
@@ -190,7 +231,9 @@ class GeminiMatchingAgent:
             # 候補が見つからない場合はモックデータを返す
             if len(candidates) == 0:
                 logger.warning("⚠️ フィルタ後に候補が見つからないため、モックデータを使用")
-                return self._get_mock_influencers()
+                mock_data = self._get_mock_influencers()
+                self._set_mock_metadata("filter_no_results", "フィルタ条件に合致する候補なし")
+                return mock_data
             
             return candidates
             
@@ -198,7 +241,9 @@ class GeminiMatchingAgent:
             logger.error(f"インフルエンサー候補取得エラー: {e}")
             # エラーの場合もモックデータを返す
             logger.info("📌 エラーによりモックデータを返します")
-            return self._get_mock_influencers()
+            mock_data = self._get_mock_influencers()
+            self._set_mock_metadata("firestore_error", f"Firestoreエラー: {str(e)}")
+            return mock_data
     
     async def _analyze_single_influencer(self, influencer: Dict[str, Any], request_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """単一インフルエンサーの詳細分析"""
@@ -570,6 +615,96 @@ class GeminiMatchingAgent:
         ]
         
         return sum(confidences) / len(confidences)
+    
+    def _set_mock_metadata(self, reason: str, description: str):
+        """モックデータ使用時のメタデータを設定"""
+        self.mock_metadata = {
+            "mock_reason": reason,
+            "mock_description": description,
+            "mock_dataset_name": "実在YouTuberデータセット"
+        }
+    
+    def _build_pickup_logic_summary(self, request_data: Dict[str, Any], candidates: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """ピックアップロジックの詳細サマリーを構築"""
+        preferences = request_data.get('influencer_preferences', {})
+        company_profile = request_data.get('company_profile', {})
+        
+        # フィルタリング条件の詳細
+        filtering_steps = []
+        
+        # Step 1: データソース
+        data_source = "Firestore" if self.db else "モックデータ"
+        filtering_steps.append({
+            "step": 1,
+            "action": "データソース選択",
+            "details": f"{data_source}から候補を取得",
+            "result": f"取得可能な候補数: {len(candidates)}件"
+        })
+        
+        # Step 2: カスタム希望
+        custom_preference = preferences.get('custom_preference', '')
+        if custom_preference:
+            filtering_steps.append({
+                "step": 2,
+                "action": "カスタム希望マッピング",
+                "details": f"'{custom_preference}' -> カテゴリマッチング実行",
+                "result": "関連カテゴリを自動選択"
+            })
+        
+        # Step 3: 登録者数フィルタ
+        subscriber_range = preferences.get('subscriber_range', {})
+        if subscriber_range:
+            min_sub = subscriber_range.get('min', 0)
+            max_sub = subscriber_range.get('max', 999999999)
+            filtering_steps.append({
+                "step": 3,
+                "action": "登録者数フィルタ",
+                "details": f"{min_sub:,} - {max_sub:,} 人",
+                "result": "範囲外の候補を除外"
+            })
+        
+        # Step 4: カテゴリフィルタ
+        preferred_categories = preferences.get('preferred_categories', [])
+        if preferred_categories:
+            filtering_steps.append({
+                "step": 4,
+                "action": "カテゴリフィルタ",
+                "details": f"優先カテゴリ: {', '.join(preferred_categories)}",
+                "result": "カテゴリ不一致の候補を除外"
+            })
+        
+        # Step 5: 企業適合性
+        company_industry = company_profile.get('industry', '')
+        if company_industry:
+            filtering_steps.append({
+                "step": 5,
+                "action": "企業適合性評価",
+                "details": f"業界: {company_industry}との親和性を評価",
+                "result": "業界適合度の高い候補を優先"
+            })
+        
+        # 最終結果
+        final_candidates = len(candidates)
+        limit = 30 if custom_preference else 20
+        analyzed_count = min(final_candidates, 10 if custom_preference else 5)
+        
+        return {
+            "total_filtering_steps": len(filtering_steps),
+            "filtering_pipeline": filtering_steps,
+            "final_statistics": {
+                "candidates_after_filtering": final_candidates,
+                "limit_applied": limit,
+                "selected_for_ai_analysis": analyzed_count,
+                "data_source": data_source,
+                "mock_metadata": self.mock_metadata if hasattr(self, 'mock_metadata') and self.mock_metadata else None
+            },
+            "algorithm_details": {
+                "filtering_method": "クライアントサイドフィルタリング",
+                "matching_algorithm": "多段階適合度評価",
+                "ai_analysis_model": "Gemini 1.5 Flash",
+                "scoring_criteria": ["ブランド適合性", "オーディエンス相乗効果", "コンテンツ適合性", "ビジネス実現性"]
+            }
+        }
     
     def _get_mock_influencers(self) -> List[Dict[str, Any]]:
         """実際のYouTuberチャンネルデータを返す（Firestore利用不可時のフォールバック）"""

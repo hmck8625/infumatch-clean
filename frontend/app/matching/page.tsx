@@ -54,6 +54,7 @@ export default function MatchingPage() {
   const [geminiAnalysisResults, setGeminiAnalysisResults] = useState<GeminiAnalysisResult[]>([]);
   const [isGeminiAnalyzing, setIsGeminiAnalyzing] = useState(false);
   const [customInfluencerPreference, setCustomInfluencerPreference] = useState('');
+  const [pickupLogicDetails, setPickupLogicDetails] = useState<any>(null);
 
   useEffect(() => {
     setIsVisible(true);
@@ -107,6 +108,27 @@ export default function MatchingPage() {
           setMatchingResults(geminiResults);
           setGeminiAnalysisResults(geminiResponse.analysis_results);
           console.log('✨ Gemini高度分析結果:', geminiResults);
+          
+          // ピックアップロジック詳細をコンソールに出力してstateに保存
+          if (geminiResponse.pickup_logic_details) {
+            console.log('🔍 ピックアップロジック詳細:');
+            console.log('  📊 フィルタリングパイプライン:', geminiResponse.pickup_logic_details.filtering_pipeline);
+            console.log('  📈 最終統計:', geminiResponse.pickup_logic_details.final_statistics);
+            console.log('  ⚙️ アルゴリズム詳細:', geminiResponse.pickup_logic_details.algorithm_details);
+            
+            // モックデータ使用時の詳細表示
+            if (geminiResponse.pickup_logic_details.final_statistics?.mock_metadata) {
+              console.log('📌 モックデータ情報:', geminiResponse.pickup_logic_details.final_statistics.mock_metadata);
+            }
+            
+            // stateに保存
+            setPickupLogicDetails(geminiResponse.pickup_logic_details);
+          }
+          
+          // 処理メタデータも出力
+          if (geminiResponse.processing_metadata) {
+            console.log('🔧 処理メタデータ:', geminiResponse.processing_metadata);
+          }
         } else {
           throw new Error('Gemini分析で結果が取得できませんでした');
         }
@@ -734,6 +756,83 @@ export default function MatchingPage() {
                   )}
                 </p>
               </div>
+
+              {/* ピックアップロジック詳細 */}
+              {pickupLogicDetails && useGeminiAgent && (
+                <div className="mb-8">
+                  <div className="card p-6 bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200">
+                    <h3 className="text-xl font-bold text-blue-900 mb-4 flex items-center">
+                      <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                      </svg>
+                      ピックアップロジック詳細
+                    </h3>
+
+                    {/* データソース情報 */}
+                    <div className="mb-4 p-4 bg-white/60 rounded-lg">
+                      <h4 className="font-semibold text-blue-800 mb-2">データソース</h4>
+                      <div className="text-sm text-blue-700">
+                        <span className="font-medium">{pickupLogicDetails.final_statistics?.data_source}</span>
+                        {pickupLogicDetails.final_statistics?.mock_metadata && (
+                          <div className="mt-2 p-3 bg-yellow-100 border border-yellow-300 rounded-lg">
+                            <div className="font-medium text-yellow-800">📌 モックデータ使用中</div>
+                            <div className="text-xs text-yellow-700 mt-1">
+                              理由: {pickupLogicDetails.final_statistics.mock_metadata.mock_description}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* フィルタリングステップ */}
+                    <div className="mb-4">
+                      <h4 className="font-semibold text-blue-800 mb-3">フィルタリングパイプライン</h4>
+                      <div className="space-y-2">
+                        {pickupLogicDetails.filtering_pipeline?.map((step: any, index: number) => (
+                          <div key={index} className="flex items-start space-x-3 p-3 bg-white/60 rounded-lg">
+                            <div className="flex-shrink-0 w-6 h-6 bg-blue-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
+                              {step.step}
+                            </div>
+                            <div className="flex-1">
+                              <div className="font-medium text-blue-800">{step.action}</div>
+                              <div className="text-xs text-blue-600 mt-1">{step.details}</div>
+                              <div className="text-xs text-green-600 mt-1">→ {step.result}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* 最終統計 */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div className="text-center p-3 bg-white/60 rounded-lg">
+                        <div className="text-lg font-bold text-blue-800">
+                          {pickupLogicDetails.final_statistics?.candidates_after_filtering || 0}
+                        </div>
+                        <div className="text-xs text-blue-600">フィルタ後候補</div>
+                      </div>
+                      <div className="text-center p-3 bg-white/60 rounded-lg">
+                        <div className="text-lg font-bold text-blue-800">
+                          {pickupLogicDetails.final_statistics?.selected_for_ai_analysis || 0}
+                        </div>
+                        <div className="text-xs text-blue-600">AI分析対象</div>
+                      </div>
+                      <div className="text-center p-3 bg-white/60 rounded-lg">
+                        <div className="text-lg font-bold text-blue-800">
+                          {pickupLogicDetails.total_filtering_steps || 0}
+                        </div>
+                        <div className="text-xs text-blue-600">フィルタ段階</div>
+                      </div>
+                      <div className="text-center p-3 bg-white/60 rounded-lg">
+                        <div className="text-lg font-bold text-blue-800">
+                          {pickupLogicDetails.algorithm_details?.ai_analysis_model || 'N/A'}
+                        </div>
+                        <div className="text-xs text-blue-600">AI分析モデル</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* マッチング結果カード */}
               <div className="space-y-6">
