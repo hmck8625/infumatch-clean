@@ -577,7 +577,7 @@ export default function SearchPage() {
 
             {filteredResults.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredResults.slice(0, 12).map((influencer) => {
+                {filteredResults.map((influencer) => {
                   const hasEmail = influencer.email && influencer.email !== 'null' && influencer.email.trim() !== '';
                   const categoryIcon = getCategoryIcon(influencer.category);
                   

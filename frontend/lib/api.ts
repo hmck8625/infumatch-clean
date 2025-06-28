@@ -220,6 +220,7 @@ export interface GeminiMatchingRequest {
     subscriber_range: { min: number; max: number };
     content_style_preferences: string[];
     collaboration_types: string[];
+    custom_preference?: string;
   };
 }
 

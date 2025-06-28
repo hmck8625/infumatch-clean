@@ -97,6 +97,7 @@ export default function MatchingPage() {
   const [useGeminiAgent, setUseGeminiAgent] = useState(false);
   const [geminiAnalysisResults, setGeminiAnalysisResults] = useState<GeminiAnalysisResult[]>([]);
   const [isGeminiAnalyzing, setIsGeminiAnalyzing] = useState(false);
+  const [customInfluencerPreference, setCustomInfluencerPreference] = useState('');
 
   useEffect(() => {
     setIsVisible(true);
@@ -432,7 +433,8 @@ export default function MatchingPage() {
           'ブランドアンバサダー',
           'イベント参加',
           'ライブストリーム'
-        ]
+        ],
+        custom_preference: customInfluencerPreference || undefined
       }
     };
   };
@@ -657,9 +659,26 @@ export default function MatchingPage() {
                         </span>
                       </label>
                       {useGeminiAgent && (
-                        <div className="text-xs text-purple-600 mb-4">
-                          より深い分析と説得力のある推薦理由を提供します
-                        </div>
+                        <>
+                          <div className="text-xs text-purple-600 mb-4">
+                            より深い分析と説得力のある推薦理由を提供します
+                          </div>
+                          <div className="mb-4">
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              希望するインフルエンサータイプ（任意）
+                            </label>
+                            <input
+                              type="text"
+                              value={customInfluencerPreference}
+                              onChange={(e) => setCustomInfluencerPreference(e.target.value)}
+                              placeholder="例: ゲーム実況系、美容系、ビジネス系、料理系など"
+                              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                            />
+                            <p className="text-xs text-gray-500 mt-1">
+                              特定のジャンルや特徴を指定できます（空欄の場合は自動判定）
+                            </p>
+                          </div>
+                        </>
                       )}
                     </div>
                     
@@ -699,10 +718,27 @@ export default function MatchingPage() {
                         </span>
                       </label>
                       {useGeminiAgent && (
-                        <div className="text-xs text-purple-600 mb-4 max-w-md mx-auto">
-                          企業の詳細情報とインフルエンサーの特性を深く分析し、<br/>
-                          より説得力のある推薦理由と戦略的インサイトを提供します
-                        </div>
+                        <>
+                          <div className="text-xs text-purple-600 mb-4 max-w-md mx-auto">
+                            企業の詳細情報とインフルエンサーの特性を深く分析し、<br/>
+                            より説得力のある推薦理由と戦略的インサイトを提供します
+                          </div>
+                          <div className="mb-4 max-w-md mx-auto">
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              希望するインフルエンサータイプ（任意）
+                            </label>
+                            <input
+                              type="text"
+                              value={customInfluencerPreference}
+                              onChange={(e) => setCustomInfluencerPreference(e.target.value)}
+                              placeholder="例: ゲーム実況系、美容系、ビジネス系、料理系など"
+                              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                            />
+                            <p className="text-xs text-gray-500 mt-1">
+                              特定のジャンルや特徴を指定できます（空欄の場合は自動判定）
+                            </p>
+                          </div>
+                        </>
                       )}
                     </div>
                     

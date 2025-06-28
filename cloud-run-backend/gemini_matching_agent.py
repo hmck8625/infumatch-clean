@@ -121,11 +121,33 @@ class GeminiMatchingAgent:
             
             # カテゴリでフィルタリング
             preferred_categories = preferences.get('preferred_categories', [])
+            custom_preference = preferences.get('custom_preference', '')
+            
+            # カスタム希望がある場合は、それを優先カテゴリに追加
+            if custom_preference:
+                # カスタム希望をカテゴリ名に変換（簡易的なマッピング）
+                category_mapping = {
+                    'ゲーム': ['ゲーム', 'gaming', 'game'],
+                    '美容': ['美容', 'beauty', 'コスメ'],
+                    'ビジネス': ['ビジネス', 'business', '仕事'],
+                    '料理': ['料理', 'cooking', 'グルメ', '食'],
+                    'フィットネス': ['フィットネス', 'fitness', '健康', 'ヘルス'],
+                    'テクノロジー': ['テクノロジー', 'tech', 'IT', 'ガジェット'],
+                    'エンタメ': ['エンタメ', 'エンターテイメント', 'entertainment'],
+                    'ファッション': ['ファッション', 'fashion', 'コーデ']
+                }
+                
+                # カスタム希望に基づいてカテゴリを追加
+                for key, values in category_mapping.items():
+                    if any(v in custom_preference.lower() for v in values):
+                        if key not in preferred_categories:
+                            preferred_categories.append(key)
+            
             if preferred_categories:
                 query = query.where('category', 'in', preferred_categories[:10])  # Firestore制限
             
             # 結果取得
-            docs = query.limit(20).stream()
+            docs = query.limit(30 if custom_preference else 20).stream()  # カスタム希望がある場合は多めに取得
             candidates = []
             
             for doc in docs:
@@ -226,6 +248,8 @@ class GeminiMatchingAgent:
         company_profile = request_data.get('company_profile', {})
         product_portfolio = request_data.get('product_portfolio', {})
         campaign_objectives = request_data.get('campaign_objectives', {})
+        influencer_preferences = request_data.get('influencer_preferences', {})
+        custom_preference = influencer_preferences.get('custom_preference', '')
         
         prompt = f"""
 あなたは戦略的インフルエンサーマーケティングの専門家です。以下の企業とインフルエンサーの詳細情報を分析し、戦略的な適合性を評価してください。
@@ -258,6 +282,10 @@ class GeminiMatchingAgent:
 **成功指標**: {', '.join(campaign_objectives.get('success_metrics', []))}
 **予算範囲**: ¥{campaign_objectives.get('budget_range', {}).get('min', 0):,} - ¥{campaign_objectives.get('budget_range', {}).get('max', 0):,}
 **期間**: {campaign_objectives.get('timeline', 'N/A')}
+
+{f'## 🎯 カスタム希望インフルエンサータイプ' if custom_preference else ''}
+{f'**指定タイプ**: {custom_preference}' if custom_preference else ''}
+{f'※この希望タイプに特に注目して分析してください' if custom_preference else ''}
 
 ## 👤 分析対象インフルエンサー
 **名前**: {influencer.get('name', 'N/A')}
