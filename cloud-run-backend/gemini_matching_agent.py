@@ -123,99 +123,73 @@ class GeminiMatchingAgent:
             preferences = request_data.get('influencer_preferences', {})
             query = influencers_ref
             
-            # 登録者数範囲でフィルタリング
-            if preferences.get('subscriber_range'):
-                sub_range = preferences['subscriber_range']
-                if sub_range.get('min'):
-                    query = query.where('subscriber_count', '>=', sub_range['min'])
-                if sub_range.get('max'):
-                    query = query.where('subscriber_count', '<=', sub_range['max'])
+            # Firestoreインデックスエラーを避けるため、クライアントサイドフィルタリングに変更
+            # まず全データを取得してからフィルタリング
+            logger.info("📊 全データ取得後にクライアントサイドフィルタリングを実行")
             
-            # カテゴリでフィルタリング
-            preferred_categories = preferences.get('preferred_categories', [])
-            custom_preference = preferences.get('custom_preference', '')
-            
-            # カスタム希望がある場合は、LLMを使って動的にカテゴリマッピング
-            if custom_preference:
-                logger.info(f"🔍 カスタム希望: '{custom_preference}'")
-                # 実際に存在するカテゴリ一覧を取得
-                available_categories = await self._get_available_categories()
-                logger.info(f"📂 利用可能カテゴリ: {available_categories}")
-                
-                # Gemini APIでカスタム希望に最も近いカテゴリを選択
-                if available_categories:
-                    mapped_categories = await self._map_categories_with_gemini(
-                        custom_preference, available_categories
-                    )
-                    logger.info(f"🎯 Geminiマッピング結果: {mapped_categories}")
-                    preferred_categories.extend(mapped_categories)
-            
-            if preferred_categories:
-                logger.info(f"📂 フィルタリングカテゴリ: {preferred_categories[:10]}")
-                query = query.where('category', 'in', preferred_categories[:10])  # Firestore制限
-            else:
-                logger.info("📂 カテゴリフィルタリングなし（全カテゴリ対象）")
-            
-            # 結果取得
-            limit = 30 if custom_preference else 20
-            logger.info(f"🔢 取得上限: {limit}件")
-            
-            # まず全件チェック（デバッグ用）
+            # まず全データを取得（インデックス不要）
             try:
-                all_docs = self.db.collection('influencers').limit(5).stream()
-                all_count = 0
+                all_docs = self.db.collection('influencers').limit(100).stream()
+                all_candidates = []
                 for doc in all_docs:
-                    all_count += 1
                     data = doc.to_dict()
-                    logger.info(f"📋 サンプルデータ: {data.get('channel_name', 'unknown')} - カテゴリ: {data.get('category', 'unknown')}")
-                logger.info(f"📊 Firestore全体サンプル: {all_count}件")
-            except Exception as debug_e:
-                logger.error(f"❌ Firestore全体チェックエラー: {debug_e}")
-            
-            docs = query.limit(limit).stream()  # カスタム希望がある場合は多めに取得
-            candidates = []
-            
-            for doc in docs:
-                data = doc.to_dict()
-                data['id'] = doc.id
-                candidates.append(data)
+                    data['id'] = doc.id
+                    all_candidates.append(data)
+                    
+                logger.info(f"📊 Firestore全データ取得: {len(all_candidates)}件")
+                
+                # クライアントサイドフィルタリング
+                candidates = []
+                preferences = request_data.get('influencer_preferences', {})
+                custom_preference = preferences.get('custom_preference', '')
+                
+                # カスタム希望がある場合のカテゴリマッピング
+                preferred_categories = preferences.get('preferred_categories', [])
+                if custom_preference:
+                    logger.info(f"🔍 カスタム希望: '{custom_preference}'")
+                    available_categories = list(set([c.get('category', '') for c in all_candidates if c.get('category')]))
+                    logger.info(f"📂 利用可能カテゴリ: {available_categories}")
+                    
+                    # 簡単なキーワードマッチングでカテゴリ選択
+                    user_lower = custom_preference.lower()
+                    for category in available_categories:
+                        if any(keyword in category.lower() for keyword in user_lower.split()):
+                            preferred_categories.append(category)
+                    
+                    logger.info(f"🎯 マッチしたカテゴリ: {preferred_categories}")
+                
+                # フィルタリング適用
+                for candidate in all_candidates:
+                    # 登録者数フィルタ
+                    subscriber_count = candidate.get('subscriber_count', 0)
+                    if preferences.get('subscriber_range'):
+                        sub_range = preferences['subscriber_range']
+                        if sub_range.get('min') and subscriber_count < sub_range['min']:
+                            continue
+                        if sub_range.get('max') and subscriber_count > sub_range['max']:
+                            continue
+                    
+                    # カテゴリフィルタ
+                    if preferred_categories:
+                        category = candidate.get('category', '')
+                        if not any(pref_cat in category or category in pref_cat for pref_cat in preferred_categories):
+                            continue
+                    
+                    candidates.append(candidate)
+                
+                # 取得上限適用
+                limit = 30 if custom_preference else 20
+                candidates = candidates[:limit]
+                
+            except Exception as e:
+                logger.error(f"❌ Firestore全データ取得エラー: {e}")
+                candidates = []
             
             logger.info(f"✅ {len(candidates)}名の候補を取得")
             
-            # 候補が見つからない場合は、フィルタ条件を緩めて再検索
+            # 候補が見つからない場合はモックデータを返す
             if len(candidates) == 0:
-                logger.warning("⚠️ フィルタ条件で候補が見つからないため、条件を緩めて再検索")
-                
-                # 1. カテゴリフィルタを除去して検索
-                if preferred_categories:
-                    query_fallback = influencers_ref
-                    if preferences.get('subscriber_range'):
-                        sub_range = preferences['subscriber_range']
-                        if sub_range.get('min'):
-                            query_fallback = query_fallback.where('subscriber_count', '>=', sub_range['min'])
-                    
-                    docs_fallback = query_fallback.limit(20).stream()
-                    for doc in docs_fallback:
-                        data = doc.to_dict()
-                        data['id'] = doc.id
-                        candidates.append(data)
-                    
-                    logger.info(f"🔄 フォールバック検索結果: {len(candidates)}名")
-                
-                # 2. 全条件を除去してトップ20を取得
-                if len(candidates) == 0:
-                    logger.warning("⚠️ 全フィルタ条件を除去して検索")
-                    docs_all = self.db.collection('influencers').limit(20).stream()
-                    for doc in docs_all:
-                        data = doc.to_dict()
-                        data['id'] = doc.id
-                        candidates.append(data)
-                    
-                    logger.info(f"🔄 全条件除去検索結果: {len(candidates)}名")
-            
-            # それでも見つからない場合はモックデータを返す
-            if len(candidates) == 0:
-                logger.error("❌ Firestoreから候補が取得できないため、モックデータを使用")
+                logger.warning("⚠️ フィルタ後に候補が見つからないため、モックデータを使用")
                 return self._get_mock_influencers()
             
             return candidates
@@ -415,7 +389,7 @@ class GeminiMatchingAgent:
 - 文字列値は完全に閉じられた状態で記述し、改行は含めない
 - すべての文字列値を200文字以内で簡潔に記述
 
-回答例: {"overall_compatibility_score": 85, "brand_alignment_score": 80, ...}
+回答例: {{"overall_compatibility_score": 85, "brand_alignment_score": 80, ...}}
 """
         
         return prompt
