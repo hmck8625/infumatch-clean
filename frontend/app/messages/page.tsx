@@ -423,7 +423,13 @@ function MessagesPageContent() {
       if (response.ok) {
         const data = await response.json();
         console.log('Threads data received:', data);
-        setThreads(data.threads || []);
+        console.log('Number of threads:', data.threads?.length || 0);
+        
+        const newThreads = data.threads || [];
+        console.log('Setting threads state to:', newThreads);
+        setThreads(newThreads);
+        
+        console.log('✅ Threads state updated successfully');
       } else {
         const errorText = await response.text();
         console.warn('Failed to load threads:', response.status, response.statusText, errorText);
@@ -432,6 +438,7 @@ function MessagesPageContent() {
       handleError(error);
       console.error('スレッド読み込みエラー:', error);
     } finally {
+      console.log('📧 loadThreads completed, setting loading to false');
       setIsLoadingThreads(false);
     }
   };
@@ -1706,12 +1713,12 @@ InfuMatchの田中です。
                       🔔 通知
                     </button>
                     <button
-                      onClick={() => {
-                        loadThreads();
-                        refreshRealtime();
-                        resetNewCount();
+                      onClick={async () => {
+                        console.log('🔄 手動更新ボタンクリック');
+                        await loadThreads();
+                        console.log('✅ スレッド更新完了');
                       }}
-                      disabled={isLoadingThreads || isRealtimeLoading}
+                      disabled={isLoadingThreads}
                       className="px-3 py-2 rounded-lg text-sm font-medium bg-green-50 text-green-700 hover:bg-green-100 border border-green-200 transition-all duration-200 flex items-center gap-2 disabled:opacity-50"
                     >
                       {isLoadingThreads || isRealtimeLoading ? (
@@ -1733,11 +1740,15 @@ InfuMatchの田中です。
                   </div>
                 </div>
                 <div className="divide-y divide-gray-100 max-h-96 overflow-y-auto">
-                  {threads.length === 0 ? (
-                    <div className="p-6 text-center text-gray-500">
-                      <p>メールスレッドが見つかりません</p>
-                    </div>
-                  ) : (
+                  {(() => {
+                    console.log('🔍 Rendering threads, count:', threads.length);
+                    console.log('🔍 Threads data:', threads);
+                    return threads.length === 0 ? (
+                      <div className="p-6 text-center text-gray-500">
+                        <p>メールスレッドが見つかりません</p>
+                        <p className="text-xs mt-2">現在のスレッド数: {threads.length}</p>
+                      </div>
+                    ) : (
                     threads.map((thread, index) => (
                       <div
                         key={thread.id}
@@ -1805,7 +1816,8 @@ InfuMatchの田中です。
                         </div>
                       </div>
                     ))
-                  )}
+                  );
+                  })()}
                 </div>
               </div>
             </div>
