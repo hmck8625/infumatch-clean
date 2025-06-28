@@ -68,84 +68,199 @@ function MessagesPageContent() {
   
   // Gmail新着監視機能
   const checkForNewEmails = async () => {
-    if (!gmailMonitoringActive) return;
+    if (!gmailMonitoringActive) {
+      console.log('⏸️ Gmail監視は無効です。スキップします。');
+      return;
+    }
     
     try {
-      console.log('📧 Gmail新着チェック開始', new Date().toLocaleTimeString());
+      console.log('📧 Gmail新着チェック開始', {
+        時刻: new Date().toLocaleTimeString(),
+        監視状態: gmailMonitoringActive,
+        前回チェックしたスレッドID: lastThreadCheck
+      });
       
       // Gmail APIで最新のスレッドを取得
+      console.log('🌐 Gmail API呼び出し: /api/gmail/threads?maxResults=10');
       const response = await fetch('/api/gmail/threads?maxResults=10');
+      
+      console.log('📡 Gmail APIレスポンス:', {
+        status: response.status,
+        ok: response.ok,
+        statusText: response.statusText
+      });
+      
       if (!response.ok) {
-        console.error('❌ Gmail API呼び出し失敗:', response.status);
+        console.error('❌ Gmail API呼び出し失敗:', {
+          status: response.status,
+          statusText: response.statusText
+        });
         return;
       }
       
       const data = await response.json();
       const newThreads = data.threads || [];
       
+      console.log('📬 取得したスレッド情報:', {
+        総スレッド数: newThreads.length,
+        最新スレッドID: newThreads.length > 0 ? newThreads[0].id : 'なし',
+        全スレッドID: newThreads.map(t => t.id).slice(0, 3) // 最初の3つのIDのみ表示
+      });
+      
       if (newThreads.length > 0) {
         const latestThreadId = newThreads[0].id;
+        const latestThreadSnippet = newThreads[0].snippet || '';
+        
+        console.log('🔍 最新スレッド詳細:', {
+          ID: latestThreadId,
+          snippet: latestThreadSnippet.substring(0, 100) + '...',
+          前回のチェック: lastThreadCheck
+        });
         
         // 新着スレッドが検出された場合
         if (lastThreadCheck && latestThreadId !== lastThreadCheck) {
-          console.log('🆕 新着スレッド検出:', latestThreadId);
+          console.log('🆕🚨 新着スレッド検出！', {
+            新着スレッドID: latestThreadId,
+            前回スレッドID: lastThreadCheck,
+            スニペット: latestThreadSnippet.substring(0, 150)
+          });
+          
+          // スレッドリストを即座に更新
+          console.log('🔄 スレッドリストを更新中...');
+          await loadThreads();
+          console.log('✅ スレッドリスト更新完了');
           
           // 新着スレッドに対して自動交渉を実行
           await processNewThread(latestThreadId);
+        } else if (!lastThreadCheck) {
+          console.log('🔄 初回チェック - 基準スレッドIDを設定');
+        } else {
+          console.log('📭 新着なし - 最新スレッドIDは前回と同じです');
         }
         
         setLastThreadCheck(latestThreadId);
+      } else {
+        console.log('📪 スレッドが見つかりませんでした');
       }
       
-      console.log('✅ Gmail新着チェック完了');
+      console.log('✅ Gmail新着チェック完了', new Date().toLocaleTimeString());
       
     } catch (error) {
-      console.error('❌ Gmail監視エラー:', error);
+      console.error('❌ Gmail監視エラー:', {
+        error: error,
+        message: error.message,
+        stack: error.stack
+      });
     }
   };
   
   // 新着スレッドを処理
   const processNewThread = async (threadId: string) => {
     try {
-      console.log('🤖 新着スレッドの自動交渉開始:', threadId);
+      console.log('🤖 新着スレッドの自動交渉開始:', {
+        スレッドID: threadId,
+        開始時刻: new Date().toLocaleTimeString()
+      });
       
       // スレッドの詳細を取得
+      console.log('📨 スレッド詳細取得中:', threadId);
       const threadResponse = await fetch(`/api/gmail/threads/${threadId}`);
-      if (!threadResponse.ok) return;
+      
+      console.log('📡 スレッド詳細API応答:', {
+        status: threadResponse.status,
+        ok: threadResponse.ok,
+        statusText: threadResponse.statusText
+      });
+      
+      if (!threadResponse.ok) {
+        console.error('❌ スレッド詳細取得失敗:', threadResponse.status);
+        return;
+      }
       
       const threadData = await threadResponse.json();
       const messages = threadData.messages || [];
       
-      if (messages.length === 0) return;
+      console.log('📧 取得したメッセージ情報:', {
+        メッセージ数: messages.length,
+        スレッドID: threadId
+      });
+      
+      if (messages.length === 0) {
+        console.warn('⚠️ メッセージが見つかりません');
+        return;
+      }
       
       // 最新メッセージを取得
       const latestMessage = messages[messages.length - 1];
       const messageContent = extractMessageContent(latestMessage);
+      const fromHeader = latestMessage.payload?.headers?.find(h => h.name === 'From')?.value || '';
+      const subjectHeader = latestMessage.payload?.headers?.find(h => h.name === 'Subject')?.value || '';
+      
+      console.log('📬 最新メッセージ詳細:', {
+        送信者: fromHeader,
+        件名: subjectHeader,
+        内容プレビュー: messageContent.substring(0, 100) + '...',
+        メッセージID: latestMessage.id
+      });
       
       // 自動交渉APIを呼び出し
+      console.log('🚀 自動交渉API呼び出し開始');
+      const negotiationPayload = {
+        conversation_history: messages,
+        new_message: messageContent,
+        context: {
+          auto_reply: true,
+          thread_id: threadId,
+          sender: fromHeader,
+          subject: subjectHeader
+        }
+      };
+      
+      console.log('📤 自動交渉APIペイロード:', {
+        会話履歴数: messages.length,
+        新着メッセージ文字数: messageContent.length,
+        コンテキスト: negotiationPayload.context
+      });
+      
       const negotiationResponse = await fetch('/api/v1/negotiation/continue', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          conversation_history: messages,
-          new_message: messageContent,
-          context: {
-            auto_reply: true,
-            thread_id: threadId
-          }
-        })
+        body: JSON.stringify(negotiationPayload)
+      });
+      
+      console.log('📡 自動交渉API応答:', {
+        status: negotiationResponse.status,
+        ok: negotiationResponse.ok,
+        statusText: negotiationResponse.statusText
       });
       
       if (negotiationResponse.ok) {
         const result = await negotiationResponse.json();
-        console.log('✅ 自動交渉完了:', result);
+        console.log('✅ 自動交渉完了:', {
+          成功: result.success,
+          生成された返信: result.content ? result.content.substring(0, 100) + '...' : 'なし',
+          処理時間: new Date().toLocaleTimeString()
+        });
         
         // スレッドリストを更新
+        console.log('🔄 自動交渉後のスレッドリスト更新中...');
         await loadThreads();
+        console.log('✅ 自動交渉後のスレッドリスト更新完了');
+      } else {
+        const errorText = await negotiationResponse.text();
+        console.error('❌ 自動交渉API失敗:', {
+          status: negotiationResponse.status,
+          error: errorText
+        });
       }
       
     } catch (error) {
-      console.error('❌ 新着スレッド処理エラー:', error);
+      console.error('❌ 新着スレッド処理エラー:', {
+        error: error,
+        message: error.message,
+        stack: error.stack,
+        スレッドID: threadId
+      });
     }
   };
   
@@ -258,18 +373,38 @@ function MessagesPageContent() {
   useEffect(() => {
     let intervalId: NodeJS.Timeout;
     
+    console.log('📋 Gmail監視useEffect実行:', {
+      監視状態: gmailMonitoringActive,
+      前回チェックスレッド: lastThreadCheck,
+      現在時刻: new Date().toLocaleTimeString()
+    });
+    
     if (gmailMonitoringActive) {
-      console.log('🔄 Gmail監視を開始します（60秒間隔）');
-      intervalId = setInterval(checkForNewEmails, 60000); // 60秒間隔
+      console.log('🔄 Gmail監視を開始します', {
+        間隔: '60秒',
+        現在時刻: new Date().toLocaleTimeString(),
+        初回実行: 'あり'
+      });
+      
+      // 定期実行を設定
+      intervalId = setInterval(() => {
+        console.log('⏰ Gmail監視タイマー発火 - checkForNewEmails()を実行');
+        checkForNewEmails();
+      }, 60000); // 60秒間隔
       
       // 初回実行
+      console.log('🚀 Gmail監視初回チェック実行');
       checkForNewEmails();
+    } else {
+      console.log('⏸️ Gmail監視は無効 - 定期チェックはスキップされます');
     }
     
     return () => {
       if (intervalId) {
         clearInterval(intervalId);
-        console.log('⏹️ Gmail監視を停止しました');
+        console.log('⏹️ Gmail監視定期チェックを停止しました', {
+          停止時刻: new Date().toLocaleTimeString()
+        });
       }
     };
   }, [gmailMonitoringActive, lastThreadCheck]);
@@ -1731,11 +1866,19 @@ InfuMatchの田中です。
                       )}
                       更新
                     </button>
-                    <div className="flex items-center text-xs text-green-600 ml-auto">
-                      <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                      </svg>
-                      Gmail接続済み
+                    <div className="flex items-center gap-4 text-xs ml-auto">
+                      <div className="flex items-center text-green-600">
+                        <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                        </svg>
+                        Gmail接続済み
+                      </div>
+                      <div className={`flex items-center ${gmailMonitoringActive ? 'text-purple-600' : 'text-gray-400'}`}>
+                        <svg className={`w-3 h-3 mr-1 ${gmailMonitoringActive ? 'animate-pulse' : ''}`} fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                        </svg>
+                        {gmailMonitoringActive ? '自動監視中' : '監視停止中'}
+                      </div>
                     </div>
                   </div>
                 </div>
