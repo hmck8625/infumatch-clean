@@ -65,6 +65,7 @@ function MessagesPageContent() {
   // Gmail監視状態
   const [gmailMonitoringActive, setGmailMonitoringActive] = useState(false);
   const [lastThreadCheck, setLastThreadCheck] = useState<string | null>(null);
+  const [trackedThreads, setTrackedThreads] = useState<{[threadId: string]: {lastMessageTime: string, isAutomated: boolean}}>({});
   
   // Gmail監視状態変更のラッパー関数（ログ付き）
   const handleMonitoringChange = (isActive: boolean) => {
@@ -88,12 +89,13 @@ function MessagesPageContent() {
       console.log('📧 Gmail新着チェック開始', {
         時刻: new Date().toLocaleTimeString(),
         監視状態: gmailMonitoringActive,
-        前回チェックしたスレッドID: lastThreadCheck
+        前回チェックしたスレッドID: lastThreadCheck,
+        追跡中スレッド数: Object.keys(trackedThreads).length
       });
       
       // Gmail APIで最新のスレッドを取得
-      console.log('🌐 Gmail API呼び出し: /api/gmail/threads?maxResults=10');
-      const response = await fetch('/api/gmail/threads?maxResults=10');
+      console.log('🌐 Gmail API呼び出し: /api/gmail/threads?maxResults=20');
+      const response = await fetch('/api/gmail/threads?maxResults=20');
       
       console.log('📡 Gmail APIレスポンス:', {
         status: response.status,
@@ -146,8 +148,11 @@ function MessagesPageContent() {
         } else if (!lastThreadCheck) {
           console.log('🔄 初回チェック - 基準スレッドIDを設定');
         } else {
-          console.log('📭 新着なし - 最新スレッドIDは前回と同じです');
+          console.log('📭 新しいスレッドなし - 既存スレッドの更新をチェック');
         }
+        
+        // 既存スレッドの更新検出（新機能）
+        await checkExistingThreadsForUpdates(newThreads);
         
         setLastThreadCheck(latestThreadId);
       } else {
@@ -162,6 +167,90 @@ function MessagesPageContent() {
         message: error.message,
         stack: error.stack
       });
+    }
+  };
+
+  // 既存スレッドの更新をチェックする新機能
+  const checkExistingThreadsForUpdates = async (currentThreads: any[]) => {
+    const automatedThreadIds = Object.keys(threadAutomationStates).filter(
+      threadId => threadAutomationStates[threadId]?.isActive && threadAutomationStates[threadId]?.mode === 'semi_auto'
+    );
+    
+    if (automatedThreadIds.length === 0) {
+      console.log('🤖 半自動実行中のスレッドなし');
+      return;
+    }
+    
+    console.log('🤖 半自動実行中スレッドをチェック:', {
+      対象スレッド数: automatedThreadIds.length,
+      スレッドID: automatedThreadIds
+    });
+    
+    for (const threadId of automatedThreadIds) {
+      try {
+        // スレッド詳細を取得して最新メッセージをチェック
+        console.log(`🔍 スレッド ${threadId} の詳細を取得中...`);
+        const threadResponse = await fetch(`/api/gmail/threads/${threadId}`);
+        
+        if (!threadResponse.ok) {
+          console.warn(`⚠️ スレッド ${threadId} の取得に失敗:`, threadResponse.status);
+          continue;
+        }
+        
+        const threadData = await threadResponse.json();
+        const messages = threadData.messages || [];
+        
+        if (messages.length === 0) {
+          console.warn(`⚠️ スレッド ${threadId} にメッセージなし`);
+          continue;
+        }
+        
+        // 最新メッセージの時刻を取得
+        const latestMessage = messages[messages.length - 1];
+        const latestMessageTime = latestMessage.internalDate;
+        
+        console.log(`📅 スレッド ${threadId} の最新メッセージ時刻:`, {
+          現在の時刻: latestMessageTime,
+          前回の時刻: trackedThreads[threadId]?.lastMessageTime,
+          メッセージ数: messages.length
+        });
+        
+        // 前回チェック時より新しいメッセージがあるかチェック
+        const previousMessageTime = trackedThreads[threadId]?.lastMessageTime;
+        
+        if (previousMessageTime && latestMessageTime !== previousMessageTime) {
+          console.log('🚨💬 既存スレッドに新着メッセージ検出!', {
+            スレッドID: threadId,
+            前回メッセージ時刻: previousMessageTime,
+            新着メッセージ時刻: latestMessageTime,
+            メッセージ内容: latestMessage.snippet?.substring(0, 100) + '...'
+          });
+          
+          // スレッドリストを更新
+          console.log('🔄 スレッドリスト更新中...');
+          await loadThreads();
+          console.log('✅ スレッドリスト更新完了');
+          
+          // 既存スレッドの返信に対して自動交渉を実行
+          await processExistingThreadReply(threadId);
+        } else if (!previousMessageTime) {
+          console.log(`🔄 スレッド ${threadId} の初回追跡開始`);
+        } else {
+          console.log(`📭 スレッド ${threadId} に新着メッセージなし`);
+        }
+        
+        // 追跡情報を更新
+        setTrackedThreads(prev => ({
+          ...prev,
+          [threadId]: {
+            lastMessageTime: latestMessageTime,
+            isAutomated: true
+          }
+        }));
+        
+      } catch (error) {
+        console.error(`❌ スレッド ${threadId} のチェック中にエラー:`, error);
+      }
     }
   };
   
@@ -354,6 +443,201 @@ function MessagesPageContent() {
         error: error,
         message: error.message,
         stack: error.stack,
+        スレッドID: threadId
+      });
+    }
+  };
+
+  // 既存スレッドの返信を処理
+  const processExistingThreadReply = async (threadId: string) => {
+    try {
+      console.log('🔄 既存スレッドの返信自動交渉開始:', {
+        スレッドID: threadId,
+        開始時刻: new Date().toLocaleTimeString()
+      });
+      
+      // スレッドの詳細を取得
+      console.log('📨 スレッド詳細取得中:', threadId);
+      const threadResponse = await fetch(`/api/gmail/threads/${threadId}`);
+      
+      console.log('📡 スレッド詳細API応答:', {
+        status: threadResponse.status,
+        ok: threadResponse.ok,
+        statusText: threadResponse.statusText
+      });
+      
+      if (!threadResponse.ok) {
+        console.error('❌ スレッド詳細取得失敗:', threadResponse.status);
+        return;
+      }
+      
+      const threadData = await threadResponse.json();
+      const messages = threadData.messages || [];
+      
+      console.log('📧 取得したメッセージ情報:', {
+        メッセージ数: messages.length,
+        スレッドID: threadId
+      });
+      
+      if (messages.length === 0) {
+        console.warn('⚠️ メッセージが見つかりません');
+        return;
+      }
+      
+      // 最新メッセージを取得
+      const latestMessage = messages[messages.length - 1];
+      const messageContent = extractMessageContent(latestMessage);
+      const fromHeader = latestMessage.payload?.headers?.find(h => h.name === 'From')?.value || '';
+      const subjectHeader = latestMessage.payload?.headers?.find(h => h.name === 'Subject')?.value || '';
+      
+      console.log('📬 最新メッセージ詳細:', {
+        送信者: fromHeader,
+        件名: subjectHeader,
+        内容プレビュー: messageContent.substring(0, 100) + '...',
+        メッセージID: latestMessage.id
+      });
+      
+      // 自動交渉APIを呼び出し
+      console.log('🚀 自動交渉API呼び出し開始（既存スレッド返信）');
+      const negotiationPayload = {
+        conversation_history: messages,
+        new_message: messageContent,
+        context: {
+          auto_reply: true,
+          thread_id: threadId,
+          sender: fromHeader,
+          subject: subjectHeader,
+          is_existing_thread_reply: true  // 既存スレッドの返信であることを示すフラグ
+        }
+      };
+      
+      console.log('📤 自動交渉APIペイロード:', {
+        会話履歴数: messages.length,
+        新着メッセージ文字数: messageContent.length,
+        コンテキスト: negotiationPayload.context
+      });
+      
+      const negotiationResponse = await fetch('/api/v1/negotiation/continue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(negotiationPayload)
+      });
+      
+      console.log('📡 自動交渉API応答:', {
+        status: negotiationResponse.status,
+        ok: negotiationResponse.ok,
+        statusText: negotiationResponse.statusText
+      });
+      
+      if (negotiationResponse.ok) {
+        const result = await negotiationResponse.json();
+        console.log('✅ 自動交渉完了（既存スレッド）:', {
+          成功: result.success,
+          生成された返信: result.content ? result.content.substring(0, 100) + '...' : 'なし',
+          処理時間: new Date().toLocaleTimeString()
+        });
+        
+        // 返信が必要で、かつ生成されたコンテンツがある場合のみ自動送信
+        if (result.success && result.content && !result.metadata?.reply_not_needed && !result.metadata?.caution_required) {
+          console.log('📤 既存スレッド自動返信送信開始:', {
+            スレッドID: threadId,
+            返信内容文字数: result.content.length,
+            送信対象: fromHeader
+          });
+          
+          try {
+            // 1. 返信ヘッダーを取得
+            console.log('📋 返信ヘッダー取得中...');
+            const replyHeadersResponse = await fetch(`/api/gmail/threads/${threadId}/reply-headers?messageId=${latestMessage.id}`);
+            
+            let replyHeaders = null;
+            if (replyHeadersResponse.ok) {
+              const headerData = await replyHeadersResponse.json();
+              replyHeaders = headerData.replyHeaders;
+              console.log('✅ 返信ヘッダー取得成功:', replyHeaders);
+            } else {
+              console.warn('⚠️ 返信ヘッダー取得失敗、基本情報で送信します');
+            }
+            
+            // 2. 返信メールを送信
+            console.log('📨 Gmail送信API呼び出し中...');
+            const sendPayload = {
+              to: fromHeader,
+              subject: subjectHeader.startsWith('Re: ') ? subjectHeader : `Re: ${subjectHeader}`,
+              body: result.content,
+              threadId: threadId,
+              replyToMessageId: latestMessage.id,
+              replyHeaders: replyHeaders
+            };
+            
+            console.log('📤 送信ペイロード:', {
+              宛先: sendPayload.to,
+              件名: sendPayload.subject,
+              本文文字数: sendPayload.body.length,
+              スレッドID: sendPayload.threadId,
+              返信先メッセージID: sendPayload.replyToMessageId,
+              ヘッダー有無: !!sendPayload.replyHeaders
+            });
+            
+            const sendResponse = await fetch('/api/gmail/send', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(sendPayload)
+            });
+            
+            if (sendResponse.ok) {
+              const sendResult = await sendResponse.json();
+              console.log('✅ 既存スレッド自動返信送信成功!', {
+                メッセージID: sendResult.messageId,
+                送信完了時刻: new Date().toLocaleTimeString(),
+                宛先: sendPayload.to,
+                件名: sendPayload.subject
+              });
+            } else {
+              const sendError = await sendResponse.text();
+              console.error('❌ 既存スレッド自動返信送信失敗:', {
+                status: sendResponse.status,
+                error: sendError,
+                payload: sendPayload
+              });
+            }
+            
+          } catch (sendError) {
+            console.error('❌ 既存スレッド自動返信送信中のエラー:', {
+              error: sendError,
+              message: sendError instanceof Error ? sendError.message : 'Unknown error',
+              スレッドID: threadId
+            });
+          }
+        } else {
+          console.log('ℹ️ 既存スレッド自動返信スキップ:', {
+            success: result.success,
+            hasContent: !!result.content,
+            replyNotNeeded: result.metadata?.reply_not_needed,
+            cautionRequired: result.metadata?.caution_required,
+            理由: result.metadata?.reply_not_needed ? '返信不要メール' : 
+                  result.metadata?.caution_required ? '注意が必要なメール' : 
+                  !result.content ? 'コンテンツ生成失敗' : 'その他'
+          });
+        }
+        
+        // スレッドリストを更新
+        console.log('🔄 既存スレッド自動交渉後のスレッドリスト更新中...');
+        await loadThreads();
+        console.log('✅ 既存スレッド自動交渉後のスレッドリスト更新完了');
+      } else {
+        const errorText = await negotiationResponse.text();
+        console.error('❌ 既存スレッド自動交渉API失敗:', {
+          status: negotiationResponse.status,
+          error: errorText
+        });
+      }
+      
+    } catch (error) {
+      console.error('❌ 既存スレッド返信処理エラー:', {
+        error: error,
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : 'No stack',
         スレッドID: threadId
       });
     }
@@ -2077,12 +2361,58 @@ InfuMatchの田中です。
                     threadSubject={currentThread.messages && currentThread.messages.length > 0 ? 
                       getHeader(currentThread.messages[0], 'subject') : 'メールスレッド'}
                     onModeChange={(mode, enabled) => {
-                      console.log(`Thread ${currentThread.id}: ${mode} mode ${enabled ? 'enabled' : 'disabled'}`);
+                      console.log(`🤖 スレッド自動化状態変更: ${currentThread.id}`, {
+                        モード: mode,
+                        有効: enabled,
+                        時刻: new Date().toLocaleTimeString()
+                      });
+                      
                       // スレッドの自動化状態を更新
                       setThreadAutomationStates(prev => ({
                         ...prev,
                         [currentThread.id]: { mode, isActive: enabled }
                       }));
+                      
+                      // 半自動モードが有効になった場合、スレッドの追跡を開始
+                      if (mode === 'semi_auto' && enabled) {
+                        console.log(`🎯 スレッド ${currentThread.id} の半自動監視を開始`);
+                        
+                        // 現在のスレッドの最新メッセージ時刻を取得して追跡開始
+                        const initializeThreadTracking = async () => {
+                          try {
+                            const messages = currentThread.messages || [];
+                            if (messages.length > 0) {
+                              const latestMessage = messages[messages.length - 1];
+                              const latestMessageTime = latestMessage.internalDate;
+                              
+                              setTrackedThreads(prev => ({
+                                ...prev,
+                                [currentThread.id]: {
+                                  lastMessageTime: latestMessageTime,
+                                  isAutomated: true
+                                }
+                              }));
+                              
+                              console.log(`✅ スレッド ${currentThread.id} の追跡開始完了`, {
+                                最新メッセージ時刻: latestMessageTime,
+                                メッセージ数: messages.length
+                              });
+                            }
+                          } catch (error) {
+                            console.error(`❌ スレッド ${currentThread.id} の追跡開始エラー:`, error);
+                          }
+                        };
+                        
+                        initializeThreadTracking();
+                      } else if (!enabled) {
+                        // 自動化が無効になった場合、追跡を停止
+                        console.log(`⏹️ スレッド ${currentThread.id} の自動化追跡を停止`);
+                        setTrackedThreads(prev => {
+                          const updated = { ...prev };
+                          delete updated[currentThread.id];
+                          return updated;
+                        });
+                      }
                     }}
                   />
                   
