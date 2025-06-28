@@ -61,11 +61,67 @@ function MessagesPageContent() {
   
   // スレッドごとの自動化状態を管理
   const [threadAutomationStates, setThreadAutomationStates] = useState<{[threadId: string]: {mode: string, isActive: boolean}}>({});
+
+  // 自動化状態をlocalStorageに永続化
+  useEffect(() => {
+    const savedAutomationStates = localStorage.getItem('threadAutomationStates');
+    if (savedAutomationStates) {
+      try {
+        const parsed = JSON.parse(savedAutomationStates);
+        setThreadAutomationStates(parsed);
+        console.log('🔄 保存された自動化状態を復元:', {
+          自動化中スレッド数: Object.keys(parsed).filter(id => parsed[id]?.isActive).length,
+          自動化スレッドID: Object.keys(parsed).filter(id => parsed[id]?.isActive)
+        });
+      } catch (error) {
+        console.error('❌ 自動化状態の復元に失敗:', error);
+      }
+    }
+  }, []);
+
+  // 自動化状態が変更されたときにlocalStorageに保存
+  useEffect(() => {
+    if (Object.keys(threadAutomationStates).length > 0) {
+      localStorage.setItem('threadAutomationStates', JSON.stringify(threadAutomationStates));
+      console.log('💾 自動化状態を保存:', {
+        自動化中スレッド数: Object.keys(threadAutomationStates).filter(id => threadAutomationStates[id]?.isActive).length,
+        自動化スレッドID: Object.keys(threadAutomationStates).filter(id => threadAutomationStates[id]?.isActive)
+      });
+    }
+  }, [threadAutomationStates]);
   
   // Gmail監視状態
   const [gmailMonitoringActive, setGmailMonitoringActive] = useState(false);
   const [lastThreadCheck, setLastThreadCheck] = useState<string | null>(null);
   const [trackedThreads, setTrackedThreads] = useState<{[threadId: string]: {lastMessageTime: string, isAutomated: boolean}}>({});
+
+  // 追跡状態をlocalStorageに永続化
+  useEffect(() => {
+    const savedTrackedThreads = localStorage.getItem('trackedThreads');
+    if (savedTrackedThreads) {
+      try {
+        const parsed = JSON.parse(savedTrackedThreads);
+        setTrackedThreads(parsed);
+        console.log('🔄 保存された追跡状態を復元:', {
+          追跡中スレッド数: Object.keys(parsed).length,
+          スレッドID: Object.keys(parsed)
+        });
+      } catch (error) {
+        console.error('❌ 追跡状態の復元に失敗:', error);
+      }
+    }
+  }, []);
+
+  // 追跡状態が変更されたときにlocalStorageに保存
+  useEffect(() => {
+    if (Object.keys(trackedThreads).length > 0) {
+      localStorage.setItem('trackedThreads', JSON.stringify(trackedThreads));
+      console.log('💾 追跡状態を保存:', {
+        追跡中スレッド数: Object.keys(trackedThreads).length,
+        スレッドID: Object.keys(trackedThreads)
+      });
+    }
+  }, [trackedThreads]);
   
   // Gmail監視状態変更のラッパー関数（ログ付き）
   const handleMonitoringChange = (isActive: boolean) => {
@@ -2421,6 +2477,12 @@ InfuMatchの田中です。
                         setTrackedThreads(prev => {
                           const updated = { ...prev };
                           delete updated[currentThread.id];
+                          // localStorageも更新
+                          if (Object.keys(updated).length === 0) {
+                            localStorage.removeItem('trackedThreads');
+                          } else {
+                            localStorage.setItem('trackedThreads', JSON.stringify(updated));
+                          }
                           return updated;
                         });
                       }
