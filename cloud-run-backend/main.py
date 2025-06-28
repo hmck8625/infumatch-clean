@@ -27,6 +27,14 @@ except ImportError as e:
     print(f"⚠️ AutoNegotiationManager import failed: {e}")
     AutoNegotiationManager = None
 
+# Phase 3 コンポーネントをインポート
+try:
+    from full_automation_orchestrator import FullAutomationOrchestrator, AutomationMode
+    print("✅ FullAutomationOrchestrator imported successfully")
+except ImportError as e:
+    print(f"⚠️ FullAutomationOrchestrator import failed: {e}")
+    FullAutomationOrchestrator = None
+
 # 4エージェント統合マネージャー（インライン実装）
 class SimpleNegotiationManager:
     """Cloud Run用シンプル交渉マネージャー"""
@@ -912,19 +920,29 @@ try:
         
         # 自動交渉マネージャーの初期化
         if AutoNegotiationManager:
-            auto_negotiation_manager = AutoNegotiationManager(gemini_model)
+            auto_negotiation_manager = AutoNegotiationManager(gemini_model, db)
             print("✅ Auto Negotiation Manager initialized successfully")
         else:
             auto_negotiation_manager = None
             print("⚠️ Auto Negotiation Manager not initialized (class unavailable)")
+        
+        # Phase 3: 完全自動化オーケストレーターの初期化
+        if FullAutomationOrchestrator and auto_negotiation_manager:
+            orchestrator = FullAutomationOrchestrator(gemini_model, db)
+            print("✅ Full Automation Orchestrator initialized successfully")
+        else:
+            orchestrator = None
+            print("⚠️ Full Automation Orchestrator not initialized")
     else:
         negotiation_manager = None
         auto_negotiation_manager = None
+        orchestrator = None
         print("⚠️ Negotiation Managers not initialized (Gemini model unavailable)")
 except Exception as e:
     print(f"❌ Negotiation Manager initialization failed: {e}")
     negotiation_manager = None
     auto_negotiation_manager = None
+    orchestrator = None
 
 # Geminiマッチングエージェントの初期化（既存のgemini_api_keyを使用）
 try:
@@ -2908,6 +2926,141 @@ async def get_gmail_monitor_status():
         raise HTTPException(
             status_code=500,
             detail=f"Gmail監視状態取得エラー: {str(e)}"
+        )
+
+@app.post("/api/v1/automation/start")
+async def start_automation(request: dict):
+    """完全自動化を開始"""
+    try:
+        if not orchestrator:
+            return {
+                "success": False,
+                "error": "Orchestrator not available",
+                "message": "完全自動化システムが利用できません"
+            }
+        
+        user_id = request.get("user_id", "default_user")
+        company_settings = request.get("company_settings", {})
+        mode = request.get("mode", "semi_auto")
+        
+        # AutomationMode に変換
+        automation_mode = AutomationMode.SEMI_AUTO  # デフォルト
+        if mode == "full_auto":
+            automation_mode = AutomationMode.FULL_AUTO
+        elif mode == "learning":
+            automation_mode = AutomationMode.LEARNING
+        elif mode == "manual":
+            automation_mode = AutomationMode.MANUAL
+            
+        result = await orchestrator.start_full_automation(
+            user_id, company_settings, automation_mode
+        )
+        
+        return result
+        
+    except Exception as e:
+        print(f"❌ 自動化開始エラー: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"自動化開始エラー: {str(e)}"
+        )
+
+@app.post("/api/v1/automation/stop")
+async def stop_automation():
+    """完全自動化を停止"""
+    try:
+        if not orchestrator:
+            return {
+                "success": False,
+                "error": "Orchestrator not available"
+            }
+        
+        result = await orchestrator.stop_automation()
+        return result
+        
+    except Exception as e:
+        print(f"❌ 自動化停止エラー: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"自動化停止エラー: {str(e)}"
+        )
+
+@app.get("/api/v1/automation/status")
+async def get_automation_status():
+    """自動化の状態を取得"""
+    try:
+        if not orchestrator:
+            return {
+                "success": False,
+                "is_running": False,
+                "error": "Orchestrator not available"
+            }
+        
+        status = await orchestrator.get_automation_status()
+        return {
+            "success": True,
+            **status
+        }
+        
+    except Exception as e:
+        print(f"❌ 状態取得エラー: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"状態取得エラー: {str(e)}"
+        )
+
+@app.get("/api/v1/analytics/predictions/{thread_id}")
+async def get_thread_predictions(thread_id: str):
+    """スレッドの予測分析を取得"""
+    try:
+        if not orchestrator:
+            return {
+                "success": False,
+                "error": "Analytics not available"
+            }
+        
+        # 予測分析モジュールから予測を取得
+        predictions = await orchestrator.predictive_analytics.generate_comprehensive_prediction(
+            thread_id,
+            {},  # 現在の状態
+            []   # 会話履歴
+        )
+        
+        return {
+            "success": True,
+            "thread_id": thread_id,
+            "predictions": predictions
+        }
+        
+    except Exception as e:
+        print(f"❌ 予測取得エラー: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"予測取得エラー: {str(e)}"
+        )
+
+@app.get("/api/v1/analytics/patterns")
+async def get_pattern_analytics():
+    """パターン分析データを取得"""
+    try:
+        if not orchestrator:
+            return {
+                "success": False,
+                "error": "Analytics not available"
+            }
+        
+        analytics = await orchestrator.pattern_storage.get_pattern_analytics()
+        
+        return {
+            "success": True,
+            "analytics": analytics
+        }
+        
+    except Exception as e:
+        print(f"❌ 分析取得エラー: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"分析取得エラー: {str(e)}"
         )
 
 if __name__ == "__main__":

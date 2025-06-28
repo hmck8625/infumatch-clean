@@ -27,6 +27,7 @@ import {
   Info
 } from 'lucide-react';
 import GmailMonitor from '@/components/GmailMonitor';
+import AutomationOrchestrator from '@/components/AutomationOrchestrator';
 
 interface AutoNegotiationSettings {
   enabled: boolean;
@@ -560,6 +561,11 @@ export default function AutoNegotiationSettingsPage() {
         {/* Gmail監視モニター */}
         <div className="mt-6">
           <GmailMonitor />
+        </div>
+
+        {/* Phase 3: 完全自動化オーケストレーター */}
+        <div className="mt-6">
+          <AutomationOrchestrator />
         </div>
 
         {/* 保存ボタン */}

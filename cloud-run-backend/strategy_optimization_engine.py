@@ -5,9 +5,32 @@ AI学習に基づく戦略の動的最適化
 import json
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
-import numpy as np
 from enum import Enum
 import logging
+
+# NumPy互換の簡易実装（Cloud Run環境用）
+class np:
+    @staticmethod
+    def mean(values):
+        if not values:
+            return 0
+        return sum(values) / len(values)
+    
+    @staticmethod
+    def random():
+        import random
+        return random
+    
+    class random:
+        @staticmethod
+        def random():
+            import random
+            return random.random()
+        
+        @staticmethod
+        def choice(items):
+            import random
+            return random.choice(items)
 
 class OptimizationMetric(Enum):
     """最適化指標"""
