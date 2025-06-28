@@ -28,6 +28,7 @@ import { AttachmentUpload } from '@/components/attachment-upload';
 import { EmailSearch } from '@/components/email-search';
 import { NotificationManager } from '@/components/notification-manager';
 import ThreadAutomationControl from '@/components/ThreadAutomationControl';
+import AutomationOrchestrator from '@/components/AutomationOrchestrator';
 // import { useRealtimeGmail } from '@/hooks/use-realtime-gmail'; // Temporarily disabled
 // import { SearchFilters } from '@/lib/gmail'; // Server-side only
 interface SearchFilters { query?: string; labelIds?: string[]; maxResults?: number; }
@@ -2469,6 +2470,11 @@ InfuMatchの田中です。
             )}
           </div>
         )}
+
+        {/* 自動交渉システム設定 */}
+        <div className="mt-8">
+          <AutomationOrchestrator />
+        </div>
             </div>
           </main>
         </div>
