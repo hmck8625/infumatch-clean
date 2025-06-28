@@ -39,7 +39,11 @@ interface AutomationStatus {
   };
 }
 
-export default function AutomationOrchestrator() {
+interface AutomationOrchestratorProps {
+  onMonitoringChange?: (isActive: boolean) => void;
+}
+
+export default function AutomationOrchestrator({ onMonitoringChange }: AutomationOrchestratorProps = {}) {
   const [status, setStatus] = useState<AutomationStatus | null>(null);
   const [mode, setMode] = useState<AutomationMode>('semi_auto');
   const [isLoading, setIsLoading] = useState(false);
@@ -96,6 +100,11 @@ export default function AutomationOrchestrator() {
         const data = await response.json();
         if (data.success) {
           await fetchStatus();
+          
+          // フロントエンドでの監視状態を更新
+          if (onMonitoringChange) {
+            onMonitoringChange(data.is_running && data.mode === 'semi_auto');
+          }
         } else {
           setError(data.message || '操作に失敗しました');
         }

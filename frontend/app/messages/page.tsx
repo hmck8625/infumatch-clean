@@ -62,6 +62,110 @@ function MessagesPageContent() {
   // スレッドごとの自動化状態を管理
   const [threadAutomationStates, setThreadAutomationStates] = useState<{[threadId: string]: {mode: string, isActive: boolean}}>({});
   
+  // Gmail監視状態
+  const [gmailMonitoringActive, setGmailMonitoringActive] = useState(false);
+  const [lastThreadCheck, setLastThreadCheck] = useState<string | null>(null);
+  
+  // Gmail新着監視機能
+  const checkForNewEmails = async () => {
+    if (!gmailMonitoringActive) return;
+    
+    try {
+      console.log('📧 Gmail新着チェック開始', new Date().toLocaleTimeString());
+      
+      // Gmail APIで最新のスレッドを取得
+      const response = await fetch('/api/gmail/threads?maxResults=10');
+      if (!response.ok) {
+        console.error('❌ Gmail API呼び出し失敗:', response.status);
+        return;
+      }
+      
+      const data = await response.json();
+      const newThreads = data.threads || [];
+      
+      if (newThreads.length > 0) {
+        const latestThreadId = newThreads[0].id;
+        
+        // 新着スレッドが検出された場合
+        if (lastThreadCheck && latestThreadId !== lastThreadCheck) {
+          console.log('🆕 新着スレッド検出:', latestThreadId);
+          
+          // 新着スレッドに対して自動交渉を実行
+          await processNewThread(latestThreadId);
+        }
+        
+        setLastThreadCheck(latestThreadId);
+      }
+      
+      console.log('✅ Gmail新着チェック完了');
+      
+    } catch (error) {
+      console.error('❌ Gmail監視エラー:', error);
+    }
+  };
+  
+  // 新着スレッドを処理
+  const processNewThread = async (threadId: string) => {
+    try {
+      console.log('🤖 新着スレッドの自動交渉開始:', threadId);
+      
+      // スレッドの詳細を取得
+      const threadResponse = await fetch(`/api/gmail/threads/${threadId}`);
+      if (!threadResponse.ok) return;
+      
+      const threadData = await threadResponse.json();
+      const messages = threadData.messages || [];
+      
+      if (messages.length === 0) return;
+      
+      // 最新メッセージを取得
+      const latestMessage = messages[messages.length - 1];
+      const messageContent = extractMessageContent(latestMessage);
+      
+      // 自動交渉APIを呼び出し
+      const negotiationResponse = await fetch('/api/v1/negotiation/continue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          conversation_history: messages,
+          new_message: messageContent,
+          context: {
+            auto_reply: true,
+            thread_id: threadId
+          }
+        })
+      });
+      
+      if (negotiationResponse.ok) {
+        const result = await negotiationResponse.json();
+        console.log('✅ 自動交渉完了:', result);
+        
+        // スレッドリストを更新
+        await loadThreads();
+      }
+      
+    } catch (error) {
+      console.error('❌ 新着スレッド処理エラー:', error);
+    }
+  };
+  
+  // メッセージ内容を抽出するヘルパー関数
+  const extractMessageContent = (message: any) => {
+    // Gmail APIのメッセージ構造から本文を抽出
+    const payload = message.payload || {};
+    if (payload.body?.data) {
+      return atob(payload.body.data.replace(/-/g, '+').replace(/_/g, '/'));
+    }
+    if (payload.parts) {
+      for (const part of payload.parts) {
+        if (part.mimeType === 'text/plain' && part.body?.data) {
+          return atob(part.body.data.replace(/-/g, '+').replace(/_/g, '/'));
+        }
+      }
+    }
+    return message.snippet || '';
+  };
+  
   // エージェント状況とカスタムプロンプト
   interface ProcessingStep {
     time: string;
@@ -149,6 +253,26 @@ function MessagesPageContent() {
   const isPolling = false;
   const startPolling = () => {};
   const stopPolling = () => {};
+
+  // Gmail監視の定期実行
+  useEffect(() => {
+    let intervalId: NodeJS.Timeout;
+    
+    if (gmailMonitoringActive) {
+      console.log('🔄 Gmail監視を開始します（60秒間隔）');
+      intervalId = setInterval(checkForNewEmails, 60000); // 60秒間隔
+      
+      // 初回実行
+      checkForNewEmails();
+    }
+    
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+        console.log('⏹️ Gmail監視を停止しました');
+      }
+    };
+  }, [gmailMonitoringActive, lastThreadCheck]);
 
   useEffect(() => {
     setIsVisible(true);
@@ -2473,7 +2597,9 @@ InfuMatchの田中です。
 
         {/* 自動交渉システム設定 */}
         <div className="mt-8">
-          <AutomationOrchestrator />
+          <AutomationOrchestrator 
+            onMonitoringChange={setGmailMonitoringActive}
+          />
         </div>
             </div>
           </main>
