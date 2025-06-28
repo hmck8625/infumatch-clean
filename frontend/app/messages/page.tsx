@@ -2544,8 +2544,9 @@ InfuMatchの田中です。
                     threadId={currentThread.id}
                     threadSubject={currentThread.messages && currentThread.messages.length > 0 ? 
                       getHeader(currentThread.messages[0], 'subject') : 'メールスレッド'}
-                    onModeChange={(mode, enabled) => {
-                      console.log(`🤖 スレッド自動化状態変更: ${currentThread.id}`, {
+                    currentAutomationState={threadAutomationStates[currentThread.id]}
+                    onModeChange={(threadId, mode, enabled) => {
+                      console.log(`🤖 スレッド自動化状態変更: ${threadId}`, {
                         モード: mode,
                         有効: enabled,
                         時刻: new Date().toLocaleTimeString()
@@ -2554,12 +2555,12 @@ InfuMatchの田中です。
                       // スレッドの自動化状態を更新
                       setThreadAutomationStates(prev => ({
                         ...prev,
-                        [currentThread.id]: { mode, isActive: enabled }
+                        [threadId]: { mode, isActive: enabled }
                       }));
                       
                       // 半自動モードが有効になった場合、スレッドの追跡を開始
                       if (mode === 'semi_auto' && enabled) {
-                        console.log(`🎯 スレッド ${currentThread.id} の半自動監視を開始`);
+                        console.log(`🎯 スレッド ${threadId} の半自動監視を開始`);
                         
                         // 現在のスレッドの最新メッセージ時刻を取得して追跡開始
                         const initializeThreadTracking = async () => {
@@ -2571,29 +2572,29 @@ InfuMatchの田中です。
                               
                               setTrackedThreads(prev => ({
                                 ...prev,
-                                [currentThread.id]: {
+                                [threadId]: {
                                   lastMessageTime: latestMessageTime,
                                   isAutomated: true
                                 }
                               }));
                               
-                              console.log(`✅ スレッド ${currentThread.id} の追跡開始完了`, {
+                              console.log(`✅ スレッド ${threadId} の追跡開始完了`, {
                                 最新メッセージ時刻: latestMessageTime,
                                 メッセージ数: messages.length
                               });
                             }
                           } catch (error) {
-                            console.error(`❌ スレッド ${currentThread.id} の追跡開始エラー:`, error);
+                            console.error(`❌ スレッド ${threadId} の追跡開始エラー:`, error);
                           }
                         };
                         
                         initializeThreadTracking();
                       } else if (!enabled) {
                         // 自動化が無効になった場合、追跡を停止
-                        console.log(`⏹️ スレッド ${currentThread.id} の自動化追跡を停止`);
+                        console.log(`⏹️ スレッド ${threadId} の自動化追跡を停止`);
                         setTrackedThreads(prev => {
                           const updated = { ...prev };
-                          delete updated[currentThread.id];
+                          delete updated[threadId];
                           // localStorageも更新
                           if (Object.keys(updated).length === 0) {
                             localStorage.removeItem('trackedThreads');
