@@ -33,6 +33,13 @@ class GeminiMatchingAgent:
             
             # Step 1: インフルエンサーデータの取得
             influencer_candidates = await self._fetch_influencer_candidates(request_data)
+            
+            logger.info(f"📊 取得したインフルエンサー候補数: {len(influencer_candidates)}")
+            if influencer_candidates:
+                logger.info(f"📋 候補カテゴリ: {[c.get('category', 'unknown') for c in influencer_candidates[:10]]}")
+                preferences = request_data.get('influencer_preferences', {})
+                logger.info(f"🎯 カスタム希望: {preferences.get('custom_preference', 'なし')}")
+            
             if not influencer_candidates:
                 return {
                     "success": False,
@@ -41,7 +48,12 @@ class GeminiMatchingAgent:
             
             # Step 2: 各インフルエンサーの詳細分析
             analysis_results = []
-            for influencer in influencer_candidates[:5]:  # 上位5名を分析
+            # カスタム希望がある場合は最大10名まで分析
+            preferences = request_data.get('influencer_preferences', {})
+            custom_preference = preferences.get('custom_preference', '')
+            max_analysis = 10 if custom_preference else 5
+            
+            for influencer in influencer_candidates[:max_analysis]:
                 try:
                     analysis = await self._analyze_single_influencer(
                         influencer, 
@@ -101,7 +113,7 @@ class GeminiMatchingAgent:
             
             # Firestoreが利用できない場合はモックデータを返す
             if not self.db:
-                logger.warning("Firestore not available, using mock data")
+                logger.warning("⚠️ Firestore not available, using mock data")
                 return self._get_mock_influencers()
             
             # Firestoreからインフルエンサーデータを取得
@@ -125,6 +137,7 @@ class GeminiMatchingAgent:
             
             # カスタム希望がある場合は、それを優先カテゴリに追加
             if custom_preference:
+                logger.info(f"🔍 カスタム希望: '{custom_preference}'")
                 # カスタム希望をカテゴリ名に変換（簡易的なマッピング）
                 category_mapping = {
                     'ゲーム': ['ゲーム', 'gaming', 'game'],
@@ -144,10 +157,15 @@ class GeminiMatchingAgent:
                             preferred_categories.append(key)
             
             if preferred_categories:
+                logger.info(f"📂 フィルタリングカテゴリ: {preferred_categories[:10]}")
                 query = query.where('category', 'in', preferred_categories[:10])  # Firestore制限
+            else:
+                logger.info("📂 カテゴリフィルタリングなし（全カテゴリ対象）")
             
             # 結果取得
-            docs = query.limit(30 if custom_preference else 20).stream()  # カスタム希望がある場合は多めに取得
+            limit = 30 if custom_preference else 20
+            logger.info(f"🔢 取得上限: {limit}件")
+            docs = query.limit(limit).stream()  # カスタム希望がある場合は多めに取得
             candidates = []
             
             for doc in docs:
@@ -474,6 +492,7 @@ class GeminiMatchingAgent:
     
     def _get_mock_influencers(self) -> List[Dict[str, Any]]:
         """モックインフルエンサーデータを返す"""
+        logger.info("📌 モックデータを返します（Firestore利用不可）")
         return [
             {
                 "id": "mock_1",
@@ -512,6 +531,71 @@ class GeminiMatchingAgent:
                 "view_count": 35000000,
                 "category": "フィットネス",
                 "engagement_rate": 0.09,
+                "thumbnail_url": "https://via.placeholder.com/240x240"
+            },
+            {
+                "id": "mock_4",
+                "channel_id": "UCMock4",
+                "channel_name": "ビジネス講座チャンネル",
+                "channel_title": "ビジネス講座チャンネル",
+                "description": "起業・経営・マーケティングに関する実践的な知識",
+                "subscriber_count": 95000,
+                "video_count": 250,
+                "view_count": 25000000,
+                "category": "ビジネス",
+                "engagement_rate": 0.07,
+                "thumbnail_url": "https://via.placeholder.com/240x240"
+            },
+            {
+                "id": "mock_5",
+                "channel_id": "UCMock5",
+                "channel_name": "美容メイクチャンネル",
+                "channel_title": "美容メイクチャンネル",
+                "description": "最新メイクテクニックとスキンケア情報",
+                "subscriber_count": 200000,
+                "video_count": 600,
+                "view_count": 80000000,
+                "category": "美容",
+                "engagement_rate": 0.12,
+                "thumbnail_url": "https://via.placeholder.com/240x240"
+            },
+            {
+                "id": "mock_6",
+                "channel_id": "UCMock6",
+                "channel_name": "テックレビューチャンネル",
+                "channel_title": "テックレビューチャンネル",
+                "description": "最新ガジェットとテクノロジーのレビュー",
+                "subscriber_count": 180000,
+                "video_count": 450,
+                "view_count": 60000000,
+                "category": "テクノロジー",
+                "engagement_rate": 0.08,
+                "thumbnail_url": "https://via.placeholder.com/240x240"
+            },
+            {
+                "id": "mock_7",
+                "channel_id": "UCMock7",
+                "channel_name": "エンタメバラエティチャンネル",
+                "channel_title": "エンタメバラエティチャンネル",
+                "description": "お笑いとバラエティコンテンツで楽しさ満載",
+                "subscriber_count": 300000,
+                "video_count": 800,
+                "view_count": 120000000,
+                "category": "エンタメ",
+                "engagement_rate": 0.15,
+                "thumbnail_url": "https://via.placeholder.com/240x240"
+            },
+            {
+                "id": "mock_8",
+                "channel_id": "UCMock8",
+                "channel_name": "ファッションコーデチャンネル",
+                "channel_title": "ファッションコーデチャンネル",
+                "description": "トレンドファッションとコーディネート提案",
+                "subscriber_count": 160000,
+                "video_count": 350,
+                "view_count": 45000000,
+                "category": "ファッション",
+                "engagement_rate": 0.11,
                 "thumbnail_url": "https://via.placeholder.com/240x240"
             }
         ]

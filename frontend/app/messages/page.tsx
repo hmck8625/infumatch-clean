@@ -27,6 +27,7 @@ import { AttachmentDisplay } from '@/components/attachment-display';
 import { AttachmentUpload } from '@/components/attachment-upload';
 import { EmailSearch } from '@/components/email-search';
 import { NotificationManager } from '@/components/notification-manager';
+import ThreadAutomationControl from '@/components/ThreadAutomationControl';
 // import { useRealtimeGmail } from '@/hooks/use-realtime-gmail'; // Temporarily disabled
 // import { SearchFilters } from '@/lib/gmail'; // Server-side only
 interface SearchFilters { query?: string; labelIds?: string[]; maxResults?: number; }
@@ -1671,7 +1672,18 @@ InfuMatchの田中です。
             {/* メール詳細 */}
             <div className="lg:col-span-2">
               {currentThread ? (
-                <div className="card">
+                <div className="space-y-4">
+                  {/* スレッド自動化コントロール */}
+                  <ThreadAutomationControl 
+                    threadId={currentThread.id}
+                    threadSubject={currentThread.messages && currentThread.messages.length > 0 ? 
+                      getHeader(currentThread.messages[0], 'subject') : 'メールスレッド'}
+                    onModeChange={(mode, enabled) => {
+                      console.log(`Thread ${currentThread.id}: ${mode} mode ${enabled ? 'enabled' : 'disabled'}`);
+                    }}
+                  />
+                  
+                  <div className="card">
                   {/* ヘッダー */}
                   <div className="p-6 border-b border-gray-100">
                     <div className="flex items-center justify-between">

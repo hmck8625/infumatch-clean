@@ -21,7 +21,7 @@ import {
   BarChart3
 } from 'lucide-react';
 
-type AutomationMode = 'manual' | 'semi_auto' | 'full_auto' | 'learning';
+type AutomationMode = 'manual' | 'semi_auto';
 
 interface AutomationStatus {
   is_running: boolean;
@@ -107,9 +107,7 @@ export default function AutomationOrchestrator() {
   const getModeLabel = (mode: AutomationMode) => {
     const labels = {
       manual: '手動モード',
-      semi_auto: '半自動モード',
-      full_auto: '完全自動モード',
-      learning: '学習モード'
+      semi_auto: '半自動モード'
     };
     return labels[mode];
   };
@@ -117,9 +115,7 @@ export default function AutomationOrchestrator() {
   const getModeDescription = (mode: AutomationMode) => {
     const descriptions = {
       manual: '全ての操作を手動で行います',
-      semi_auto: '重要な判断のみ人間が承認します',
-      full_auto: 'AIが全ての判断を自動で行います',
-      learning: '人間の操作を観察して学習します'
+      semi_auto: '異常時のみ人間が判断します'
     };
     return descriptions[mode];
   };
@@ -182,18 +178,6 @@ export default function AutomationOrchestrator() {
                 <div className="flex items-center gap-2">
                   <Bot className="h-4 w-4" />
                   半自動モード
-                </div>
-              </SelectItem>
-              <SelectItem value="full_auto">
-                <div className="flex items-center gap-2">
-                  <Zap className="h-4 w-4" />
-                  完全自動モード
-                </div>
-              </SelectItem>
-              <SelectItem value="learning">
-                <div className="flex items-center gap-2">
-                  <Brain className="h-4 w-4" />
-                  学習モード
                 </div>
               </SelectItem>
             </SelectContent>
@@ -286,12 +270,12 @@ export default function AutomationOrchestrator() {
           )}
         </Button>
 
-        {/* AI学習ステータス */}
-        {status?.mode === 'learning' && (
+        {/* 半自動モードの説明 */}
+        {status?.mode === 'semi_auto' && status?.is_running && (
           <Alert>
-            <Brain className="h-4 w-4" />
+            <Bot className="h-4 w-4" />
             <AlertDescription>
-              学習モードで動作中。人間の交渉パターンを観察して学習しています。
+              半自動モードで動作中。異常検出時は自動的に停止し、人間の判断を仰ぎます。
             </AlertDescription>
           </Alert>
         )}

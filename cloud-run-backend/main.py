@@ -1102,6 +1102,7 @@ class InfluencerPreferences(BaseModel):
     subscriber_range: Dict[str, int]
     content_style_preferences: List[str] = []
     collaboration_types: List[str] = []
+    custom_preference: Optional[str] = None
 
 class GeminiMatchingRequest(BaseModel):
     company_profile: CompanyProfile
