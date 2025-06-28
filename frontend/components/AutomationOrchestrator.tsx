@@ -18,7 +18,9 @@ import {
   Activity,
   Zap,
   Shield,
-  BarChart3
+  BarChart3,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 
 type AutomationMode = 'manual' | 'semi_auto';
@@ -42,6 +44,7 @@ export default function AutomationOrchestrator() {
   const [mode, setMode] = useState<AutomationMode>('semi_auto');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   useEffect(() => {
     fetchStatus();
@@ -127,12 +130,20 @@ export default function AutomationOrchestrator() {
 
   return (
     <Card className="w-full">
-      <CardHeader>
+      <CardHeader 
+        className="cursor-pointer hover:bg-gray-50 transition-colors"
+        onClick={() => setIsExpanded(!isExpanded)}
+      >
         <div className="flex items-center justify-between">
           <div>
             <CardTitle className="flex items-center gap-2">
               <Brain className="h-5 w-5" />
               自動交渉システム設定
+              {isExpanded ? (
+                <ChevronUp className="h-4 w-4 ml-2" />
+              ) : (
+                <ChevronDown className="h-4 w-4 ml-2" />
+              )}
             </CardTitle>
             <CardDescription>
               全体の自動化設定とパフォーマンス状況
@@ -148,13 +159,14 @@ export default function AutomationOrchestrator() {
         </div>
       </CardHeader>
 
-      <CardContent className="space-y-6">
-        {error && (
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
+      {isExpanded && (
+        <CardContent className="space-y-6">
+          {error && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
 
         {/* モード選択 */}
         <div className="space-y-3">
@@ -279,7 +291,8 @@ export default function AutomationOrchestrator() {
             </AlertDescription>
           </Alert>
         )}
-      </CardContent>
+        </CardContent>
+      )}
     </Card>
   );
 }
