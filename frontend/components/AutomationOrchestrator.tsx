@@ -44,7 +44,19 @@ interface AutomationOrchestratorProps {
 }
 
 export default function AutomationOrchestrator({ onMonitoringChange }: AutomationOrchestratorProps = {}) {
-  const [status, setStatus] = useState<AutomationStatus | null>(null);
+  const [status, setStatus] = useState<AutomationStatus | null>({
+    is_running: true,  // デフォルトでON
+    mode: 'semi_auto',
+    active_negotiations: 0,
+    performance_metrics: {
+      total_negotiations: 0,
+      successful_closures: 0,
+      failed_negotiations: 0,
+      average_time_to_close: 0,
+      total_deal_value: 0,
+      automation_interventions: 0
+    }
+  });
   const [mode, setMode] = useState<AutomationMode>('semi_auto');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -53,8 +65,15 @@ export default function AutomationOrchestrator({ onMonitoringChange }: Automatio
   useEffect(() => {
     fetchStatus();
     const interval = setInterval(fetchStatus, 5000);
+    
+    // デフォルトで監視をONにする
+    if (onMonitoringChange) {
+      console.log('🔄 AutomationOrchestrator: デフォルトで監視をONに設定');
+      onMonitoringChange(true);
+    }
+    
     return () => clearInterval(interval);
-  }, []);
+  }, [onMonitoringChange]);
 
   const fetchStatus = async () => {
     try {
@@ -307,7 +326,17 @@ export default function AutomationOrchestrator({ onMonitoringChange }: Automatio
           <Alert>
             <Bot className="h-4 w-4" />
             <AlertDescription>
-              半自動モードで動作中。異常検出時は自動的に停止し、人間の判断を仰ぎます。
+              半自動モードで動作中（デフォルトON）。異常検出時は自動的に停止し、人間の判断を仰ぎます。
+            </AlertDescription>
+          </Alert>
+        )}
+        
+        {/* デフォルトONの説明 */}
+        {!status?.is_running && (
+          <Alert>
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              自動交渉システムは通常デフォルトでONです。必要に応じて開始してください。
             </AlertDescription>
           </Alert>
         )}
