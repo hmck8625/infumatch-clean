@@ -2725,118 +2725,56 @@ async def get_agents_status():
 
 @app.post("/api/v1/ai/gemini-matching")
 async def gemini_matching_analysis(request: GeminiMatchingRequest):
-    """🧠 Gemini軽量マッチング分析エンドポイント"""
+    """🧠 Gemini高度マッチング分析エンドポイント"""
     start_time = datetime.now()
     
     try:
-        logger.info("🧠 Gemini軽量マッチング分析開始")
+        logger.info("🧠 Gemini高度マッチング分析開始")
         
-        # 軽量化版: 既存のInfluencer検索機能を使用
-        preferences = request.influencer_preferences
-        categories = preferences.preferred_categories if preferences.preferred_categories else ["all"]
-        min_subs = preferences.subscriber_range.get("min", 1000) if preferences.subscriber_range else 1000
-        max_subs = preferences.subscriber_range.get("max", 10000000) if preferences.subscriber_range else 10000000
+        # Geminiエージェントが利用可能かチェック
+        if not gemini_matching_agent:
+            raise HTTPException(
+                status_code=503, 
+                detail="Gemini マッチングエージェントが利用できません。GEMINI_API_KEYを確認してください。"
+            )
         
-        # 基本検索を実行（既存の検索ロジックを使用）
-        if not db:
-            raise HTTPException(status_code=500, detail="Database not available")
+        # リクエストデータをdictに変換
+        request_data = {
+            "company_profile": request.company_profile.model_dump() if hasattr(request.company_profile, 'model_dump') else request.company_profile.dict(),
+            "product_portfolio": request.product_portfolio.model_dump() if hasattr(request.product_portfolio, 'model_dump') else request.product_portfolio.dict(),
+            "campaign_objectives": request.campaign_objectives.model_dump() if hasattr(request.campaign_objectives, 'model_dump') else request.campaign_objectives.dict(),
+            "influencer_preferences": request.influencer_preferences.model_dump() if hasattr(request.influencer_preferences, 'model_dump') else request.influencer_preferences.dict()
+        }
         
-        # カテゴリ検索の実行
-        all_results = []
-        for category in categories:
-            query = db.collection("influencers")
-            
-            if category != "all":
-                # 美容系カテゴリの特別処理
-                if "美容" in category or "beauty" in category.lower():
-                    matching_categories = ["美容・コスメ", "Howto & Style", "美容系"]
-                    query = query.where("category", "in", matching_categories)
-                else:
-                    query = query.where("category", "==", category)
-            
-            if min_subs:
-                query = query.where("subscriber_count", ">=", min_subs)
-            if max_subs:
-                query = query.where("subscriber_count", "<=", max_subs)
-            
-            docs = query.limit(20).stream()
-            for doc in docs:
-                data = doc.to_dict()
-                data["id"] = doc.id
-                all_results.append(data)
+        logger.info(f"📊 リクエストデータ: 企業={request_data['company_profile']['name']}, 商品数={len(request_data['product_portfolio']['products'])}")
         
-        logger.info(f"📊 基本検索結果: {len(all_results)}件")
+        # Gemini分析実行
+        analysis_result = await gemini_matching_agent.analyze_deep_matching(request_data)
         
-        if not all_results:
-            return {
-                "success": False,
-                "error": "指定された条件に一致するインフルエンサーが見つかりませんでした",
-                "suggestions": [
-                    "カテゴリ条件を「all」に変更してください",
-                    "登録者数の範囲を拡大してください",
-                    "異なるカテゴリを試してください"
-                ],
-                "debug_info": {
-                    "searched_categories": categories,
-                    "subscriber_range": {"min": min_subs, "max": max_subs}
-                }
-            }
-        
-        # 簡単なスコアリング
-        scored_results = []
-        for influencer in all_results[:10]:  # トップ10に限定
-            score = 75  # 基本スコア
-            
-            # カテゴリマッチでスコア調整
-            inf_category = influencer.get("category", "").lower()
-            for pref_cat in categories:
-                if pref_cat.lower() in inf_category or inf_category in pref_cat.lower():
-                    score += 10
-                    break
-            
-            # 登録者数でスコア調整
-            sub_count = influencer.get("subscriber_count", 0)
-            if 50000 <= sub_count <= 500000:  # 理想的な範囲
-                score += 15
-            elif sub_count >= 100000:
-                score += 10
-            
-            scored_results.append({
-                "influencer_data": influencer,
-                "match_score": min(score, 95),
-                "match_reasons": [
-                    f"カテゴリ適合: {influencer.get('category', 'unknown')}",
-                    f"登録者数: {influencer.get('subscriber_count', 0):,}人",
-                    "基本条件を満たしています"
-                ]
-            })
-        
-        # 結果を構築
+        # 処理時間計算
         processing_duration = (datetime.now() - start_time).total_seconds()
         
-        return {
-            "success": True,
-            "analysis_results": scored_results,
-            "summary": {
-                "total_matches": len(scored_results),
-                "avg_match_score": sum(r["match_score"] for r in scored_results) / len(scored_results) if scored_results else 0,
-                "top_categories": list(set(r["influencer_data"].get("category") for r in scored_results))
-            },
-            "processing_metadata": {
-                "total_processing_time": processing_duration,
-                "method": "lightweight_matching",
-                "endpoint": "/api/v1/ai/gemini-matching"
-            }
-        }
+        if analysis_result.get("success"):
+            logger.info(f"✅ Gemini分析完了: {len(analysis_result.get('analysis_results', []))}件の結果, 処理時間={processing_duration:.2f}秒")
+            
+            # メタデータを更新
+            if "processing_metadata" in analysis_result:
+                analysis_result["processing_metadata"]["total_processing_time"] = processing_duration
+                analysis_result["processing_metadata"]["endpoint"] = "/api/v1/ai/gemini-matching"
+            
+            return analysis_result
+        else:
+            logger.error(f"❌ Gemini分析失敗: {analysis_result.get('error', '不明なエラー')}")
+            raise HTTPException(status_code=500, detail=analysis_result.get("error", "分析に失敗しました"))
     
     except HTTPException:
         raise
     except Exception as e:
         processing_duration = (datetime.now() - start_time).total_seconds()
-        logger.error(f"❌ Gemini軽量マッチング分析エラー: {e}, 処理時間={processing_duration:.2f}秒")
+        logger.error(f"❌ Gemini高度マッチング分析エラー: {e}, 処理時間={processing_duration:.2f}秒")
         raise HTTPException(
             status_code=500, 
-            detail=f"マッチング分析エラー: {str(e)}"
+            detail=f"サーバー内部エラー: {str(e)}"
         )
 
 @app.post("/api/v1/ai/gemini-matching/stream")
