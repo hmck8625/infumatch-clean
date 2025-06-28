@@ -55,6 +55,7 @@ export default function MatchingPage() {
   const [isGeminiAnalyzing, setIsGeminiAnalyzing] = useState(false);
   const [customInfluencerPreference, setCustomInfluencerPreference] = useState('');
   const [pickupLogicDetails, setPickupLogicDetails] = useState<any>(null);
+  const [matchingContext, setMatchingContext] = useState<any>(null);
 
   useEffect(() => {
     setIsVisible(true);
@@ -123,6 +124,12 @@ export default function MatchingPage() {
             
             // stateに保存
             setPickupLogicDetails(geminiResponse.pickup_logic_details);
+          }
+          
+          // マッチング文脈情報を処理
+          if (geminiResponse.matching_context) {
+            console.log('🎯 マッチング文脈情報:', geminiResponse.matching_context);
+            setMatchingContext(geminiResponse.matching_context);
           }
           
           // 処理メタデータも出力
@@ -757,6 +764,52 @@ export default function MatchingPage() {
                 </p>
               </div>
 
+              {/* マッチング文脈情報 */}
+              {matchingContext && useGeminiAgent && (
+                <div className="mb-8">
+                  <div className="card p-6 bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200">
+                    <h3 className="text-xl font-bold text-green-900 mb-4 flex items-center">
+                      <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      🎯 マッチング文脈情報
+                    </h3>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {/* 企業情報 */}
+                      <div className="bg-white/70 rounded-lg p-4">
+                        <h4 className="font-semibold text-green-800 mb-3 flex items-center">
+                          <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M4 4a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2H4zm3 6a1 1 0 011-1h4a1 1 0 110 2H8a1 1 0 01-1-1z" clipRule="evenodd" />
+                          </svg>
+                          企業情報
+                        </h4>
+                        <div className="space-y-2 text-sm">
+                          <div><span className="font-medium text-gray-700">企業名:</span> <span className="text-green-800">{matchingContext.company_information?.company_name}</span></div>
+                          <div><span className="font-medium text-gray-700">業界:</span> <span className="text-green-800">{matchingContext.company_information?.industry}</span></div>
+                          <div><span className="font-medium text-gray-700">説明:</span> <span className="text-green-800 text-xs">{matchingContext.company_information?.description}</span></div>
+                        </div>
+                      </div>
+                      
+                      {/* 商品情報 */}
+                      <div className="bg-white/70 rounded-lg p-4">
+                        <h4 className="font-semibold text-green-800 mb-3 flex items-center">
+                          <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z" />
+                          </svg>
+                          商品・キャンペーン情報
+                        </h4>
+                        <div className="space-y-2 text-sm">
+                          <div><span className="font-medium text-gray-700">主商品:</span> <span className="text-green-800">{matchingContext.product_information?.main_product}</span></div>
+                          <div><span className="font-medium text-gray-700">予算範囲:</span> <span className="text-green-800">{matchingContext.product_information?.budget_range}</span></div>
+                          <div><span className="font-medium text-gray-700">カスタム希望:</span> <span className="text-green-800">{matchingContext.influencer_preferences?.custom_preference}</span></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
               {/* ピックアップロジック詳細 */}
               {pickupLogicDetails && useGeminiAgent && (
                 <div className="mb-8">
@@ -807,9 +860,9 @@ export default function MatchingPage() {
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                       <div className="text-center p-3 bg-white/60 rounded-lg">
                         <div className="text-lg font-bold text-blue-800">
-                          {pickupLogicDetails.final_statistics?.candidates_after_filtering || 0}
+                          {pickupLogicDetails.final_statistics?.total_candidates_scored || pickupLogicDetails.final_statistics?.candidates_after_filtering || 0}
                         </div>
-                        <div className="text-xs text-blue-600">フィルタ後候補</div>
+                        <div className="text-xs text-blue-600">全候補数</div>
                       </div>
                       <div className="text-center p-3 bg-white/60 rounded-lg">
                         <div className="text-lg font-bold text-blue-800">
@@ -821,7 +874,7 @@ export default function MatchingPage() {
                         <div className="text-lg font-bold text-blue-800">
                           {pickupLogicDetails.total_filtering_steps || 0}
                         </div>
-                        <div className="text-xs text-blue-600">フィルタ段階</div>
+                        <div className="text-xs text-blue-600">処理段階</div>
                       </div>
                       <div className="text-center p-3 bg-white/60 rounded-lg">
                         <div className="text-lg font-bold text-blue-800">
@@ -830,6 +883,18 @@ export default function MatchingPage() {
                         <div className="text-xs text-blue-600">AI分析モデル</div>
                       </div>
                     </div>
+                    
+                    {/* スコアベース処理の表示 */}
+                    {pickupLogicDetails.final_statistics?.no_filtering_applied && (
+                      <div className="mt-4 p-4 bg-green-100 border border-green-300 rounded-lg">
+                        <div className="text-sm text-green-800 flex items-center">
+                          <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                          </svg>
+                          ✅ スコアベース選択: フィルタリングではなく適合度スコアでランキング
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}

@@ -39,6 +39,9 @@ class GeminiMatchingAgent:
             influencer_candidates = fetch_result["candidates"]
             pickup_metadata = fetch_result["metadata"]
             
+            # カスタム希望マッピング結果を保存（ピックアップロジック詳細用）
+            self._custom_mapping_result = getattr(self, '_temp_mapping_result', [])
+            
             logger.info(f"📊 取得したインフルエンサー候補数: {len(influencer_candidates)}")
             if influencer_candidates:
                 logger.info(f"📋 候補カテゴリ: {[c.get('category', 'unknown') for c in influencer_candidates[:10]]}")
@@ -74,10 +77,26 @@ class GeminiMatchingAgent:
                         request_data
                     )
                     if analysis:
+                        # 事前適合度スコアをGemini分析結果に組み込み
+                        preliminary_score = influencer.get('preliminary_compatibility_score', 75)
+                        current_score = analysis.get('overall_compatibility_score', 75)
+                        
+                        # 事前スコアとGeminiスコアを統合（Geminiを重視）
+                        final_score = current_score * 0.8 + preliminary_score * 0.2
+                        analysis['overall_compatibility_score'] = round(final_score, 1)
+                        
                         analysis_results.append(analysis)
                 except Exception as e:
                     logger.warning(f"個別インフルエンサー分析エラー: {e}")
                     continue
+            
+            # 最終適合度スコアで降順ソート
+            analysis_results.sort(
+                key=lambda x: x.get('overall_compatibility_score', 0), 
+                reverse=True
+            )
+            
+            logger.info(f"📈 最終スコア範囲: {analysis_results[0].get('overall_compatibility_score', 0):.1f} - {analysis_results[-1].get('overall_compatibility_score', 0):.1f}" if analysis_results else "📈 分析結果なし")
             
             if not analysis_results:
                 return {
@@ -104,6 +123,7 @@ class GeminiMatchingAgent:
                 "portfolio_insights": portfolio_insights,
                 "market_context": market_context,
                 "pickup_logic_details": pickup_metadata.get("pickup_logic", {}),
+                "matching_context": self._build_matching_context(request_data),
                 "processing_metadata": {
                     "analysis_duration_ms": int(processing_duration * 1000),
                     "confidence_score": self._calculate_overall_confidence(analysis_results),
@@ -186,41 +206,74 @@ class GeminiMatchingAgent:
                 
                 # カスタム希望がある場合のカテゴリマッピング
                 preferred_categories = preferences.get('preferred_categories', [])
+                mapped_categories = []  # マッピング結果を保存
+                
                 if custom_preference:
                     logger.info(f"🔍 カスタム希望: '{custom_preference}'")
                     available_categories = list(set([c.get('category', '') for c in all_candidates if c.get('category')]))
                     logger.info(f"📂 利用可能カテゴリ: {available_categories}")
                     
-                    # 簡単なキーワードマッチングでカテゴリ選択
-                    user_lower = custom_preference.lower()
-                    for category in available_categories:
-                        if any(keyword in category.lower() for keyword in user_lower.split()):
-                            preferred_categories.append(category)
+                    # 厳密なキーワードマッピングでカテゴリ選択
+                    mapped_categories = self._map_custom_preference_to_categories(custom_preference, available_categories)
+                    # 既存のpreferred_categoriesをクリアして、マッピング結果のみを使用
+                    preferred_categories = mapped_categories.copy()
                     
                     logger.info(f"🎯 マッチしたカテゴリ: {preferred_categories}")
+                    
+                    # デバッグ：マッピング詳細を出力
+                    if not mapped_categories:
+                        logger.warning(f"⚠️ カスタム希望 '{custom_preference}' にマッチするカテゴリが見つかりません")
+                        logger.info(f"💡 利用可能カテゴリ一覧: {available_categories}")
+                    else:
+                        logger.info(f"✅ '{custom_preference}' → {mapped_categories} にマッピング成功")
                 
-                # フィルタリング適用
+                # スコアベースの候補選択（フィルタリングではなくスコアリング）
+                candidates_with_scores = []
+                
                 for candidate in all_candidates:
-                    # 登録者数フィルタ
+                    # 基本登録者数フィルタ（極端に少ない場合のみ除外）
                     subscriber_count = candidate.get('subscriber_count', 0)
-                    if preferences.get('subscriber_range'):
-                        sub_range = preferences['subscriber_range']
-                        if sub_range.get('min') and subscriber_count < sub_range['min']:
-                            continue
-                        if sub_range.get('max') and subscriber_count > sub_range['max']:
-                            continue
+                    if subscriber_count < 1000:  # 最低限の閾値のみ適用
+                        continue
                     
-                    # カテゴリフィルタ
-                    if preferred_categories:
-                        category = candidate.get('category', '')
-                        if not any(pref_cat in category or category in pref_cat for pref_cat in preferred_categories):
-                            continue
+                    # カテゴリ適合度スコアを計算（フィルタリングではなく）
+                    category_compatibility_score = self._calculate_category_compatibility(
+                        candidate.get('category', ''), 
+                        preferred_categories,
+                        custom_preference
+                    )
                     
-                    candidates.append(candidate)
+                    # 登録者数適合度スコアを計算
+                    subscriber_compatibility_score = self._calculate_subscriber_compatibility(
+                        subscriber_count, 
+                        preferences.get('subscriber_range', {})
+                    )
+                    
+                    # 総合事前適合度スコア（0-100）
+                    preliminary_score = (
+                        category_compatibility_score * 0.6 + 
+                        subscriber_compatibility_score * 0.4
+                    ) * 100
+                    
+                    # 候補にスコアを付与
+                    candidate['preliminary_compatibility_score'] = preliminary_score
+                    candidates_with_scores.append(candidate)
                 
-                # 取得上限適用
-                limit = 30 if custom_preference else 20
-                candidates = candidates[:limit]
+                # 事前スコアで降順ソート
+                candidates_with_scores.sort(
+                    key=lambda x: x.get('preliminary_compatibility_score', 0), 
+                    reverse=True
+                )
+                
+                # 全候補を取得（フィルタリングしない）
+                candidates = candidates_with_scores
+                
+                logger.info(f"📊 全候補数: {len(candidates)}件")
+                if candidates:
+                    logger.info(f"📊 スコア範囲: {candidates[0].get('preliminary_compatibility_score', 0):.1f} - {candidates[-1].get('preliminary_compatibility_score', 0):.1f}")
+                
+                # マッピング結果を一時保存（ピックアップロジック詳細用）
+                self._temp_mapping_result = mapped_categories
                 
             except Exception as e:
                 logger.error(f"❌ Firestore全データ取得エラー: {e}")
@@ -228,11 +281,11 @@ class GeminiMatchingAgent:
             
             logger.info(f"✅ {len(candidates)}名の候補を取得")
             
-            # 候補が見つからない場合はモックデータを返す
+            # 候補が極端に少ない場合のみモックデータを使用
             if len(candidates) == 0:
-                logger.warning("⚠️ フィルタ後に候補が見つからないため、モックデータを使用")
+                logger.warning("⚠️ 最低閾値をクリアした候補が見つからないため、モックデータを使用")
                 mock_data = self._get_mock_influencers()
-                self._set_mock_metadata("filter_no_results", "フィルタ条件に合致する候補なし")
+                self._set_mock_metadata("no_valid_candidates", "最低登録者数要件を満たす候補なし")
                 return mock_data
             
             return candidates
@@ -641,14 +694,18 @@ class GeminiMatchingAgent:
             "result": f"取得可能な候補数: {len(candidates)}件"
         })
         
-        # Step 2: カスタム希望
+        # Step 2: カスタム希望（スコアベース処理）
         custom_preference = preferences.get('custom_preference', '')
         if custom_preference:
+            # マッピング結果を取得
+            mapped_categories = getattr(self, '_custom_mapping_result', [])
+            mapping_result = f"関連カテゴリを自動選択: {', '.join(mapped_categories)}" if mapped_categories else "マッピング結果なし"
+            
             filtering_steps.append({
                 "step": 2,
-                "action": "カスタム希望マッピング",
-                "details": f"'{custom_preference}' -> カテゴリマッチング実行",
-                "result": "関連カテゴリを自動選択"
+                "action": "カスタム希望マッピング（スコアベース）",
+                "details": f"'{custom_preference}' -> カテゴリ適合度スコアに反映",
+                "result": f"{mapping_result}（フィルタではなく適合度に影響）"
             })
         
         # Step 3: 登録者数フィルタ
@@ -663,14 +720,14 @@ class GeminiMatchingAgent:
                 "result": "範囲外の候補を除外"
             })
         
-        # Step 4: カテゴリフィルタ
+        # Step 4: カテゴリ適合度評価
         preferred_categories = preferences.get('preferred_categories', [])
         if preferred_categories:
             filtering_steps.append({
                 "step": 4,
-                "action": "カテゴリフィルタ",
+                "action": "カテゴリ適合度評価",
                 "details": f"優先カテゴリ: {', '.join(preferred_categories)}",
-                "result": "カテゴリ不一致の候補を除外"
+                "result": "カテゴリ適合度をスコアに反映（除外なし）"
             })
         
         # Step 5: 企業適合性
@@ -692,8 +749,8 @@ class GeminiMatchingAgent:
             "total_filtering_steps": len(filtering_steps),
             "filtering_pipeline": filtering_steps,
             "final_statistics": {
-                "candidates_after_filtering": final_candidates,
-                "limit_applied": limit,
+                "total_candidates_scored": final_candidates,
+                "no_filtering_applied": True,
                 "selected_for_ai_analysis": analyzed_count,
                 "data_source": data_source,
                 "mock_metadata": self.mock_metadata if hasattr(self, 'mock_metadata') and self.mock_metadata else None
@@ -705,6 +762,215 @@ class GeminiMatchingAgent:
                 "scoring_criteria": ["ブランド適合性", "オーディエンス相乗効果", "コンテンツ適合性", "ビジネス実現性"]
             }
         }
+    
+    def _map_custom_preference_to_categories(self, custom_preference: str, available_categories: List[str]) -> List[str]:
+        """カスタム希望を厳密にカテゴリにマッピング（完全一致のみ）"""
+        
+        # カスタム希望を正規化
+        normalized_input = custom_preference.lower().strip()
+        
+        # 厳密なキーワードマッピング辞書（完全一致のみ）
+        keyword_mappings = {
+            # ゲーム関連（厳密）
+            'ゲーム': ['ゲーム'],
+            'ゲーム実況': ['ゲーム'], 
+            'ゲーム系': ['ゲーム'],
+            'ゲーミング': ['ゲーム'],
+            'game': ['ゲーム'],
+            'gaming': ['ゲーム'],
+            
+            # 美容関連（厳密）
+            '美容': ['美容'],
+            'コスメ': ['美容'],
+            'メイク': ['美容'],
+            'ヘアメイク': ['美容'],
+            'スキンケア': ['美容'],
+            
+            # 料理関連（厳密）
+            '料理': ['料理'],
+            'グルメ': ['料理'],
+            'レシピ': ['料理'],
+            'クッキング': ['料理'],
+            
+            # ビジネス関連（厳密）
+            'ビジネス': ['ビジネス'],
+            'ビジネス系': ['ビジネス'],
+            'コンサル': ['ビジネス'],
+            'マーケティング': ['ビジネス'],
+            
+            # エンタメ関連（厳密）
+            'エンタメ': ['エンタメ', 'エンターテインメント'],
+            'エンターテインメント': ['エンタメ', 'エンターテインメント'],
+            'バラエティ': ['エンタメ', 'エンターテインメント'],
+            
+            # スポーツ関連（厳密）
+            'スポーツ': ['スポーツ'],
+            'フィットネス': ['スポーツ'],
+            
+            # テクノロジー関連（厳密）
+            'テクノロジー': ['テクノロジー'],
+            'テック': ['テクノロジー'],
+            'ガジェット': ['テクノロジー'],
+            
+            # ファッション関連（厳密）
+            'ファッション': ['ファッション'],
+            'コーデ': ['ファッション']
+        }
+        
+        matched_categories = []
+        
+        # 厳密な完全一致のみ
+        if normalized_input in keyword_mappings:
+            target_categories = keyword_mappings[normalized_input]
+            logger.info(f"🎯 キーワード '{normalized_input}' にマッピングされた目標カテゴリ: {target_categories}")
+            
+            for target in target_categories:
+                for available in available_categories:
+                    # 完全一致のみ許可
+                    if target == available:
+                        if available not in matched_categories:
+                            matched_categories.append(available)
+                            logger.info(f"✅ 厳密一致成功: '{normalized_input}' → '{available}'")
+        
+        # マッチしない場合はログ出力のみ（フォールバック処理なし）
+        if not matched_categories:
+            logger.warning(f"⚠️ '{normalized_input}' に対応するカテゴリが見つかりません")
+            logger.info(f"📋 利用可能なカテゴリ一覧: {available_categories}")
+            logger.info(f"💡 対応キーワード: {list(keyword_mappings.keys())}")
+        
+        return matched_categories
+    
+    def _calculate_category_compatibility(self, candidate_category: str, preferred_categories: List[str], custom_preference: str = "") -> float:
+        """カテゴリ適合度スコアを計算（0.0-1.0）"""
+        if not candidate_category:
+            return 0.3  # カテゴリ不明の場合は中程度のスコア
+        
+        if not preferred_categories and not custom_preference:
+            return 1.0  # カテゴリ制約がない場合は満点
+        
+        # 厳密マッチング（完全一致）
+        for preferred in preferred_categories:
+            if candidate_category.lower().strip() == preferred.lower().strip():
+                return 1.0  # 完全一致は満点
+        
+        # カスタム希望とのソフトマッチング
+        if custom_preference:
+            custom_lower = custom_preference.lower().strip()
+            candidate_lower = candidate_category.lower().strip()
+            
+            # キーワード含有チェック
+            if 'ゲーム' in custom_lower and 'ゲーム' in candidate_lower:
+                return 0.9
+            elif '美容' in custom_lower and '美容' in candidate_lower:
+                return 0.9
+            elif '料理' in custom_lower and '料理' in candidate_lower:
+                return 0.9
+            elif 'ビジネス' in custom_lower and ('ビジネス' in candidate_lower or '教育' in candidate_lower):
+                return 0.8
+            elif 'エンタメ' in custom_lower and ('エンタメ' in candidate_lower or 'エンターテイメント' in candidate_lower):
+                return 0.8
+        
+        # 部分マッチング（一般的なカテゴリ）
+        general_matches = {
+            'エンターテイメント': ['エンタメ', '一般', 'People & Blogs'],
+            'エンタメ': ['エンターテイメント', '一般', 'People & Blogs'],
+            '一般': ['エンタメ', 'エンターテイメント', 'People & Blogs']
+        }
+        
+        for preferred in preferred_categories:
+            if preferred in general_matches:
+                for match_category in general_matches[preferred]:
+                    if match_category.lower() in candidate_category.lower():
+                        return 0.6  # 部分マッチは中程度のスコア
+        
+        # マッチしない場合は低スコア（0ではない）
+        return 0.2
+    
+    def _calculate_subscriber_compatibility(self, subscriber_count: int, subscriber_range: Dict[str, int]) -> float:
+        """登録者数適合度スコアを計算（0.0-1.0）"""
+        if not subscriber_range:
+            return 1.0  # 制約がない場合は満点
+        
+        min_subscribers = subscriber_range.get('min', 0)
+        max_subscribers = subscriber_range.get('max', 10000000)
+        
+        if min_subscribers <= subscriber_count <= max_subscribers:
+            # 範囲内の場合、中央値に近いほど高スコア
+            range_center = (min_subscribers + max_subscribers) / 2
+            range_width = max_subscribers - min_subscribers
+            
+            if range_width > 0:
+                distance_from_center = abs(subscriber_count - range_center)
+                normalized_distance = distance_from_center / (range_width / 2)
+                return max(0.7, 1.0 - normalized_distance * 0.3)  # 0.7-1.0の範囲
+            else:
+                return 1.0
+        else:
+            # 範囲外の場合、近さに応じてスコア減点
+            if subscriber_count < min_subscribers:
+                shortage = min_subscribers - subscriber_count
+                penalty = min(0.6, shortage / min_subscribers)  # 最大60%減点
+                return max(0.1, 1.0 - penalty)
+            else:  # subscriber_count > max_subscribers
+                excess = subscriber_count - max_subscribers
+                penalty = min(0.4, excess / max_subscribers)  # 最大40%減点
+                return max(0.3, 1.0 - penalty)
+    
+    def _build_matching_context(self, request_data: Dict[str, Any]) -> Dict[str, Any]:
+        """マッチング文脈情報を構築（設定情報表示用）"""
+        company_profile = request_data.get('company_profile', {})
+        product_info = {
+            'product_name': request_data.get('product_name', '不明'),
+            'product_portfolio': request_data.get('product_portfolio', {}),
+            'budget_min': request_data.get('budget_min', 0),
+            'budget_max': request_data.get('budget_max', 0)
+        }
+        campaign_objectives = request_data.get('campaign_objectives', {})
+        preferences = request_data.get('influencer_preferences', {})
+        
+        return {
+            "company_information": {
+                "company_name": company_profile.get('name', '不明'),
+                "industry": company_profile.get('industry', '不明'),
+                "description": company_profile.get('description', '記載なし'),
+                "target_audience": company_profile.get('target_audience', '不明')
+            },
+            "product_information": {
+                "main_product": product_info['product_name'],
+                "product_category": product_info.get('product_portfolio', {}).get('main_category', '不明'),
+                "budget_range": f"{product_info['budget_min']:,}円 - {product_info['budget_max']:,}円" if product_info['budget_min'] and product_info['budget_max'] else '不明',
+                "price_point": product_info.get('product_portfolio', {}).get('price_point', '不明')
+            },
+            "campaign_objectives": {
+                "primary_goals": campaign_objectives.get('primary_goals', []) if isinstance(campaign_objectives, dict) else [],
+                "target_metrics": campaign_objectives.get('target_metrics', {}) if isinstance(campaign_objectives, dict) else {},
+                "campaign_duration": campaign_objectives.get('duration', '不明') if isinstance(campaign_objectives, dict) else '不明'
+            },
+            "influencer_preferences": {
+                "custom_preference": preferences.get('custom_preference', '指定なし'),
+                "subscriber_range": preferences.get('subscriber_range', {}),
+                "preferred_categories": preferences.get('preferred_categories', []),
+                "geographic_focus": preferences.get('geographic_focus', '日本')
+            }
+        }
+    
+    def _strict_category_match(self, candidate_category: str, preferred_categories: List[str]) -> bool:
+        """超厳密なカテゴリマッチング（完全一致のみ）"""
+        if not candidate_category or not preferred_categories:
+            return True  # カテゴリ条件がない場合は通す
+        
+        candidate_normalized = candidate_category.strip()
+        
+        for preferred in preferred_categories:
+            preferred_normalized = preferred.strip()
+            
+            # 完全一致のみ許可（大文字小文字は区別しない）
+            if candidate_normalized.lower() == preferred_normalized.lower():
+                logger.info(f"✅ カテゴリ完全一致: '{candidate_normalized}' == '{preferred_normalized}'")
+                return True
+        
+        logger.info(f"❌ カテゴリ不一致: '{candidate_normalized}' not in {preferred_categories}")
+        return False
     
     def _get_mock_influencers(self) -> List[Dict[str, Any]]:
         """実際のYouTuberチャンネルデータを返す（Firestore利用不可時のフォールバック）"""
