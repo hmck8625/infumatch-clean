@@ -26,7 +26,6 @@ import { useAuthError } from '@/hooks/use-auth-error';
 import { AttachmentDisplay } from '@/components/attachment-display';
 import { AttachmentUpload } from '@/components/attachment-upload';
 import { EmailSearch } from '@/components/email-search';
-import { NotificationManager } from '@/components/notification-manager';
 import ThreadAutomationControl from '@/components/ThreadAutomationControl';
 import AutomationOrchestrator from '@/components/AutomationOrchestrator';
 // import { useRealtimeGmail } from '@/hooks/use-realtime-gmail'; // Temporarily disabled
@@ -51,7 +50,7 @@ function MessagesPageContent() {
   const [threadAnalysis, setThreadAnalysis] = useState<any>(null);
   const [attachmentFiles, setAttachmentFiles] = useState<File[]>([]);
   const [showSearch, setShowSearch] = useState(false);
-  const [showNotifications, setShowNotifications] = useState(false);
+  const [showSemiAutoOnly, setShowSemiAutoOnly] = useState(false);
   const [searchFilters, setSearchFilters] = useState<SearchFilters>({});
   const [detailedTrace, setDetailedTrace] = useState<any>(null);
   const [showDetailedTrace, setShowDetailedTrace] = useState(false);
@@ -2387,12 +2386,6 @@ InfuMatchの田中です。
               </div>
             )}
             
-            {/* 通知エリア */}
-            {showNotifications && (
-              <div className="col-span-1 lg:col-span-3 mb-8">
-                <NotificationManager />
-              </div>
-            )}
             
             {/* スレッド一覧 */}
             <div className="lg:col-span-1">
@@ -2411,14 +2404,14 @@ InfuMatchの田中です。
                       🔍 検索
                     </button>
                     <button
-                      onClick={() => setShowNotifications(!showNotifications)}
+                      onClick={() => setShowSemiAutoOnly(!showSemiAutoOnly)}
                       className={`px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 ${
-                        showNotifications 
-                          ? 'bg-orange-100 text-orange-700 border border-orange-300' 
+                        showSemiAutoOnly 
+                          ? 'bg-blue-100 text-blue-700 border border-blue-300' 
                           : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-200'
                       }`}
                     >
-                      🔔 通知
+                      🤖 半自動のみ
                     </button>
                     <button
                       onClick={async () => {
@@ -2465,7 +2458,11 @@ InfuMatchの田中です。
                         <p className="text-xs mt-2">現在のスレッド数: {threads.length}</p>
                       </div>
                     ) : (
-                    threads.map((thread, index) => (
+                    threads.filter(thread => {
+                      if (!showSemiAutoOnly) return true;
+                      const threadState = threadAutomationStates[thread.id];
+                      return threadState?.mode === 'semi_auto' && threadState?.isActive;
+                    }).map((thread, index) => (
                       <div
                         key={thread.id}
                         onClick={() => setSelectedThread(thread.id)}

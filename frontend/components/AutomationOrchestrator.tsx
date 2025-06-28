@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Progress } from '@/components/ui/progress';
 import { 
   Play, 
   Pause, 
@@ -18,7 +17,6 @@ import {
   Activity,
   Zap,
   Shield,
-  BarChart3,
   ChevronDown,
   ChevronUp
 } from 'lucide-react';
@@ -162,10 +160,6 @@ export default function AutomationOrchestrator({ onMonitoringChange }: Automatio
     return descriptions[mode];
   };
 
-  const calculateSuccessRate = () => {
-    if (!status?.performance_metrics.total_negotiations) return 0;
-    return (status.performance_metrics.successful_closures / status.performance_metrics.total_negotiations) * 100;
-  };
 
   return (
     <Card className="w-full">
@@ -185,7 +179,7 @@ export default function AutomationOrchestrator({ onMonitoringChange }: Automatio
               )}
             </CardTitle>
             <CardDescription>
-              全体の自動化設定とパフォーマンス状況
+              全体の自動化設定
             </CardDescription>
           </div>
           
@@ -238,63 +232,6 @@ export default function AutomationOrchestrator({ onMonitoringChange }: Automatio
           </p>
         </div>
 
-        {/* パフォーマンスメトリクス */}
-        {status && (
-          <div className="space-y-4">
-            <h4 className="text-sm font-medium flex items-center gap-2">
-              <BarChart3 className="h-4 w-4" />
-              パフォーマンス指標
-            </h4>
-
-            {/* 成功率 */}
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span>成功率</span>
-                <span className="font-medium">{calculateSuccessRate().toFixed(1)}%</span>
-              </div>
-              <Progress value={calculateSuccessRate()} className="h-2" />
-            </div>
-
-            {/* 統計グリッド */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="p-3 bg-blue-50 rounded-lg">
-                <p className="text-sm text-blue-600">総交渉数</p>
-                <p className="text-2xl font-bold text-blue-900">
-                  {status.performance_metrics.total_negotiations}
-                </p>
-              </div>
-              
-              <div className="p-3 bg-green-50 rounded-lg">
-                <p className="text-sm text-green-600">成約数</p>
-                <p className="text-2xl font-bold text-green-900">
-                  {status.performance_metrics.successful_closures}
-                </p>
-              </div>
-              
-              <div className="p-3 bg-purple-50 rounded-lg">
-                <p className="text-sm text-purple-600">AI介入数</p>
-                <p className="text-2xl font-bold text-purple-900">
-                  {status.performance_metrics.automation_interventions}
-                </p>
-              </div>
-              
-              <div className="p-3 bg-orange-50 rounded-lg">
-                <p className="text-sm text-orange-600">アクティブ</p>
-                <p className="text-2xl font-bold text-orange-900">
-                  {status.active_negotiations}
-                </p>
-              </div>
-            </div>
-
-            {/* 平均成約時間 */}
-            <div className="p-3 bg-gray-50 rounded-lg">
-              <p className="text-sm text-gray-600">平均成約時間</p>
-              <p className="text-lg font-semibold">
-                {(status.performance_metrics.average_time_to_close / 24).toFixed(1)} 日
-              </p>
-            </div>
-          </div>
-        )}
 
         {/* 起動/停止ボタン */}
         <Button
