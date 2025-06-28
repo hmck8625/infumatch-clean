@@ -198,7 +198,18 @@ function MessagesPageContent() {
         }
         
         const threadData = await threadResponse.json();
-        const messages = threadData.messages || [];
+        // APIレスポンス構造をチェック
+        console.log(`📊 スレッド ${threadId} のAPIレスポンス構造:`, {
+          hasThread: !!threadData.thread,
+          hasMessages: !!threadData.messages,
+          threadKeysCount: threadData.thread ? Object.keys(threadData.thread).length : 0,
+          directKeysCount: Object.keys(threadData).length,
+          sampleKeys: Object.keys(threadData).slice(0, 5)
+        });
+        
+        // レスポンス構造に応じてメッセージを取得
+        const actualThreadData = threadData.thread || threadData;
+        const messages = actualThreadData.messages || [];
         
         if (messages.length === 0) {
           console.warn(`⚠️ スレッド ${threadId} にメッセージなし`);
