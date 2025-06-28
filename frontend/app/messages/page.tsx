@@ -161,10 +161,10 @@ function MessagesPageContent() {
     console.warn('⚠️ ユーザーメールアドレスの自動取得に失敗しました。');
     console.warn('⚠️ 自動返信の無限ループを防ぐため、次のフォールバックを使用します:');
     
-    // Gmailアドレスの一般的なパターンを使用
-    const fallbackEmail = 'daisuke.hamu3@gmail.com'; // ログから推定
+    // 認証アドレスのフォールバック（API失敗時のみ）
+    const fallbackEmail = 'daisuke.hamu3@gmail.com'; // 現在の認証アドレス
     setUserEmailAddress(fallbackEmail);
-    console.log('🔄 フォールバックメールアドレスを設定:', fallbackEmail);
+    console.log('🔄 フォールバック: 認証アドレスを設定:', fallbackEmail);
     return fallbackEmail;
   };
   
@@ -426,22 +426,16 @@ function MessagesPageContent() {
       const toHeader = latestMessage.payload?.headers?.find(h => h.name === 'To')?.value || '';
       
       // 自分宛メールかどうかをチェックして無限ループを防ぐ
-      const knownUserEmails = [
-        userEmailAddress,
-        'daisuke.hamu3@gmail.com',  // ログから確認されたメールアドレス
-        'd9130613@gmail.com'        // Toフィールドから確認されたメールアドレス
-      ].filter(Boolean); // 空文字を除去
-      
-      const isFromSelf = knownUserEmails.some(email => 
-        fromHeader.toLowerCase().includes(email.toLowerCase())
-      );
+      // 認証したアドレスのみをチェック
+      const isFromSelf = userEmailAddress && 
+        fromHeader.toLowerCase().includes(userEmailAddress.toLowerCase());
       
       console.log('🔍 メール送信者チェック:', {
         fromHeader,
         userEmailAddress,
-        knownUserEmails,
         isFromSelf,
-        subjectHeader
+        subjectHeader,
+        認証アドレスのみをチェック: '認証済みアドレスのみを対象とします'
       });
       
       // 自動送信メールの可能性をチェック
@@ -727,22 +721,16 @@ function MessagesPageContent() {
       const toHeader = latestMessage.payload?.headers?.find(h => h.name === 'To')?.value || '';
       
       // 自分宛メールかどうかをチェックして無限ループを防ぐ
-      const knownUserEmails = [
-        userEmailAddress,
-        'daisuke.hamu3@gmail.com',  // ログから確認されたメールアドレス
-        'd9130613@gmail.com'        // Toフィールドから確認されたメールアドレス
-      ].filter(Boolean); // 空文字を除去
-      
-      const isFromSelf = knownUserEmails.some(email => 
-        fromHeader.toLowerCase().includes(email.toLowerCase())
-      );
+      // 認証したアドレスのみをチェック
+      const isFromSelf = userEmailAddress && 
+        fromHeader.toLowerCase().includes(userEmailAddress.toLowerCase());
       
       console.log('🔍 メール送信者チェック:', {
         fromHeader,
         userEmailAddress,
-        knownUserEmails,
         isFromSelf,
-        subjectHeader
+        subjectHeader,
+        認証アドレスのみをチェック: '認証済みアドレスのみを対象とします'
       });
       
       // 自動送信メールの可能性をチェック
