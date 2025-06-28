@@ -253,6 +253,90 @@ function MessagesPageContent() {
           処理時間: new Date().toLocaleTimeString()
         });
         
+        // 返信が必要で、かつ生成されたコンテンツがある場合のみ自動送信
+        if (result.success && result.content && !result.metadata?.reply_not_needed && !result.metadata?.caution_required) {
+          console.log('📤 自動返信送信開始:', {
+            スレッドID: threadId,
+            返信内容文字数: result.content.length,
+            送信対象: fromHeader
+          });
+          
+          try {
+            // 1. 返信ヘッダーを取得
+            console.log('📋 返信ヘッダー取得中...');
+            const replyHeadersResponse = await fetch(`/api/gmail/threads/${threadId}/reply-headers?messageId=${latestMessage.id}`);
+            
+            let replyHeaders = null;
+            if (replyHeadersResponse.ok) {
+              const headerData = await replyHeadersResponse.json();
+              replyHeaders = headerData.replyHeaders;
+              console.log('✅ 返信ヘッダー取得成功:', replyHeaders);
+            } else {
+              console.warn('⚠️ 返信ヘッダー取得失敗、基本情報で送信します');
+            }
+            
+            // 2. 返信メールを送信
+            console.log('📨 Gmail送信API呼び出し中...');
+            const sendPayload = {
+              to: fromHeader,
+              subject: subjectHeader.startsWith('Re: ') ? subjectHeader : `Re: ${subjectHeader}`,
+              body: result.content,
+              threadId: threadId,
+              replyToMessageId: latestMessage.id,
+              replyHeaders: replyHeaders
+            };
+            
+            console.log('📤 送信ペイロード:', {
+              宛先: sendPayload.to,
+              件名: sendPayload.subject,
+              本文文字数: sendPayload.body.length,
+              スレッドID: sendPayload.threadId,
+              返信先メッセージID: sendPayload.replyToMessageId,
+              ヘッダー有無: !!sendPayload.replyHeaders
+            });
+            
+            const sendResponse = await fetch('/api/gmail/send', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(sendPayload)
+            });
+            
+            if (sendResponse.ok) {
+              const sendResult = await sendResponse.json();
+              console.log('✅ 自動返信送信成功!', {
+                メッセージID: sendResult.messageId,
+                送信完了時刻: new Date().toLocaleTimeString(),
+                宛先: sendPayload.to,
+                件名: sendPayload.subject
+              });
+            } else {
+              const sendError = await sendResponse.text();
+              console.error('❌ 自動返信送信失敗:', {
+                status: sendResponse.status,
+                error: sendError,
+                payload: sendPayload
+              });
+            }
+            
+          } catch (sendError) {
+            console.error('❌ 自動返信送信中のエラー:', {
+              error: sendError,
+              message: sendError instanceof Error ? sendError.message : 'Unknown error',
+              スレッドID: threadId
+            });
+          }
+        } else {
+          console.log('ℹ️ 自動返信スキップ:', {
+            success: result.success,
+            hasContent: !!result.content,
+            replyNotNeeded: result.metadata?.reply_not_needed,
+            cautionRequired: result.metadata?.caution_required,
+            理由: result.metadata?.reply_not_needed ? '返信不要メール' : 
+                  result.metadata?.caution_required ? '注意が必要なメール' : 
+                  !result.content ? 'コンテンツ生成失敗' : 'その他'
+          });
+        }
+        
         // スレッドリストを更新
         console.log('🔄 自動交渉後のスレッドリスト更新中...');
         await loadThreads();
