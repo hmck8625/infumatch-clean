@@ -66,11 +66,6 @@ export default function ThreadAutomationControl({
   };
 
   const toggleAutomation = async () => {
-    if (!settings?.enabled && mode === 'semi_auto') {
-      alert('自動交渉機能が無効になっています。設定ページで有効にしてください。');
-      return;
-    }
-
     setIsLoading(true);
     
     try {
@@ -187,29 +182,29 @@ export default function ThreadAutomationControl({
         )}
 
         {/* 現在の設定サマリー */}
-        {mode === 'semi_auto' && settings && (
+        {mode === 'semi_auto' && (
           <div className="p-3 bg-gray-50 rounded-lg space-y-2">
             <div className="text-sm font-medium flex items-center gap-2">
               <Settings className="h-4 w-4" />
-              現在の設定
+              半自動モード設定
             </div>
             <div className="grid grid-cols-2 gap-2 text-sm">
               <div>
                 <span className="text-gray-600">最大ラウンド:</span>
-                <span className="ml-2 font-medium">{settings.maxRounds}回</span>
+                <span className="ml-2 font-medium">{settings?.maxRounds || 3}回</span>
               </div>
               <div>
                 <span className="text-gray-600">自動承認閾値:</span>
-                <span className="ml-2 font-medium">{settings.autoApprovalThreshold}%</span>
+                <span className="ml-2 font-medium">{settings?.autoApprovalThreshold || 75}%</span>
               </div>
               <div>
                 <span className="text-gray-600">予算柔軟性:</span>
-                <span className="ml-2 font-medium">±{settings.budgetFlexibilityLimit}%</span>
+                <span className="ml-2 font-medium">±{settings?.budgetFlexibilityLimit || 15}%</span>
               </div>
               <div>
                 <span className="text-gray-600">稼働時間:</span>
                 <span className="ml-2 font-medium">
-                  {settings.workingHours?.start}:00-{settings.workingHours?.end}:00
+                  {settings?.workingHours?.start || 9}:00-{settings?.workingHours?.end || 18}:00
                 </span>
               </div>
             </div>
