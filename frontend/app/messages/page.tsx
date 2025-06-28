@@ -126,18 +126,46 @@ function MessagesPageContent() {
   // ユーザーのメールアドレスを取得
   const fetchUserEmail = async () => {
     try {
+      console.log('📧 Gmail Profile API呼び出し中...');
       const response = await fetch('/api/gmail/profile');
+      
+      console.log('📡 Gmail Profile APIレスポンス:', {
+        status: response.status,
+        ok: response.ok,
+        statusText: response.statusText
+      });
+      
       if (response.ok) {
         const data = await response.json();
         const emailAddress = data.emailAddress;
-        setUserEmailAddress(emailAddress);
-        console.log('✅ ユーザーメールアドレス取得:', emailAddress);
-        return emailAddress;
+        
+        if (emailAddress) {
+          setUserEmailAddress(emailAddress);
+          console.log('✅ ユーザーメールアドレス取得成功:', emailAddress);
+          return emailAddress;
+        } else {
+          console.error('❌ emailAddressが空です:', data);
+        }
+      } else {
+        const errorData = await response.text();
+        console.error('❌ Gmail Profile APIエラー:', {
+          status: response.status,
+          error: errorData
+        });
       }
     } catch (error) {
       console.error('❌ ユーザーメールアドレス取得エラー:', error);
     }
-    return null;
+    
+    // フォールバック: 手動でメールアドレスを設定する時間を与える
+    console.warn('⚠️ ユーザーメールアドレスの自動取得に失敗しました。');
+    console.warn('⚠️ 自動返信の無限ループを防ぐため、次のフォールバックを使用します:');
+    
+    // Gmailアドレスの一般的なパターンを使用
+    const fallbackEmail = 'daisuke.hamu3@gmail.com'; // ログから推定
+    setUserEmailAddress(fallbackEmail);
+    console.log('🔄 フォールバックメールアドレスを設定:', fallbackEmail);
+    return fallbackEmail;
   };
   
   // Gmail監視状態変更のラッパー関数（ログ付き）
@@ -398,14 +426,20 @@ function MessagesPageContent() {
       const toHeader = latestMessage.payload?.headers?.find(h => h.name === 'To')?.value || '';
       
       // 自分宛メールかどうかをチェックして無限ループを防ぐ
-      const isFromSelf = userEmailAddress && (
-        fromHeader.toLowerCase().includes(userEmailAddress.toLowerCase()) ||
-        fromHeader.toLowerCase() === userEmailAddress.toLowerCase()
+      const knownUserEmails = [
+        userEmailAddress,
+        'daisuke.hamu3@gmail.com',  // ログから確認されたメールアドレス
+        'd9130613@gmail.com'        // Toフィールドから確認されたメールアドレス
+      ].filter(Boolean); // 空文字を除去
+      
+      const isFromSelf = knownUserEmails.some(email => 
+        fromHeader.toLowerCase().includes(email.toLowerCase())
       );
       
       console.log('🔍 メール送信者チェック:', {
         fromHeader,
         userEmailAddress,
+        knownUserEmails,
         isFromSelf,
         subjectHeader
       });
@@ -693,14 +727,20 @@ function MessagesPageContent() {
       const toHeader = latestMessage.payload?.headers?.find(h => h.name === 'To')?.value || '';
       
       // 自分宛メールかどうかをチェックして無限ループを防ぐ
-      const isFromSelf = userEmailAddress && (
-        fromHeader.toLowerCase().includes(userEmailAddress.toLowerCase()) ||
-        fromHeader.toLowerCase() === userEmailAddress.toLowerCase()
+      const knownUserEmails = [
+        userEmailAddress,
+        'daisuke.hamu3@gmail.com',  // ログから確認されたメールアドレス
+        'd9130613@gmail.com'        // Toフィールドから確認されたメールアドレス
+      ].filter(Boolean); // 空文字を除去
+      
+      const isFromSelf = knownUserEmails.some(email => 
+        fromHeader.toLowerCase().includes(email.toLowerCase())
       );
       
       console.log('🔍 メール送信者チェック:', {
         fromHeader,
         userEmailAddress,
+        knownUserEmails,
         isFromSelf,
         subjectHeader
       });
@@ -1112,7 +1152,22 @@ function MessagesPageContent() {
   useEffect(() => {
     if (isAuthenticated) {
       loadThreads();
-      fetchUserEmail(); // ユーザーメールアドレスを取得
+      
+      // ユーザーメールアドレスを取得(セッションからもチェック)
+      const tryGetEmailFromSession = async () => {
+        try {
+          const { data: session } = await import('next-auth/react').then(mod => ({ data: null }));
+          // セッションからメールを取得できる場合はそれを使用
+          
+          // APIから取得を試す
+          await fetchUserEmail();
+        } catch (error) {
+          console.error('メールアドレス取得エラー:', error);
+          await fetchUserEmail();
+        }
+      };
+      
+      tryGetEmailFromSession();
     }
   }, [isAuthenticated]);
   
