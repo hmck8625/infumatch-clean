@@ -28,6 +28,7 @@ import { AttachmentUpload } from '@/components/attachment-upload';
 import { EmailSearch } from '@/components/email-search';
 import ThreadAutomationControl from '@/components/ThreadAutomationControl';
 import AutomationOrchestrator from '@/components/AutomationOrchestrator';
+import AutoReplyStatus from '@/components/AutoReplyStatus';
 // import { useRealtimeGmail } from '@/hooks/use-realtime-gmail'; // Temporarily disabled
 // import { SearchFilters } from '@/lib/gmail'; // Server-side only
 interface SearchFilters { query?: string; labelIds?: string[]; maxResults?: number; }
@@ -94,6 +95,18 @@ function MessagesPageContent() {
   const [lastThreadCheck, setLastThreadCheck] = useState<string | null>(null);
   const [trackedThreads, setTrackedThreads] = useState<{[threadId: string]: {lastMessageTime: string, isAutomated: boolean, lastSentMessageId?: string}}>({});
   const [userEmailAddress, setUserEmailAddress] = useState<string>('');
+  
+  // 自動返信履歴を管理
+  const [autoReplyHistory, setAutoReplyHistory] = useState<{
+    [threadId: string]: {
+      timestamp: string;
+      replyContent: string;
+      recipientEmail: string;
+      subject: string;
+      messageId: string;
+      success: boolean;
+    }[]
+  }>({});
 
   // 追跡状態をlocalStorageに永続化
   useEffect(() => {
@@ -122,6 +135,35 @@ function MessagesPageContent() {
       });
     }
   }, [trackedThreads]);
+
+  // 自動返信履歴をlocalStorageに永続化
+  useEffect(() => {
+    const savedAutoReplyHistory = localStorage.getItem('autoReplyHistory');
+    if (savedAutoReplyHistory) {
+      try {
+        const parsed = JSON.parse(savedAutoReplyHistory);
+        setAutoReplyHistory(parsed);
+        console.log('🔄 保存された自動返信履歴を復元:', {
+          履歴件数: Object.values(parsed).reduce((total: number, records: any) => total + records.length, 0),
+          スレッド数: Object.keys(parsed).length
+        });
+      } catch (error) {
+        console.error('❌ 自動返信履歴の復元に失敗:', error);
+      }
+    }
+  }, []);
+
+  // 自動返信履歴が変更されたときにlocalStorageに保存
+  useEffect(() => {
+    if (Object.keys(autoReplyHistory).length > 0) {
+      localStorage.setItem('autoReplyHistory', JSON.stringify(autoReplyHistory));
+      const totalRecords = Object.values(autoReplyHistory).reduce((total: number, records: any) => total + records.length, 0);
+      console.log('💾 自動返信履歴を保存:', {
+        履歴件数: totalRecords,
+        スレッド数: Object.keys(autoReplyHistory).length
+      });
+    }
+  }, [autoReplyHistory]);
   
   // ユーザーのメールアドレスを取得
   const fetchUserEmail = async () => {
@@ -576,6 +618,21 @@ function MessagesPageContent() {
                 }
               }));
               
+              // 自動返信履歴を記録
+              const autoReplyRecord = {
+                timestamp: new Date().toLocaleString('ja-JP'),
+                replyContent: result.content,
+                recipientEmail: replyToAddress,
+                subject: subjectHeader,
+                messageId: sendResult.messageId,
+                success: true
+              };
+              
+              setAutoReplyHistory(prev => ({
+                ...prev,
+                [threadId]: [...(prev[threadId] || []), autoReplyRecord]
+              }));
+              
               console.log('💾 送信メッセージIDを記録:', {
                 宛先: sendPayload.to,
                 件名: sendPayload.subject
@@ -870,6 +927,21 @@ function MessagesPageContent() {
                   ...prev[threadId],
                   lastSentMessageId: sendResult.messageId
                 }
+              }));
+              
+              // 既存スレッド自動返信履歴を記録
+              const autoReplyRecord = {
+                timestamp: new Date().toLocaleString('ja-JP'),
+                replyContent: result.content,
+                recipientEmail: replyToAddress,
+                subject: subjectHeader,
+                messageId: sendResult.messageId,
+                success: true
+              };
+              
+              setAutoReplyHistory(prev => ({
+                ...prev,
+                [threadId]: [...(prev[threadId] || []), autoReplyRecord]
               }));
               
               console.log('💾 既存スレッド送信メッセージIDを記録:', {
@@ -3505,6 +3577,14 @@ InfuMatchの田中です。
         <div className="mt-8">
           <AutomationOrchestrator 
             onMonitoringChange={handleMonitoringChange}
+          />
+        </div>
+
+        {/* 自動返信ステータス表示 */}
+        <div className="mt-8">
+          <AutoReplyStatus 
+            autoReplyHistory={autoReplyHistory}
+            currentThreadId={selectedThread}
           />
         </div>
             </div>
