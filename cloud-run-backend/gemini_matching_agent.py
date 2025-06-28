@@ -237,8 +237,12 @@ class GeminiMatchingAgent:
             
             # JSON形式の応答をパース
             try:
-                parsed_response = json.loads(response)
-            except json.JSONDecodeError:
+                # レスポンスをクリーンアップしてからJSON解析
+                cleaned_response = self._clean_json_response(response)
+                parsed_response = json.loads(cleaned_response)
+                logger.info(f"✅ JSON解析成功: {influencer.get('channel_name', 'unknown')}")
+            except json.JSONDecodeError as e:
+                logger.warning(f"⚠️ JSON解析失敗: {e} - テキスト抽出にフォールバック")
                 # JSONパースに失敗した場合、テキストから情報を抽出
                 parsed_response = self._extract_analysis_from_text(response)
             
@@ -404,10 +408,14 @@ class GeminiMatchingAgent:
 ```
 
 **重要**: 
-- 必ずJSON形式で回答
+- 必ずJSON形式のみで回答してください（説明文や前後の文章は不要）
 - 日本語で具体的かつ説得力のある分析を提供
 - 企業の特性とインフルエンサーの実績を詳細に考慮
 - 戦略的視点から実現可能で効果的な提案を行う
+- 文字列値は完全に閉じられた状態で記述し、改行は含めない
+- すべての文字列値を200文字以内で簡潔に記述
+
+回答例: {"overall_compatibility_score": 85, "brand_alignment_score": 80, ...}
 """
         
         return prompt
@@ -424,6 +432,59 @@ class GeminiMatchingAgent:
         except Exception as e:
             logger.error(f"Gemini API呼び出しエラー: {e}")
             return None
+    
+    def _clean_json_response(self, response: str) -> str:
+        """Geminiレスポンスから有効なJSONを抽出・クリーンアップ"""
+        try:
+            # マークダウンのコードブロックを除去
+            if '```json' in response:
+                start = response.find('```json') + 7
+                end = response.find('```', start)
+                if end != -1:
+                    response = response[start:end].strip()
+            elif '```' in response:
+                start = response.find('```') + 3
+                end = response.find('```', start)
+                if end != -1:
+                    response = response[start:end].strip()
+            
+            # JSONオブジェクトの開始と終了を見つける
+            start_brace = response.find('{')
+            end_brace = response.rfind('}') + 1
+            
+            if start_brace != -1 and end_brace > start_brace:
+                json_text = response[start_brace:end_brace]
+                
+                # 改行や余分な空白を適切に処理
+                json_text = json_text.replace('\n', ' ')
+                
+                # 不完全な文字列を修正（閉じられていない引用符）
+                # 簡単な修正：最後の値が不完全な文字列の場合は除去
+                lines = json_text.split(',')
+                clean_lines = []
+                for line in lines:
+                    line = line.strip()
+                    if line.count('"') % 2 == 0 or line.endswith('}'):  # 偶数個の引用符または終了括弧
+                        clean_lines.append(line)
+                    else:
+                        # 不完全な行をスキップまたは修正
+                        if ':' in line and not line.endswith('"'):
+                            # 不完全な値を削除
+                            continue
+                        clean_lines.append(line)
+                
+                cleaned_json = ','.join(clean_lines)
+                
+                # 最後のカンマを適切に処理
+                cleaned_json = cleaned_json.replace(',}', '}')
+                
+                return cleaned_json
+            
+            return response
+            
+        except Exception as e:
+            logger.warning(f"JSON クリーンアップエラー: {e}")
+            return response
     
     def _extract_analysis_from_text(self, text: str) -> Dict[str, Any]:
         """テキスト形式の回答から分析情報を抽出"""
@@ -551,7 +612,7 @@ class GeminiMatchingAgent:
                 "view_count": 900000000,
                 "category": "ゲーム",
                 "engagement_rate": 8.5,
-                "thumbnail_url": "https://yt3.ggpht.com/ytc/AKedOLRvRNJ0_OhNh_OhNh_OhNh_OhNh_OhNh_OhNh",
+                "thumbnail_url": "https://yt3.ggpht.com/ytc/AIdvJLRLp0P1tL2cEJwgEjZq1nWk6iHO3UKh6v7qI5AZJA=s240-c-k-c0x00ffffff-no-rj",
                 "email": "contact@gatchman.com",
                 "country": "JP"
             },
@@ -566,7 +627,7 @@ class GeminiMatchingAgent:
                 "view_count": 5100000,
                 "category": "ゲーム",
                 "engagement_rate": 12.3,
-                "thumbnail_url": "",
+                "thumbnail_url": "https://yt3.ggpht.com/ytc/AIdvJLQLcNRK5h9KEZ3YfVl4NQWFd8lOhyqFJkV7gXOQAg=s240-c-k-c0x00ffffff-no-rj",
                 "email": "info@lalan-gaming.com",
                 "country": "JP"
             },
@@ -581,7 +642,7 @@ class GeminiMatchingAgent:
                 "view_count": 32800000,
                 "category": "スポーツ",
                 "engagement_rate": 6.8,
-                "thumbnail_url": "",
+                "thumbnail_url": "https://yt3.ggpht.com/ytc/AIdvJLQLcNRK5h9KEZ3YfVl4NQWFd8lOhyqFJkV7gXOQAg=s240-c-k-c0x00ffffff-no-rj",
                 "email": "jo@soccerbusiness.jp",
                 "country": "JP"
             },
@@ -596,7 +657,7 @@ class GeminiMatchingAgent:
                 "view_count": 991000,
                 "category": "ビジネス",
                 "engagement_rate": 9.2,
-                "thumbnail_url": "",
+                "thumbnail_url": "https://yt3.ggpht.com/ytc/AIdvJLQLcNRK5h9KEZ3YfVl4NQWFd8lOhyqFJkV7gXOQAg=s240-c-k-c0x00ffffff-no-rj",
                 "email": "consulting@business-channel.jp",
                 "country": "JP"
             },
@@ -611,7 +672,7 @@ class GeminiMatchingAgent:
                 "view_count": 25100000,
                 "category": "エンタメ",
                 "engagement_rate": 7.4,
-                "thumbnail_url": "",
+                "thumbnail_url": "https://yt3.ggpht.com/ytc/AIdvJLQLcNRK5h9KEZ3YfVl4NQWFd8lOhyqFJkV7gXOQAg=s240-c-k-c0x00ffffff-no-rj",
                 "email": "contact@daichi-gaming.com",
                 "country": "JP"
             },
@@ -626,7 +687,7 @@ class GeminiMatchingAgent:
                 "view_count": 67800000,
                 "category": "美容",
                 "engagement_rate": 11.2,
-                "thumbnail_url": "",
+                "thumbnail_url": "https://yt3.ggpht.com/ytc/AIdvJLQLcNRK5h9KEZ3YfVl4NQWFd8lOhyqFJkV7gXOQAg=s240-c-k-c0x00ffffff-no-rj",
                 "email": "beauty@makeup-tips.jp",
                 "country": "JP"
             },
@@ -641,7 +702,7 @@ class GeminiMatchingAgent:
                 "view_count": 43200000,
                 "category": "料理",
                 "engagement_rate": 9.8,
-                "thumbnail_url": "",
+                "thumbnail_url": "https://yt3.ggpht.com/ytc/AIdvJLQLcNRK5h9KEZ3YfVl4NQWFd8lOhyqFJkV7gXOQAg=s240-c-k-c0x00ffffff-no-rj",
                 "email": "recipe@easycooking.jp",
                 "country": "JP"
             },
@@ -656,7 +717,7 @@ class GeminiMatchingAgent:
                 "view_count": 38900000,
                 "category": "テクノロジー",
                 "engagement_rate": 8.1,
-                "thumbnail_url": "",
+                "thumbnail_url": "https://yt3.ggpht.com/ytc/AIdvJLQLcNRK5h9KEZ3YfVl4NQWFd8lOhyqFJkV7gXOQAg=s240-c-k-c0x00ffffff-no-rj",
                 "email": "review@techreview-jp.com",
                 "country": "JP"
             }

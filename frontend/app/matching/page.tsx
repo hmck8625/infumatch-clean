@@ -778,7 +778,17 @@ export default function MatchingPage() {
                             <div className="flex items-center space-x-2 mt-1">
                               <span className="badge badge-primary">{result.category}</span>
                               <span className="text-sm text-gray-500">認証済み</span>
+                              {result.id.startsWith('UC') && (
+                                <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full">
+                                  📺 YouTuber
+                                </span>
+                              )}
                             </div>
+                            {result.id.startsWith('UC') && (
+                              <div className="text-xs text-blue-600 mt-1 font-mono">
+                                ID: {result.id}
+                              </div>
+                            )}
                           </div>
                         </div>
                         <div className="text-right">
@@ -930,13 +940,40 @@ export default function MatchingPage() {
                       {/* チャンネル説明（実データがある場合のみ表示） */}
                       {result.description && (
                         <div className="mb-6">
-                          <h4 className="font-semibold text-gray-900 mb-3">チャンネル紹介</h4>
-                          <p className="text-sm text-gray-600 leading-relaxed bg-gray-50 p-4 rounded-lg">
-                            {result.description.length > 200 
-                              ? `${result.description.substring(0, 200)}...` 
-                              : result.description
-                            }
-                          </p>
+                          <h4 className="font-semibold text-gray-900 mb-3 flex items-center">
+                            <svg className="w-4 h-4 mr-2 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            チャンネル紹介
+                            {result.id.startsWith('UC') && (
+                              <span className="ml-2 text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">
+                                ✅ 実チャンネル
+                              </span>
+                            )}
+                          </h4>
+                          <div className="bg-gradient-to-br from-gray-50 to-blue-50 p-4 rounded-lg border border-gray-200">
+                            <p className="text-sm text-gray-700 leading-relaxed">
+                              {result.description.length > 300 
+                                ? `${result.description.substring(0, 300)}...` 
+                                : result.description
+                              }
+                            </p>
+                            {result.id.startsWith('UC') && (
+                              <div className="mt-3 pt-3 border-t border-gray-300">
+                                <a 
+                                  href={`https://www.youtube.com/channel/${result.id}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center text-xs text-red-600 hover:text-red-800 font-medium"
+                                >
+                                  <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+                                  </svg>
+                                  YouTubeで確認
+                                </a>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       )}
 
