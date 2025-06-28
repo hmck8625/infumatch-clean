@@ -14,34 +14,51 @@ function getDefaultSettings(userId: string) {
   return {
     userId,
     companyInfo: {
-      companyName: '',
-      industry: '',
-      employeeCount: '',
-      website: '',
-      description: '',
-      contactPerson: '',
-      contactEmail: ''
+      companyName: 'InfuMatch株式会社',
+      industry: 'マーケティング・テクノロジー',
+      employeeCount: '10-50名',
+      website: 'https://infumatch.com',
+      description: 'YouTubeインフルエンサーと企業を繋ぐAIマッチングプラットフォームを提供しています。',
+      contactPerson: '田中美咲',
+      contactEmail: 'contact@infumatch.com'
     },
-    products: [],
+    products: [
+      {
+        id: '1',
+        name: 'スマートフィットネスアプリ',
+        category: 'フィットネス・健康',
+        targetAudience: '20-40代、健康志向の男女',
+        priceRange: '月額980円',
+        description: 'AI技術を活用したパーソナルトレーニングアプリ。ユーザーの運動レベルに合わせて最適なワークアウトプランを提案します。'
+      },
+      {
+        id: '2', 
+        name: 'オーガニック美容液',
+        category: '美容・コスメ',
+        targetAudience: '25-45歳女性、美容意識の高い層',
+        priceRange: '3,980円-12,800円',
+        description: '100%天然成分で作られた高品質美容液。敏感肌にも優しく、エイジングケアに効果的な成分を厳選配合。'
+      }
+    ],
     negotiationSettings: {
-      preferredTone: 'professional',
-      responseTimeExpectation: '24時間以内',
+      preferredTone: 'friendly',
+      responseTimeExpectation: '48時間以内',
       budgetFlexibility: 'medium',
-      decisionMakers: [],
-      communicationPreferences: ['email'],
-      specialInstructions: '',
-      keyPriorities: [],
-      avoidTopics: []
+      decisionMakers: ['田中美咲（マーケティング部長）', '山田太郎（営業部部長）'],
+      communicationPreferences: ['email', 'slack'],
+      specialInstructions: '長期的なパートナーシップを重視し、Win-Winの関係構築を目指します。',
+      keyPriorities: ['ブランド認知度向上', 'ターゲット層へのリーチ拡大', 'エンゲージメント向上'],
+      avoidTopics: ['政治的な話題', '他社批判', '過度な割引要求']
     },
     matchingSettings: {
-      priorityCategories: [],
-      minSubscribers: 1000,
-      maxSubscribers: 1000000,
-      minEngagementRate: 2.0,
-      excludeCategories: [],
+      priorityCategories: ['美容・コスメ', 'フィットネス・健康', 'ライフスタイル'],
+      minSubscribers: 10000,
+      maxSubscribers: 500000,
+      minEngagementRate: 3.0,
+      excludeCategories: ['政治', 'ギャンブル'],
       geographicFocus: ['日本'],
-      priorityKeywords: [],
-      excludeKeywords: []
+      priorityKeywords: ['健康', '美容', 'ライフスタイル', 'ウェルネス'],
+      excludeKeywords: ['炎上', '批判', '違法']
     },
     createdAt: now,
     updatedAt: now
