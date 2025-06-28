@@ -102,8 +102,19 @@ export default function AutomationOrchestrator({ onMonitoringChange }: Automatio
           await fetchStatus();
           
           // フロントエンドでの監視状態を更新
+          const shouldMonitor = data.is_running && data.mode === 'semi_auto';
+          console.log('🔄 AutomationOrchestrator: 監視状態を更新', {
+            is_running: data.is_running,
+            mode: data.mode,
+            shouldMonitor: shouldMonitor,
+            onMonitoringChangeExists: !!onMonitoringChange
+          });
+          
           if (onMonitoringChange) {
-            onMonitoringChange(data.is_running && data.mode === 'semi_auto');
+            onMonitoringChange(shouldMonitor);
+            console.log('✅ onMonitoringChange呼び出し完了:', shouldMonitor);
+          } else {
+            console.warn('⚠️ onMonitoringChangeコールバックが設定されていません');
           }
         } else {
           setError(data.message || '操作に失敗しました');

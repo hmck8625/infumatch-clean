@@ -66,6 +66,17 @@ function MessagesPageContent() {
   const [gmailMonitoringActive, setGmailMonitoringActive] = useState(false);
   const [lastThreadCheck, setLastThreadCheck] = useState<string | null>(null);
   
+  // Gmail監視状態変更のラッパー関数（ログ付き）
+  const handleMonitoringChange = (isActive: boolean) => {
+    console.log('📋 Gmail監視状態変更要求:', {
+      現在の状態: gmailMonitoringActive,
+      新しい状態: isActive,
+      時刻: new Date().toLocaleTimeString()
+    });
+    setGmailMonitoringActive(isActive);
+    console.log('✅ Gmail監視状態更新完了:', isActive);
+  };
+  
   // Gmail新着監視機能
   const checkForNewEmails = async () => {
     if (!gmailMonitoringActive) {
@@ -412,6 +423,13 @@ function MessagesPageContent() {
   useEffect(() => {
     setIsVisible(true);
     checkAuth();
+    
+    // 初期状態をログ出力
+    console.log('📋 メッセージページ初期化:', {
+      Gmail監視状態: gmailMonitoringActive,
+      認証状態: isAuthenticated,
+      時刻: new Date().toLocaleTimeString()
+    });
 
     // URLパラメータからコラボ提案情報を取得
     const to = searchParams.get('to');
@@ -2753,7 +2771,7 @@ InfuMatchの田中です。
         {/* 自動交渉システム設定 */}
         <div className="mt-8">
           <AutomationOrchestrator 
-            onMonitoringChange={setGmailMonitoringActive}
+            onMonitoringChange={handleMonitoringChange}
           />
         </div>
             </div>
