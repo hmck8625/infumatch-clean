@@ -41,9 +41,23 @@ class GeminiMatchingAgent:
                 logger.info(f"🎯 カスタム希望: {preferences.get('custom_preference', 'なし')}")
             
             if not influencer_candidates:
+                # 詳細な分析結果を提供
+                analysis = await self._analyze_matching_failure([], request_data)
                 return {
                     "success": False,
-                    "error": "マッチング候補となるインフルエンサーが見つかりませんでした"
+                    "error": "指定された条件に一致するインフルエンサーが見つかりませんでした",
+                    "failure_analysis": analysis,
+                    "suggestions": [
+                        "登録者数の範囲を拡大してください",
+                        "カテゴリ条件を緩和または除去してください", 
+                        "創造的な異業種コラボレーションを検討してください",
+                        "カスタム希望欄に具体的なインフルエンサーのタイプを入力してください"
+                    ],
+                    "retry_recommendations": {
+                        "remove_category_filter": "カテゴリフィルターを除去して再検索",
+                        "expand_subscriber_range": "登録者数範囲を1,000-1,000,000に拡大",
+                        "use_ai_suggestions": "AIによる代替マッチング提案を利用"
+                    }
                 }
             
             # Step 2: 各インフルエンサーの詳細分析
@@ -101,90 +115,77 @@ class GeminiMatchingAgent:
             
         except Exception as e:
             logger.error(f"Gemini高度マッチング分析エラー: {e}")
+            logger.error(f"エラータイプ: {type(e).__name__}")
+            import traceback
+            logger.error(f"スタックトレース: {traceback.format_exc()}")
             return {
                 "success": False,
                 "error": f"分析中にエラーが発生しました: {str(e)}"
             }
     
     async def _fetch_influencer_candidates(self, request_data: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """マッチング候補となるインフルエンサーを取得"""
+        """Geminiを活用した柔軟なマッチング候補取得"""
         try:
-            logger.info("📊 インフルエンサー候補データ取得開始")
+            logger.info("📊 Gemini柔軟マッチング開始")
             
-            # Firestoreが利用できない場合はモックデータを返す
+            # Firestoreが利用できない場合はエラーを返す
             if not self.db:
-                logger.warning("⚠️ Firestore not available, using mock data")
-                return self._get_mock_influencers()
+                logger.error("❌ Firestore接続なし")
+                return []
             
-            # Firestoreからインフルエンサーデータを取得
-            influencers_ref = self.db.collection('influencers')
-            
-            # 基本フィルタリング
-            preferences = request_data.get('influencer_preferences', {})
-            query = influencers_ref
-            
-            # 登録者数範囲でフィルタリング
-            if preferences.get('subscriber_range'):
-                sub_range = preferences['subscriber_range']
-                if sub_range.get('min'):
-                    query = query.where('subscriber_count', '>=', sub_range['min'])
-                if sub_range.get('max'):
-                    query = query.where('subscriber_count', '<=', sub_range['max'])
-            
-            # カテゴリでフィルタリング
-            preferred_categories = preferences.get('preferred_categories', [])
-            custom_preference = preferences.get('custom_preference', '')
-            
-            # カスタム希望がある場合は、LLMを使って動的にカテゴリマッピング
-            if custom_preference:
-                logger.info(f"🔍 カスタム希望: '{custom_preference}'")
-                # 実際に存在するカテゴリ一覧を取得
-                available_categories = await self._get_available_categories()
-                logger.info(f"📂 利用可能カテゴリ: {available_categories}")
-                
-                # Gemini APIでカスタム希望に最も近いカテゴリを選択
-                if available_categories:
-                    mapped_categories = await self._map_categories_with_gemini(
-                        custom_preference, available_categories
-                    )
-                    logger.info(f"🎯 Geminiマッピング結果: {mapped_categories}")
-                    preferred_categories.extend(mapped_categories)
-            
-            if preferred_categories:
-                logger.info(f"📂 フィルタリングカテゴリ: {preferred_categories[:10]}")
-                query = query.where('category', 'in', preferred_categories[:10])  # Firestore制限
-            else:
-                logger.info("📂 カテゴリフィルタリングなし（全カテゴリ対象）")
-            
-            # 結果取得
-            limit = 30 if custom_preference else 20
-            logger.info(f"🔢 取得上限: {limit}件")
-            
-            # まず全件チェック（デバッグ用）
+            # 全体のインフルエンサー数を確認
+            all_influencers = []
             try:
-                all_docs = self.db.collection('influencers').limit(5).stream()
-                all_count = 0
+                all_docs = self.db.collection('influencers').stream()
                 for doc in all_docs:
-                    all_count += 1
                     data = doc.to_dict()
-                    logger.info(f"📋 サンプルデータ: {data.get('channel_name', 'unknown')} - カテゴリ: {data.get('category', 'unknown')}")
-                logger.info(f"📊 Firestore全体サンプル: {all_count}件")
-            except Exception as debug_e:
-                logger.error(f"❌ Firestore全体チェックエラー: {debug_e}")
+                    data['id'] = doc.id
+                    all_influencers.append(data)
+                logger.info(f"📊 Firestore総インフルエンサー数: {len(all_influencers)}")
+            except Exception as e:
+                logger.error(f"❌ Firestore全データ取得エラー: {e}")
+                return []
             
-            docs = query.limit(limit).stream()  # カスタム希望がある場合は多めに取得
-            candidates = []
+            if not all_influencers:
+                logger.error("❌ Firestoreにインフルエンサーデータが存在しません")
+                return []
             
-            for doc in docs:
-                data = doc.to_dict()
-                data['id'] = doc.id
-                candidates.append(data)
+            # Gemini AIによる知的マッチング分析
+            preferences = request_data.get('influencer_preferences', {})
+            company_profile = request_data.get('company_profile', {})
+            product_portfolio = request_data.get('product_portfolio', {})
             
-            logger.info(f"✅ {len(candidates)}名の候補を取得")
+            # 段階的フィルタリング戦略
+            candidates = await self._apply_intelligent_filtering(
+                all_influencers, 
+                preferences, 
+                company_profile, 
+                product_portfolio
+            )
+            
+            if not candidates:
+                # Geminiによる代替マッチング提案
+                alternative_candidates = await self._gemini_alternative_matching(
+                    all_influencers,
+                    request_data
+                )
+                if alternative_candidates:
+                    logger.info(f"🔄 Gemini代替マッチング: {len(alternative_candidates)}名")
+                    return alternative_candidates
+                
+                # 最終的に見つからない場合の詳細分析
+                analysis = await self._analyze_matching_failure(
+                    all_influencers,
+                    request_data
+                )
+                logger.error(f"❌ マッチング失敗分析: {analysis}")
+                return []  # 空のリストを返してエラーハンドリングを上位に委ねる
+            
+            logger.info(f"✅ 最終候補: {len(candidates)}名")
             return candidates
             
         except Exception as e:
-            logger.error(f"インフルエンサー候補取得エラー: {e}")
+            logger.error(f"❌ 柔軟マッチングエラー: {e}")
             return []
     
     async def _analyze_single_influencer(self, influencer: Dict[str, Any], request_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -752,3 +753,197 @@ class GeminiMatchingAgent:
             final_fallback = [cat for cat in fallback_categories if cat in available_categories]
             logger.info(f"🔄 緊急フォールバック: {final_fallback}")
             return final_fallback[:3]
+    
+    async def _apply_intelligent_filtering(self, all_influencers: List[Dict[str, Any]], 
+                                         preferences: Dict[str, Any], 
+                                         company_profile: Dict[str, Any], 
+                                         product_portfolio: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Geminiを使った知的フィルタリング"""
+        try:
+            # 段階1: 基本条件フィルタリング
+            candidates = []
+            
+            # 登録者数フィルタリング
+            subscriber_range = preferences.get('subscriber_range', {})
+            min_subscribers = subscriber_range.get('min', 0)
+            max_subscribers = subscriber_range.get('max', float('inf'))
+            
+            for influencer in all_influencers:
+                sub_count = influencer.get('subscriber_count', 0)
+                if min_subscribers <= sub_count <= max_subscribers:
+                    candidates.append(influencer)
+            
+            logger.info(f"📊 登録者数フィルタリング後: {len(candidates)}名")
+            
+            # 段階2: カテゴリ関連性フィルタリング
+            if preferences.get('preferred_categories') or preferences.get('custom_preference'):
+                category_filtered = await self._gemini_category_matching(
+                    candidates, preferences, company_profile, product_portfolio
+                )
+                logger.info(f"📂 カテゴリフィルタリング後: {len(category_filtered)}名")
+                return category_filtered[:20]  # 最大20名に制限
+            
+            return candidates[:20]  # カテゴリ指定がない場合は登録者数でソートして上位20名
+            
+        except Exception as e:
+            logger.error(f"❌ 知的フィルタリングエラー: {e}")
+            return all_influencers[:10]  # フォールバック
+    
+    async def _gemini_category_matching(self, influencers: List[Dict[str, Any]], 
+                                       preferences: Dict[str, Any], 
+                                       company_profile: Dict[str, Any], 
+                                       product_portfolio: Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Geminiによるカテゴリ適合性判定"""
+        try:
+            # インフルエンサーのカテゴリ概要を作成
+            influencer_summary = []
+            for i, inf in enumerate(influencers[:50]):  # 最大50名まで分析
+                influencer_summary.append(f"{i+1}. {inf.get('channel_name', 'unknown')} - カテゴリ: {inf.get('category', 'unknown')} - {inf.get('subscriber_count', 0):,}人")
+            
+            # Gemini分析プロンプト
+            prompt = f"""
+あなたはインフルエンサーマーケティングの専門家です。
+以下の企業と商品に最も適したインフルエンサーを選んでください。
+
+【企業情報】
+名前: {company_profile.get('name', '')}
+業界: {company_profile.get('industry', '')}
+説明: {company_profile.get('description', '')}
+
+【商品情報】
+{', '.join([p.get('name', '') + '(' + p.get('category', '') + ')' for p in product_portfolio.get('products', [])])}
+
+【希望条件】
+カテゴリ: {', '.join(preferences.get('preferred_categories', []))}
+カスタム希望: {preferences.get('custom_preference', 'なし')}
+
+【インフルエンサーリスト】
+{chr(10).join(influencer_summary[:30])}
+
+【指示】
+上記のインフルエンサーから、企業の商品とのマッチング可能性が高い順に、
+番号のみをカンマ区切りで最大15個選んでください。
+関連性が低くても、創造的なコラボレーションの可能性があれば含めてください。
+
+例: 1,3,5,7,9
+"""
+            
+            response = await self._call_gemini_async(prompt)
+            if not response:
+                return influencers[:10]  # Gemini失敗時のフォールバック
+            
+            # 番号を抽出
+            selected_indices = []
+            for part in response.strip().split(','):
+                try:
+                    idx = int(part.strip()) - 1  # 1-based to 0-based
+                    if 0 <= idx < len(influencers):
+                        selected_indices.append(idx)
+                except ValueError:
+                    continue
+            
+            # 選択されたインフルエンサーを返す
+            selected_influencers = [influencers[i] for i in selected_indices]
+            logger.info(f"🤖 Gemini選択: {len(selected_influencers)}名")
+            
+            return selected_influencers if selected_influencers else influencers[:5]
+            
+        except Exception as e:
+            logger.error(f"❌ Geminiカテゴリマッチングエラー: {e}")
+            return influencers[:10]
+    
+    async def _gemini_alternative_matching(self, all_influencers: List[Dict[str, Any]], 
+                                         request_data: Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Geminiによる代替マッチング提案"""
+        try:
+            logger.info("🔄 Gemini代替マッチング開始")
+            
+            # 企業情報を要約
+            company_info = request_data.get('company_profile', {})
+            products = request_data.get('product_portfolio', {}).get('products', [])
+            
+            # より広い視野でのマッチング
+            alternative_prompt = f"""
+厳密な条件では適合するインフルエンサーが見つかりませんでした。
+より創造的で柔軟な視点から、以下の企業に適したインフルエンサーを提案してください。
+
+【企業】{company_info.get('name', 'unknown')} - {company_info.get('industry', 'unknown')}
+【商品】{', '.join([p.get('name', '') for p in products])}
+
+【利用可能なインフルエンサータイプ】
+{', '.join(set([inf.get('category', 'unknown') for inf in all_influencers[:20]]))}
+
+異業種コラボレーション、意外性のあるマッチング、ニッチなターゲティングなど、
+創造的なアプローチで3-5個のカテゴリを提案してください。
+カンマ区切りで回答してください。
+
+例: ゲーム, 料理, エンタメ
+"""
+            
+            response = await self._call_gemini_async(alternative_prompt)
+            if not response:
+                return []
+            
+            # 提案されたカテゴリに該当するインフルエンサーを選択
+            suggested_categories = [cat.strip() for cat in response.split(',')]
+            alternative_candidates = []
+            
+            for influencer in all_influencers:
+                if influencer.get('category') in suggested_categories:
+                    alternative_candidates.append(influencer)
+                    if len(alternative_candidates) >= 10:
+                        break
+            
+            return alternative_candidates
+            
+        except Exception as e:
+            logger.error(f"❌ 代替マッチングエラー: {e}")
+            return []
+    
+    async def _analyze_matching_failure(self, all_influencers: List[Dict[str, Any]], 
+                                      request_data: Dict[str, Any]]) -> str:
+        """マッチング失敗の原因分析"""
+        try:
+            # データ統計を収集
+            total_count = len(all_influencers)
+            categories = {}
+            subscriber_ranges = {'low': 0, 'mid': 0, 'high': 0}
+            
+            for inf in all_influencers:
+                # カテゴリ分布
+                category = inf.get('category', 'unknown')
+                categories[category] = categories.get(category, 0) + 1
+                
+                # 登録者数分布
+                sub_count = inf.get('subscriber_count', 0)
+                if sub_count < 10000:
+                    subscriber_ranges['low'] += 1
+                elif sub_count < 100000:
+                    subscriber_ranges['mid'] += 1
+                else:
+                    subscriber_ranges['high'] += 1
+            
+            # 要求された条件
+            preferences = request_data.get('influencer_preferences', {})
+            wanted_categories = preferences.get('preferred_categories', [])
+            wanted_range = preferences.get('subscriber_range', {})
+            
+            analysis = f"""
+データベース状況:
+- 総インフルエンサー数: {total_count}名
+- カテゴリ分布: {dict(list(categories.items())[:5])}
+- 登録者数分布: 1万未満({subscriber_ranges['low']}), 1-10万({subscriber_ranges['mid']}), 10万以上({subscriber_ranges['high']})
+
+要求条件:
+- 希望カテゴリ: {wanted_categories}
+- 登録者数範囲: {wanted_range.get('min', 0):,} - {wanted_range.get('max', 'unlimited')}
+
+推奨解決策:
+1. カテゴリ条件を緩和または除去
+2. 登録者数範囲を拡大
+3. 創造的な異業種コラボレーションを検討
+"""
+            return analysis
+            
+        except Exception as e:
+            return f"分析エラー: {str(e)}"
