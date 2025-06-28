@@ -539,15 +539,46 @@ function MessagesPageContent() {
       }
       
       const threadData = await threadResponse.json();
-      const messages = threadData.messages || [];
+      
+      // APIレスポンス構造の完全な詳細調査
+      console.log(`📊 既存スレッド ${threadId} のAPIレスポンス完全構造:`, {
+        hasThread: !!threadData.thread,
+        hasMessages: !!threadData.messages,
+        threadKeysCount: threadData.thread ? Object.keys(threadData.thread).length : 0,
+        directKeysCount: Object.keys(threadData).length,
+        allKeys: Object.keys(threadData),
+        threadObject: threadData.thread ? {
+          threadKeys: Object.keys(threadData.thread),
+          id: threadData.thread.id,
+          hasMessages: !!threadData.thread.messages,
+          messagesLength: threadData.thread.messages ? threadData.thread.messages.length : 0,
+          historyId: threadData.thread.historyId,
+          snippet: threadData.thread.snippet
+        } : null,
+        fullStructureSample: JSON.stringify(threadData, null, 2).substring(0, 1000) + '...'
+      });
+      
+      // レスポンス構造に応じてメッセージを取得
+      const actualThreadData = threadData.thread || threadData;
+      const messages = actualThreadData.messages || [];
       
       console.log('📧 取得したメッセージ情報:', {
         メッセージ数: messages.length,
-        スレッドID: threadId
+        スレッドID: threadId,
+        使用したデータソース: threadData.thread ? 'threadData.thread' : 'threadData直接'
       });
       
+      // メッセージが空の場合の詳細分析
       if (messages.length === 0) {
-        console.warn('⚠️ メッセージが見つかりません');
+        console.error(`🔍 メッセージ取得失敗の詳細分析 - スレッド ${threadId}:`, {
+          threadDataExists: !!threadData.thread,
+          threadDataKeys: threadData.thread ? Object.keys(threadData.thread) : [],
+          messagesProperty: actualThreadData.messages,
+          messagesType: typeof actualThreadData.messages,
+          actualThreadDataKeys: Object.keys(actualThreadData),
+          fullThreadData: threadData.thread || threadData
+        });
+        console.warn('⚠️ メッセージが見つかりません - 処理を中止');
         return;
       }
       
