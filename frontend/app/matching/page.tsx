@@ -37,51 +37,7 @@ interface MatchingResult {
   geminiAnalysis?: GeminiAnalysisResult; // Gemini分析結果（詳細表示用）
 }
 
-// モックデータ
-const mockMatchingResults: MatchingResult[] = [
-  {
-    id: '1',
-    influencerName: 'Tech Review Japan',
-    score: 96,
-    category: 'テクノロジー',
-    reason: 'ターゲット層の重複率が95%、過去のテック系コラボレーション実績が豊富',
-    estimatedReach: 85000,
-    estimatedCost: 120000,
-    compatibility: {
-      audience: 95,
-      content: 92,
-      brand: 88,
-    },
-  },
-  {
-    id: '2',
-    influencerName: 'ビューティー研究所',
-    score: 89,
-    category: '美容',
-    reason: 'エンゲージメント率が高く、商品レビューの信頼性が高い',
-    estimatedReach: 92000,
-    estimatedCost: 150000,
-    compatibility: {
-      audience: 87,
-      content: 94,
-      brand: 86,
-    },
-  },
-  {
-    id: '3',
-    influencerName: 'Fitness Life Tokyo',
-    score: 84,
-    category: 'フィットネス',
-    reason: '健康志向の強いオーディエンス層、ライフスタイル系商品との親和性が高い',
-    estimatedReach: 67000,
-    estimatedCost: 95000,
-    compatibility: {
-      audience: 82,
-      content: 88,
-      brand: 83,
-    },
-  },
-];
+// Removed mock data to prevent fallback usage
 
 export default function MatchingPage() {
   const [isVisible, setIsVisible] = useState(false);
@@ -168,46 +124,17 @@ export default function MatchingPage() {
           setMatchingResults(convertedResults);
           console.log('✅ AI推薦結果変換完了 (実データ):', convertedResults);
         } else {
-          // フォールバック処理
-          console.warn('⚠️ AI推薦API応答なし、代替手段を試行中...');
-          const directResults = await searchInfluencers({});
-          
-          if (directResults && directResults.length > 0) {
-            const limitedResults = directResults.slice(0, 4).map((influencer, index) => ({
-              id: influencer.id,
-              influencerName: influencer.name,
-              score: 95 - (index * 3),
-              category: influencer.category || '総合',
-              reason: `データベースから直接選出されたトップ${index + 1}の推薦チャンネル`,
-              estimatedReach: influencer.subscriberCount || Math.floor(Math.random() * 100000) + 50000,
-              estimatedCost: Math.floor(Math.random() * 200000) + 80000,
-              thumbnailUrl: influencer.thumbnailUrl,
-              subscriberCount: influencer.subscriberCount,
-              engagementRate: influencer.engagementRate,
-              description: influencer.description,
-              email: influencer.email,
-              compatibility: {
-                audience: Math.floor(Math.random() * 20) + 80,
-                content: Math.floor(Math.random() * 20) + 80,
-                brand: Math.floor(Math.random() * 20) + 80,
-              }
-            }));
-            setMatchingResults(limitedResults);
-            console.log('✅ データベース直接取得完了:', limitedResults);
-          } else {
-            throw new Error('データベースからのデータ取得にも失敗しました');
-          }
+          throw new Error('AI推薦システムから有効な結果が取得できませんでした');
         }
       }
       
     } catch (error) {
       console.error('❌ マッチングシステムエラー:', error);
       setError(error instanceof Error ? error.message : 'マッチングの実行に失敗しました');
-      
-      // 最終フォールバック: モックデータ
-      const fallbackResults = customizeMatchingResults();
-      setMatchingResults(fallbackResults);
-      console.log('💡 フォールバックデータを使用:', fallbackResults);
+      // エラー時は結果を表示しない
+      setIsAnalyzing(false);
+      setIsGeminiAnalyzing(false);
+      return; // 早期リターンでshowResultsをtrueにしない
     }
     
     setIsAnalyzing(false);
@@ -215,51 +142,7 @@ export default function MatchingPage() {
     setShowResults(true);
   };
 
-  const customizeMatchingResults = () => {
-    if (!settings) return mockMatchingResults;
-    
-    // 設定に基づいてマッチング結果をフィルタリング・カスタマイズ
-    let customizedResults = [...mockMatchingResults];
-    
-    // 登録者数でフィルタリング
-    if (settings.matchingPreferences) {
-      const { minimumSubscribers, maximumSubscribers } = settings.matchingPreferences;
-      customizedResults = customizedResults.filter(result => 
-        result.estimatedReach >= minimumSubscribers && 
-        result.estimatedReach <= maximumSubscribers
-      );
-    }
-    
-    // 優先カテゴリがマッチする場合にスコアを上げる
-    if (settings.matchingPreferences?.preferredCategories?.length > 0) {
-      customizedResults = customizedResults.map(result => {
-        const isPreferredCategory = settings.matchingPreferences.preferredCategories.some(
-          (cat: string) => result.category.includes(cat) || cat.includes(result.category)
-        );
-        
-        if (isPreferredCategory) {
-          return {
-            ...result,
-            score: Math.min(100, result.score + 5),
-            reason: `${result.reason}（優先カテゴリマッチ）`
-          };
-        }
-        return result;
-      });
-    }
-    
-    // 予算範囲に合わせてコストを調整
-    if (settings.negotiationSettings?.defaultBudgetRange) {
-      const { min, max } = settings.negotiationSettings.defaultBudgetRange;
-      customizedResults = customizedResults.map(result => ({
-        ...result,
-        estimatedCost: Math.max(min, Math.min(max, result.estimatedCost))
-      }));
-    }
-    
-    // スコア順でソート
-    return customizedResults.sort((a, b) => b.score - a.score);
-  };
+  // Removed customizeMatchingResults function to prevent fallback usage
 
   const buildCampaignRequest = (): CampaignRequest => {
     // 設定データから詳細なキャンペーンリクエストを構築

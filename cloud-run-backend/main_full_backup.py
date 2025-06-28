@@ -47,15 +47,8 @@ async def gmail_monitoring_loop():
             
     print("⏹️ Gmail監視ループを停止しました")
 
-# 自動交渉マネージャーをインポート  
-try:
-    from auto_negotiation_manager import AutoNegotiationManager
-    print("✅ AutoNegotiationManager imported successfully")
-except ImportError as e:
-    print(f"⚠️ AutoNegotiationManager import failed: {e}")
-    AutoNegotiationManager = None
-
-# Phase 3 コンポーネントは使用しない（手動/半自動モードのみサポート）
+# Heavy imports disabled for Cloud Run startup optimization
+AutoNegotiationManager = None
 FullAutomationOrchestrator = None
 AutomationMode = None
 
@@ -113,9 +106,18 @@ class SimpleNegotiationManager:
                     "processing_duration_seconds": (datetime.now() - start_time).total_seconds(),
                     "manager_id": self.manager_id
                 }
-            # caution_requiredの場合も返信文を生成する（早期リターンしない）
-            if thread_analysis.get('reply_appropriateness') == 'caution_required':
-                print("⚠️ このメールには注意が必要ですが、返信文を生成します")
+            elif thread_analysis.get('reply_appropriateness') == 'caution_required':
+                print("⚠️ このメールには注意が必要です")
+                return {
+                    "success": True,
+                    "caution_required": True,
+                    "email_type": thread_analysis.get('email_type'),
+                    "reason": thread_analysis.get('reply_reason'),
+                    "analysis": thread_analysis,
+                    "message": "このメールへの返信は注意が必要です。個人メールやスパムの可能性があります。",
+                    "processing_duration_seconds": (datetime.now() - start_time).total_seconds(),
+                    "manager_id": self.manager_id
+                }
             
             detailed_trace["processing_stages"].append({
                 "stage": 1,
@@ -179,29 +181,17 @@ class SimpleNegotiationManager:
             print(f"📥 INPUT - 企業名: {company_info.get('companyName', 'InfuMatch')}")
             print(f"📥 INPUT - 担当者: {company_info.get('contactPerson', '田中美咲')}")
             
-            try:
-                patterns_result = await self._generate_patterns(thread_analysis, strategy_plan, company_settings, custom_instructions, conversation_history)
-                stage4_duration = (datetime.now() - stage4_start).total_seconds()
-                
-                print(f"📤 PatternGeneration 完全OUTPUT:")
-                for pattern_type, pattern_data in patterns_result.items():
-                    if pattern_type.startswith("pattern_"):
-                        approach = pattern_data.get("approach", "不明")
-                        content_preview = pattern_data.get("content", "")[:50]
-                        print(f"   - {approach}パターン: '{content_preview}...'")
-                print(f"   - 総パターン数: {len([k for k in patterns_result.keys() if k.startswith('pattern_')])}個")
-                print(f"   - 処理時間: {stage4_duration:.2f}秒")
-                
-                # パターンの生成状況を詳細チェック
-                if not patterns_result or len([k for k in patterns_result.keys() if k.startswith('pattern_')]) == 0:
-                    print("⚠️ 警告: パターンが正常に生成されませんでした")
-                    print(f"   - patterns_result全体: {patterns_result}")
-                    
-            except Exception as pattern_error:
-                print(f"❌ Stage 4: パターン生成で重大エラー:")
-                print(f"   - エラー: {pattern_error}")
-                patterns_result = {}
-                stage4_duration = (datetime.now() - stage4_start).total_seconds()
+            patterns_result = await self._generate_patterns(thread_analysis, strategy_plan, company_settings, custom_instructions, conversation_history)
+            stage4_duration = (datetime.now() - stage4_start).total_seconds()
+            
+            print(f"📤 PatternGeneration 完全OUTPUT:")
+            for pattern_type, pattern_data in patterns_result.items():
+                if pattern_type.startswith("pattern_"):
+                    approach = pattern_data.get("approach", "不明")
+                    content_preview = pattern_data.get("content", "")[:50]
+                    print(f"   - {approach}パターン: '{content_preview}...'")
+            print(f"   - 総パターン数: {len([k for k in patterns_result.keys() if k.startswith('pattern_')])}個")
+            print(f"   - 処理時間: {stage4_duration:.2f}秒")
             
             detailed_trace["processing_stages"].append({
                 "stage": 4,
@@ -264,17 +254,7 @@ class SimpleNegotiationManager:
             }
             
         except Exception as e:
-            print(f"❌ 4段階交渉処理で重大エラー:")
-            print(f"   - エラー種別: {type(e).__name__}")
-            print(f"   - エラーメッセージ: {str(e)}")
-            print(f"   - 処理段階での変数存在状況:")
-            print(f"     - thread_analysis: {'thread_analysis' in locals()}")
-            print(f"     - strategy_plan: {'strategy_plan' in locals()}")
-            print(f"     - evaluation_result: {'evaluation_result' in locals()}")
-            print(f"     - patterns_result: {'patterns_result' in locals()}")
-            print(f"     - basic_reply_result: {'basic_reply_result' in locals()}")
-            if 'patterns_result' in locals():
-                print(f"   - patterns_result内容: {patterns_result}")
+            print(f"❌ 4段階交渉処理エラー: {str(e)}")
             return {"success": False, "error": str(e), "manager_id": self.manager_id}
     
     async def _analyze_thread(self, new_message, conversation_history):
@@ -797,17 +777,7 @@ class SimpleNegotiationManager:
             return patterns
             
         except Exception as e:
-            print(f"❌ パターン生成エラー詳細:")
-            print(f"   - エラー種別: {type(e).__name__}")
-            print(f"   - エラーメッセージ: {str(e)}")
-            print(f"   - Gemini応答存在: {'response' in locals()}")
-            if 'response' in locals():
-                print(f"   - Gemini応答文字数: {len(response.text) if response.text else 0}")
-                print(f"   - Gemini応答プレビュー: {response.text[:200] if response.text else 'なし'}")
-            print(f"   - 会社名: {company_name}")
-            print(f"   - 担当者: {contact_person}")
-            print(f"   - 言語設定: {language_setting}")
-            print("🔧 フォールバックパターンを使用します")
+            print(f"⚠️ パターン生成JSON解析失敗: {e}")
             return self._create_fallback_patterns(company_name, contact_person, language_setting)
     
     def _create_fallback_patterns(self, company_name, contact_person, language_setting="Japanese"):
@@ -959,29 +929,20 @@ except Exception as e:
     print(f"❌ Gemini API initialization failed: {e}")
     gemini_model = None
 
-# 4エージェント統合マネージャー初期化
+# Simplified manager initialization for faster startup
 try:
     if gemini_model:
         negotiation_manager = SimpleNegotiationManager(gemini_model)
         print("✅ Simple Negotiation Manager initialized successfully")
-        
-        # 自動交渉マネージャーの初期化
-        if AutoNegotiationManager:
-            auto_negotiation_manager = AutoNegotiationManager(gemini_model, db)
-            print("✅ Auto Negotiation Manager initialized successfully")
-        else:
-            auto_negotiation_manager = None
-            print("⚠️ Auto Negotiation Manager not initialized (class unavailable)")
-        
-        # Phase 3は使用しない（手動/半自動モードのみサポート）
-        orchestrator = None
     else:
         negotiation_manager = None
-        auto_negotiation_manager = None
-        orchestrator = None
-        print("⚠️ Negotiation Managers not initialized (Gemini model unavailable)")
+        print("⚠️ Negotiation Manager not initialized (Gemini model unavailable)")
+    
+    # Heavy managers disabled for faster startup
+    auto_negotiation_manager = None
+    orchestrator = None
 except Exception as e:
-    print(f"❌ Negotiation Manager initialization failed: {e}")
+    print(f"❌ Manager initialization failed: {e}")
     negotiation_manager = None
     auto_negotiation_manager = None
     orchestrator = None
@@ -1151,15 +1112,6 @@ class GeminiMatchingRequest(BaseModel):
     product_portfolio: ProductPortfolio
     campaign_objectives: CampaignObjectives
     influencer_preferences: InfluencerPreferences
-
-# Automation API用のPydanticモデル
-class AutomationStartRequest(BaseModel):
-    user_id: str = "current_user"
-    mode: str = "semi_auto"  # "manual" | "semi_auto"
-    company_settings: Dict[str, Any] = {}
-
-class AutomationStopRequest(BaseModel):
-    user_id: str = "current_user"
 
 def calculate_match_scores(influencer: dict, campaign: CampaignData, campaign_category: str) -> dict:
     """インフルエンサーとキャンペーンのマッチングスコアを計算"""
@@ -2022,28 +1974,16 @@ async def continue_negotiation(request: ContinueNegotiationRequest):
             )
             
             if result["success"]:
-                # 常に返信文を生成（システム通知やスパムでも丁寧な返信を作成）
-                patterns = result.get("patterns", {})
-                selected_pattern = patterns.get("pattern_balanced", {})
-                content = selected_pattern.get("content", "")
-                
-                # デバッグ情報を詳細に出力
-                print("🔍 返信生成デバッグ情報:")
-                print(f"   - result全体のキー: {list(result.keys())}")
-                print(f"   - patternsの存在: {bool(patterns)}")
-                print(f"   - patternsの内容: {patterns}")
-                print(f"   - pattern_balancedの存在: {'pattern_balanced' in patterns}")
-                print(f"   - selected_patternの内容: {selected_pattern}")
-                print(f"   - contentの長さ: {len(content) if content else 0}")
-                print(f"   - basic_replyの存在: {'basic_reply' in result}")
-                print(f"   - basic_replyの内容: {result.get('basic_reply', 'なし')}")
-                
-                # パターンが生成されていない場合は基本返信を使用
-                if not content:
-                    print("⚠️ パターンコンテンツが空のため、basic_replyを使用")
-                    content = result.get("basic_reply", "ご連絡ありがとうございます。詳細につきまして、改めてご連絡させていただきます。")
+                # 返信不要・注意の場合は特別なメッセージを返す
+                if result.get("reply_not_needed"):
+                    content = result.get("message", "このメールには返信は不要です。システム通知や運営メールのようです。")
+                elif result.get("caution_required"):
+                    content = result.get("message", "このメールへの返信は注意が必要です。個人メールやスパムの可能性があります。")
                 else:
-                    print("✅ pattern_balancedのコンテンツを使用")
+                    # 通常のパターン生成の場合
+                    patterns = result.get("patterns", {})
+                    selected_pattern = patterns.get("pattern_balanced", {})
+                    content = selected_pattern.get("content", "返信生成に失敗しました。")
                 
                 return {
                     "success": True,
@@ -2993,12 +2933,12 @@ async def get_gmail_monitor_status():
         )
 
 @app.post("/api/v1/automation/start")
-async def start_automation(request: AutomationStartRequest, background_tasks: BackgroundTasks):
+async def start_automation(request: dict, background_tasks: BackgroundTasks):
     """半自動化を開始（Gmail監視開始）"""
     try:
-        user_id = request.user_id
-        company_settings = request.company_settings
-        mode = request.mode
+        user_id = request.get("user_id", "default_user")
+        company_settings = request.get("company_settings", {})
+        mode = request.get("mode", "semi_auto")
         
         # 手動モードまたは半自動モードのみサポート
         if mode not in ["manual", "semi_auto"]:
@@ -3079,7 +3019,7 @@ async def start_automation(request: AutomationStartRequest, background_tasks: Ba
         )
 
 @app.post("/api/v1/automation/stop")
-async def stop_automation(request: AutomationStopRequest):
+async def stop_automation():
     """半自動化を停止（Gmail監視停止）"""
     try:
         global gmail_monitoring_active, monitoring_task

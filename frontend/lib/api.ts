@@ -463,9 +463,9 @@ class APIClient {
       return mappedData;
     }
     
-    // フォールバック: 古い形式もサポート
-    console.log('[searchInfluencers] Using fallback, returning response as-is:', response);
-    return response as Influencer[];
+    // データ形式が期待されるものと異なる場合はエラーを発生
+    console.error('[searchInfluencers] Unexpected response format:', response);
+    throw new APIError('API response format is invalid - expected {success: boolean, data: array}', 500);
   }
 
   /**
