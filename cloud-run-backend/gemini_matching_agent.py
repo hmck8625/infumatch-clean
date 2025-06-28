@@ -135,26 +135,20 @@ class GeminiMatchingAgent:
             preferred_categories = preferences.get('preferred_categories', [])
             custom_preference = preferences.get('custom_preference', '')
             
-            # カスタム希望がある場合は、それを優先カテゴリに追加
+            # カスタム希望がある場合は、LLMを使って動的にカテゴリマッピング
             if custom_preference:
                 logger.info(f"🔍 カスタム希望: '{custom_preference}'")
-                # カスタム希望をカテゴリ名に変換（簡易的なマッピング）
-                category_mapping = {
-                    'ゲーム': ['ゲーム', 'gaming', 'game'],
-                    '美容': ['美容', 'beauty', 'コスメ'],
-                    'ビジネス': ['ビジネス', 'business', '仕事'],
-                    '料理': ['料理', 'cooking', 'グルメ', '食'],
-                    'フィットネス': ['フィットネス', 'fitness', '健康', 'ヘルス'],
-                    'テクノロジー': ['テクノロジー', 'tech', 'IT', 'ガジェット'],
-                    'エンタメ': ['エンタメ', 'エンターテイメント', 'entertainment'],
-                    'ファッション': ['ファッション', 'fashion', 'コーデ']
-                }
+                # 実際に存在するカテゴリ一覧を取得
+                available_categories = await self._get_available_categories()
+                logger.info(f"📂 利用可能カテゴリ: {available_categories}")
                 
-                # カスタム希望に基づいてカテゴリを追加
-                for key, values in category_mapping.items():
-                    if any(v in custom_preference.lower() for v in values):
-                        if key not in preferred_categories:
-                            preferred_categories.append(key)
+                # Gemini APIでカスタム希望に最も近いカテゴリを選択
+                if available_categories:
+                    mapped_categories = await self._map_categories_with_gemini(
+                        custom_preference, available_categories
+                    )
+                    logger.info(f"🎯 Geminiマッピング結果: {mapped_categories}")
+                    preferred_categories.extend(mapped_categories)
             
             if preferred_categories:
                 logger.info(f"📂 フィルタリングカテゴリ: {preferred_categories[:10]}")
@@ -165,6 +159,19 @@ class GeminiMatchingAgent:
             # 結果取得
             limit = 30 if custom_preference else 20
             logger.info(f"🔢 取得上限: {limit}件")
+            
+            # まず全件チェック（デバッグ用）
+            try:
+                all_docs = self.db.collection('influencers').limit(5).stream()
+                all_count = 0
+                for doc in all_docs:
+                    all_count += 1
+                    data = doc.to_dict()
+                    logger.info(f"📋 サンプルデータ: {data.get('channel_name', 'unknown')} - カテゴリ: {data.get('category', 'unknown')}")
+                logger.info(f"📊 Firestore全体サンプル: {all_count}件")
+            except Exception as debug_e:
+                logger.error(f"❌ Firestore全体チェックエラー: {debug_e}")
+            
             docs = query.limit(limit).stream()  # カスタム希望がある場合は多めに取得
             candidates = []
             
@@ -599,3 +606,149 @@ class GeminiMatchingAgent:
                 "thumbnail_url": "https://via.placeholder.com/240x240"
             }
         ]
+    
+    async def _get_available_categories(self) -> List[str]:
+        """Firestoreから実際に存在するカテゴリ一覧を取得"""
+        try:
+            if not self.db:
+                # モックデータのカテゴリを返す
+                return ["ゲーム", "料理", "フィットネス", "ビジネス", "美容", "テクノロジー", "エンタメ", "ファッション"]
+            
+            # Firestoreからユニークなカテゴリ一覧を取得
+            categories = set()
+            docs = self.db.collection('influencers').limit(100).stream()
+            
+            for doc in docs:
+                data = doc.to_dict()
+                category = data.get('category')
+                if category:
+                    categories.add(category)
+            
+            return list(categories)
+            
+        except Exception as e:
+            logger.error(f"カテゴリ一覧取得エラー: {e}")
+            # フォールバック
+            return ["ゲーム", "料理", "フィットネス", "ビジネス", "美容", "テクノロジー", "エンタメ", "ファッション"]
+    
+    async def _map_categories_with_gemini(self, user_preference: str, available_categories: List[str]) -> List[str]:
+        """Gemini APIを使ってユーザー希望に最も近いカテゴリを選択"""
+        try:
+            # より詳細な日本語特化のマッピングプロンプト
+            prompt = f"""
+あなたはインフルエンサーマーケティングの専門家です。
+ユーザーの希望に最も適合するカテゴリを、利用可能なカテゴリから選択してください。
+
+【ユーザーの希望】
+{user_preference}
+
+【利用可能なカテゴリ一覧】
+{', '.join(available_categories)}
+
+【マッピングルール】
+1. ユーザーの希望に最も適合するカテゴリを選択
+2. 関連性の高いカテゴリも含めて、最大3つまで選択可能
+3. 完全一致がなくても、意味的に近いカテゴリを選択
+4. 広義の解釈も含めて柔軟にマッピング
+
+【特別なマッピング例】
+希望: "美容系" → Howto & Style, People & Blogs (美容関連チャンネルは通常この分類)
+希望: "ゲーム実況" → ゲーム
+希望: "グルメ" → 料理, Howto & Style
+希望: "ファッション" → Howto & Style, People & Blogs
+希望: "テクノロジー" → テクノロジー
+希望: "エンタメ" → エンターテインメント, 音楽・エンターテイメント
+
+【注意事項】
+- 日本のYouTubeカテゴリシステムでは、美容系チャンネルは「Howto & Style」に分類されることが多い
+- ライフスタイル系は「People & Blogs」に含まれる
+- エンターテイメント系は複数カテゴリに分散
+
+結果をカンマ区切りで返してください（説明不要）：
+"""
+            
+            response = self.model.generate_content(prompt)
+            response_text = response.text.strip()
+            logger.info(f"🤖 Gemini応答: '{response_text}'")
+            
+            # レスポンスをパースしてカテゴリリストに変換
+            selected_categories = []
+            for category in response_text.split(','):
+                category = category.strip()
+                if category in available_categories:
+                    selected_categories.append(category)
+                    logger.info(f"✅ マッチ: '{category}'")
+                else:
+                    logger.warning(f"⚠️ カテゴリ不一致: '{category}' (利用可能: {available_categories})")
+            
+            # フォールバック戦略の強化
+            if not selected_categories:
+                logger.warning(f"⚠️ Geminiマッピング失敗、フォールバック開始")
+                
+                # 1. 特定キーワードによる手動マッピング
+                user_lower = user_preference.lower()
+                manual_mappings = {
+                    '美容': ['Howto & Style', 'People & Blogs'],
+                    'コスメ': ['Howto & Style', 'People & Blogs'],
+                    'メイク': ['Howto & Style'],
+                    'ファッション': ['Howto & Style', 'People & Blogs'],
+                    'スキンケア': ['Howto & Style'],
+                    'グルメ': ['料理', 'Howto & Style'],
+                    '料理': ['料理'],
+                    'ゲーム': ['ゲーム'],
+                    'フィットネス': ['People & Blogs', 'スポーツ・アウトドア'],
+                    'ビジネス': ['People & Blogs'],
+                    'テクノロジー': ['People & Blogs'],
+                    'エンタメ': ['エンターテインメント', '音楽・エンターテイメント']
+                }
+                
+                for keyword, mapped_cats in manual_mappings.items():
+                    if keyword in user_lower:
+                        for mapped_cat in mapped_cats:
+                            if mapped_cat in available_categories:
+                                selected_categories.append(mapped_cat)
+                        break
+                
+                # 2. 部分マッチによるフォールバック
+                if not selected_categories:
+                    for cat in available_categories:
+                        if any(keyword in cat.lower() for keyword in user_lower.split()):
+                            selected_categories.append(cat)
+                            break
+                
+                # 3. 最終フォールバック - 関連性の高いカテゴリを返す
+                if not selected_categories:
+                    # 美容系の場合は代替カテゴリを提案
+                    if '美容' in user_lower or 'コスメ' in user_lower or 'メイク' in user_lower:
+                        fallback_cats = ['Howto & Style', 'People & Blogs']
+                        for cat in fallback_cats:
+                            if cat in available_categories:
+                                selected_categories.append(cat)
+                    
+                    # まだ何も見つからない場合は全カテゴリ対象にする
+                    if not selected_categories:
+                        logger.warning(f"⚠️ 全フォールバック失敗: '{user_preference}' -> 全カテゴリ対象")
+                        return []
+            
+            final_categories = selected_categories[:3]  # 最大3つまで
+            logger.info(f"🎯 最終マッピング結果: {final_categories}")
+            return final_categories
+            
+        except Exception as e:
+            logger.error(f"Geminiカテゴリマッピングエラー: {e}")
+            # 緊急フォールバック
+            user_lower = user_preference.lower()
+            fallback_categories = []
+            
+            # 簡単なキーワードマッチ
+            if '美容' in user_lower or 'コスメ' in user_lower:
+                fallback_categories = ['Howto & Style', 'People & Blogs']
+            elif 'ゲーム' in user_lower:
+                fallback_categories = ['ゲーム']
+            elif '料理' in user_lower or 'グルメ' in user_lower:
+                fallback_categories = ['料理']
+            
+            # 利用可能なカテゴリでフィルタリング
+            final_fallback = [cat for cat in fallback_categories if cat in available_categories]
+            logger.info(f"🔄 緊急フォールバック: {final_fallback}")
+            return final_fallback[:3]
