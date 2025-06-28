@@ -58,6 +58,9 @@ function MessagesPageContent() {
   const [aiReplyReasoning, setAiReplyReasoning] = useState<string>('');
   const [showReasoning, setShowReasoning] = useState<boolean>(false);
   
+  // スレッドごとの自動化状態を管理
+  const [threadAutomationStates, setThreadAutomationStates] = useState<{[threadId: string]: {mode: string, isActive: boolean}}>({});
+  
   // エージェント状況とカスタムプロンプト
   interface ProcessingStep {
     time: string;
@@ -1421,48 +1424,48 @@ InfuMatchの田中です。
     <AuthGuard>
       <ErrorBoundary>
         <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-      {/* ヘッダー */}
-      <Header variant="glass" />
+          {/* ヘッダー */}
+          <Header variant="glass" />
 
-      <main className="container mx-auto px-6 py-8">
-        <div className={`transform transition-all duration-1000 ${isVisible ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'}`}>
-          {/* ヘッダーセクション */}
-          <div className="text-center mb-12">
-            <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
-              Gmail統合
-              <span className="text-gradient block">メッセージ管理</span>
-            </h1>
-            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-              実際のGmailでインフルエンサーとやり取りし、AIが返信を提案します
-            </p>
-          </div>
+          <main className="container mx-auto px-6 py-8">
+            <div className={`transform transition-all duration-1000 ${isVisible ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'}`}>
+              {/* ヘッダーセクション */}
+              <div className="text-center mb-12">
+                <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
+                  Gmail統合
+                  <span className="text-gradient block">メッセージ管理</span>
+                </h1>
+                <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+                  実際のGmailでインフルエンサーとやり取りし、AIが返信を提案します
+                </p>
+              </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* 新規メール作成エリア */}
-            {isComposingNew && (
-              <div className="col-span-1 lg:col-span-3 mb-8">
-                <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-xl p-6 border border-green-200">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-xl font-bold text-green-800 flex items-center gap-2">
-                      ✉️ AI生成コラボ提案メール
-                    </h3>
-                    <button
-                      onClick={() => {
-                        setIsComposingNew(false);
-                        setNewEmailTo('');
-                        setNewEmailSubject('');
-                        setNewEmailBody('');
-                      }}
-                      className="text-gray-500 hover:text-gray-700"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                  
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">宛先</label>
-                      <input
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                {/* 新規メール作成エリア */}
+                {isComposingNew && (
+                  <div className="col-span-1 lg:col-span-3 mb-8">
+                    <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-xl p-6 border border-green-200">
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-xl font-bold text-green-800 flex items-center gap-2">
+                          ✉️ AI生成コラボ提案メール
+                        </h3>
+                        <button
+                          onClick={() => {
+                            setIsComposingNew(false);
+                            setNewEmailTo('');
+                            setNewEmailSubject('');
+                            setNewEmailBody('');
+                          }}
+                          className="text-gray-500 hover:text-gray-700"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                      
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">宛先</label>
+                          <input
                         type="email"
                         value={newEmailTo}
                         onChange={(e) => setNewEmailTo(e.target.value)}
@@ -1652,7 +1655,20 @@ InfuMatchの田中です。
                                   {thread.messages && thread.messages.length > 0 && formatDate(thread.messages[thread.messages.length - 1].internalDate)}
                                 </p>
                               </div>
-                              <div className="flex items-center space-x-1">
+                              <div className="flex items-center space-x-2">
+                                {/* 自動化状態インジケーター */}
+                                {threadAutomationStates[thread.id]?.isActive && (
+                                  <div className={`flex items-center space-x-1 px-2 py-0.5 rounded-full text-xs ${
+                                    threadAutomationStates[thread.id].mode === 'semi_auto' 
+                                      ? 'bg-purple-100 text-purple-700' 
+                                      : 'bg-gray-100 text-gray-600'
+                                  }`}>
+                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                    </svg>
+                                    <span>{threadAutomationStates[thread.id].mode === 'semi_auto' ? '半自動' : '手動'}</span>
+                                  </div>
+                                )}
                                 {thread.messages && thread.messages.length > 1 && (
                                   <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
@@ -1680,6 +1696,11 @@ InfuMatchの田中です。
                       getHeader(currentThread.messages[0], 'subject') : 'メールスレッド'}
                     onModeChange={(mode, enabled) => {
                       console.log(`Thread ${currentThread.id}: ${mode} mode ${enabled ? 'enabled' : 'disabled'}`);
+                      // スレッドの自動化状態を更新
+                      setThreadAutomationStates(prev => ({
+                        ...prev,
+                        [currentThread.id]: { mode, isActive: enabled }
+                      }));
                     }}
                   />
                   
@@ -1688,8 +1709,20 @@ InfuMatchの田中です。
                   <div className="p-6 border-b border-gray-100">
                     <div className="flex items-center justify-between">
                       <div>
-                        <h2 className="text-lg font-bold text-gray-900">
+                        <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                           Gmail スレッド詳細
+                          {threadAutomationStates[currentThread.id]?.isActive && (
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                              threadAutomationStates[currentThread.id].mode === 'semi_auto' 
+                                ? 'bg-purple-100 text-purple-800' 
+                                : 'bg-gray-100 text-gray-800'
+                            }`}>
+                              <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                              </svg>
+                              {threadAutomationStates[currentThread.id].mode === 'semi_auto' ? '半自動' : '手動'}モード
+                            </span>
+                          )}
                         </h2>
                         <p className="text-sm text-gray-500 mt-1">
                           {currentThread.messages?.length || 0}件のメッセージ

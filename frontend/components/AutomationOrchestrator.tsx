@@ -132,10 +132,10 @@ export default function AutomationOrchestrator() {
           <div>
             <CardTitle className="flex items-center gap-2">
               <Brain className="h-5 w-5" />
-              完全自動化オーケストレーター
+              自動交渉システム設定
             </CardTitle>
             <CardDescription>
-              Phase 3 - AI学習による自動交渉システム
+              全体の自動化設定とパフォーマンス状況
             </CardDescription>
           </div>
           

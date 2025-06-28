@@ -3064,6 +3064,55 @@ async def get_pattern_analytics():
             detail=f"分析取得エラー: {str(e)}"
         )
 
+@app.post("/api/v1/negotiation/thread/{thread_id}/automation")
+async def set_thread_automation(thread_id: str, request: dict):
+    """スレッドごとの自動化設定を制御"""
+    try:
+        mode = request.get("mode", "manual")
+        enabled = request.get("enabled", False)
+        settings = request.get("settings", {})
+        
+        # 半自動モードの安全機構パラメータ
+        safety_params = {
+            "thread_id": thread_id,
+            "mode": mode,
+            "enabled": enabled,
+            "max_rounds": settings.get("maxRounds", 5),
+            "auto_approval_threshold": settings.get("autoApprovalThreshold", 80),
+            "budget_flexibility_limit": settings.get("budgetFlexibilityLimit", 10),
+            "sentiment_threshold": settings.get("sentimentThreshold", -0.5),
+            "emergency_keywords": settings.get("emergencyKeywords", ["キャンセル", "中止", "終了", "ストップ"]),
+            "working_hours": settings.get("workingHours", {"start": 9, "end": 18}),
+            "escalation_conditions": {
+                "budget_exceeded": True,
+                "negative_sentiment": True,
+                "emergency_keyword_detected": True,
+                "max_rounds_reached": True,
+                "outside_working_hours": True
+            }
+        }
+        
+        # ここで実際のスレッド状態を管理する処理を実装
+        # 現在は仮の成功レスポンスを返す
+        return {
+            "success": True,
+            "thread_id": thread_id,
+            "automation_status": {
+                "mode": mode,
+                "is_active": enabled,
+                "round_number": 0,
+                "safety_params": safety_params,
+                "message": f"スレッド {thread_id} の{mode}モードが{'有効' if enabled else '無効'}になりました"
+            }
+        }
+        
+    except Exception as e:
+        print(f"❌ スレッド自動化設定エラー: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"スレッド自動化設定エラー: {str(e)}"
+        )
+
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 8000))

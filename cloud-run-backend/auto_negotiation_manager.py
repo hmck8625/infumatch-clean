@@ -182,37 +182,76 @@ class AutoNegotiationManager:
         auto_settings: Dict, 
         round_number: int
     ) -> Dict:
-        """エスカレーション条件をチェック"""
+        """エスカレーション条件をチェック - 強化版安全機構"""
         
         escalation_reasons = []
         
-        # 最大ラウンド数チェック
+        # 1. 最大ラウンド数チェック
         max_rounds = auto_settings.get("max_rounds", 3)
         if round_number >= max_rounds:
             escalation_reasons.append("max_rounds_reached")
         
-        # 予算超過チェック
+        # 2. 予算超過チェック（強化版）
         if context_analysis.get("mentioned_budget"):
             budget_info = context_analysis["mentioned_budget"]
             if budget_info.get("exceeds_limit", False):
                 escalation_reasons.append("budget_exceeded")
+            
+            # 予算柔軟性限界チェック
+            if budget_info.get("max_amount"):
+                budget_flexibility_limit = auto_settings.get("budget_flexibility_limit", 10)
+                company_budget = auto_settings.get("company_budget_max", 1000000)
+                if budget_info["max_amount"] > company_budget * (1 + budget_flexibility_limit / 100):
+                    escalation_reasons.append("budget_flexibility_exceeded")
         
-        # 緊急度チェック  
-        if "high_urgency" in context_analysis.get("urgency_indicators", []):
-            escalation_reasons.append("urgent_decision_required")
+        # 3. 感情分析チェック（新規追加）
+        sentiment_threshold = auto_settings.get("sentiment_threshold", -0.5)
+        recent_messages = context_analysis.get("recent_messages", [])
+        if recent_messages:
+            # ネガティブキーワードチェック
+            negative_keywords = ["不満", "困る", "問題", "難しい", "無理", "できない", "高い", "安い", "不可能", "取り消", "キャンセル", "中止"]
+            recent_text = " ".join([msg.get("content", "") for msg in recent_messages[-2:]])
+            negative_count = sum(1 for keyword in negative_keywords if keyword in recent_text)
+            
+            if negative_count >= 2:
+                escalation_reasons.append("negative_sentiment_detected")
         
-        # 複雑な条件チェック
-        complex_keywords = ["契約", "法的", "保証", "責任", "権利", "義務"]
+        # 4. 緊急停止キーワードチェック（新規追加）
+        emergency_keywords = auto_settings.get("emergency_keywords", ["キャンセル", "中止", "終了", "ストップ", "やめる", "取りやめ"])
         conversation_text = " ".join([
             msg.get("content", "") for msg in context_analysis.get("recent_messages", [])
         ])
+        
+        if any(keyword in conversation_text for keyword in emergency_keywords):
+            escalation_reasons.append("emergency_keyword_detected")
+        
+        # 5. 緊急度チェック  
+        if "high_urgency" in context_analysis.get("urgency_indicators", []):
+            escalation_reasons.append("urgent_decision_required")
+        
+        # 6. 複雑な条件チェック（強化版）
+        complex_keywords = ["契約", "法的", "保証", "責任", "権利", "義務", "訴訟", "損害", "賠償", "規約", "条項"]
         if any(keyword in conversation_text for keyword in complex_keywords):
             escalation_reasons.append("complex_legal_terms")
+        
+        # 7. 稼働時間外チェック（新規追加）
+        current_time = datetime.now()
+        working_hours = auto_settings.get("working_hours", {"start": 9, "end": 18})
+        if not (working_hours["start"] <= current_time.hour < working_hours["end"]):
+            escalation_reasons.append("outside_working_hours")
+        
+        # 8. 交渉段階チェック（新規追加）
+        stage = context_analysis.get("stage", "initial_contact")
+        if stage == "final_agreement":
+            # 最終合意段階は必ず人間確認
+            escalation_reasons.append("final_agreement_requires_human")
         
         return {
             "needs_escalation": len(escalation_reasons) > 0,
             "reasons": escalation_reasons,
-            "primary_reason": escalation_reasons[0] if escalation_reasons else None
+            "primary_reason": escalation_reasons[0] if escalation_reasons else None,
+            "escalation_count": len(escalation_reasons),
+            "critical": len(escalation_reasons) >= 3  # 3つ以上の理由がある場合は重要
         }
     
     async def _execute_auto_negotiation_stages(
@@ -304,41 +343,103 @@ class AutoNegotiationManager:
         context_analysis: Dict, 
         auto_settings: Dict
     ) -> Dict:
-        """自動送信可否を評価"""
+        """自動送信可否を評価 - 強化版安全チェック"""
         
-        # 基本的な送信可否判定
+        # 1. 基本的な信頼度チェック
         confidence = negotiation_result.get("confidence", 0.0)
         threshold = auto_settings.get("auto_approval_threshold", 75) / 100.0
         
         if confidence < threshold:
             return {
                 "should_auto_send": False,
-                "reason": f"信頼度が閾値を下回りました ({confidence:.1%} < {threshold:.1%})"
+                "reason": f"信頼度が閾値を下回りました ({confidence:.1%} < {threshold:.1%})",
+                "safety_score": confidence
             }
         
-        # リスクフラグチェック
+        # 2. リスクフラグチェック
         evaluation = negotiation_result.get("evaluation", {})
         risk_flags = evaluation.get("risk_flags", [])
         
         if risk_flags:
             return {
                 "should_auto_send": False,
-                "reason": f"リスクフラグが検出されました: {', '.join(risk_flags)}"
+                "reason": f"リスクフラグが検出されました: {', '.join(risk_flags)}",
+                "safety_score": 0.3
             }
         
-        # 稼働時間チェック
+        # 3. 稼働時間チェック
         current_time = datetime.now()
         working_hours = auto_settings.get("working_hours", {"start": 9, "end": 18})
         
         if not (working_hours["start"] <= current_time.hour < working_hours["end"]):
             return {
                 "should_auto_send": False,
-                "reason": "稼働時間外のため、人間の確認が必要です"
+                "reason": "稼働時間外のため、人間の確認が必要です",
+                "safety_score": 0.5
             }
+        
+        # 4. 交渉段階による安全性評価（新規追加）
+        stage = context_analysis.get("stage", "initial_contact")
+        stage_safety = {
+            "initial_contact": 0.9,      # 初期接触は比較的安全
+            "interest_confirmation": 0.8, # 興味確認も安全
+            "condition_negotiation": 0.6, # 条件交渉は慎重に
+            "final_agreement": 0.3        # 最終合意は人間確認推奨
+        }
+        
+        stage_safety_score = stage_safety.get(stage, 0.5)
+        if stage_safety_score < 0.5:
+            return {
+                "should_auto_send": False,
+                "reason": f"交渉段階「{stage}」では人間の確認が推奨されます",
+                "safety_score": stage_safety_score
+            }
+        
+        # 5. 金額チェック（新規追加）
+        if context_analysis.get("mentioned_budget"):
+            budget_info = context_analysis["mentioned_budget"]
+            max_amount = budget_info.get("max_amount", 0)
+            
+            # 100万円を超える金額が言及された場合は人間確認
+            if max_amount > 1000000:
+                return {
+                    "should_auto_send": False,
+                    "reason": f"高額取引（{max_amount:,}円）のため人間の確認が必要です",
+                    "safety_score": 0.4
+                }
+        
+        # 6. 返信内容の長さチェック（新規追加）
+        selected_pattern = negotiation_result.get("patterns", {}).get("pattern_balanced", {})
+        reply_content = selected_pattern.get("content", "")
+        
+        if len(reply_content) > 1000:  # 1000文字を超える長文
+            return {
+                "should_auto_send": False,
+                "reason": "返信が長文のため、人間の確認が推奨されます",
+                "safety_score": 0.7
+            }
+        
+        # 7. 総合安全スコアの計算
+        safety_score = min(
+            confidence,
+            stage_safety_score,
+            0.9 if not risk_flags else 0.5,
+            0.8 if len(reply_content) < 500 else 0.6
+        )
         
         return {
             "should_auto_send": True,
-            "reason": "自動送信条件を満たしています"
+            "reason": "全ての安全条件を満たしています",
+            "safety_score": safety_score,
+            "checks_passed": {
+                "confidence": confidence >= threshold,
+                "no_risk_flags": len(risk_flags) == 0,
+                "working_hours": True,
+                "stage_appropriate": stage_safety_score >= 0.5,
+                "amount_safe": context_analysis.get("mentioned_budget") is None or 
+                             context_analysis["mentioned_budget"].get("max_amount", 0) <= 1000000,
+                "content_length_ok": len(reply_content) <= 1000
+            }
         }
     
     async def _prepare_auto_send_response(
