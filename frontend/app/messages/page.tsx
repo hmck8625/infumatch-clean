@@ -1558,7 +1558,7 @@ function MessagesPageContent() {
         const companyInfo = companySettings.companyInfo;
         requestData.context.company_settings.companyInfo = {
           companyName: companyInfo.companyName || "InfuMatch",
-          contactPerson: companyInfo.contactPerson || "田中美咲",
+          contactPerson: companyInfo.contactPerson || "担当者",
           industry: companyInfo.industry || "",
           employeeCount: companyInfo.employeeCount || "",
           website: companyInfo.website || "",
