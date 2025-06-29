@@ -429,46 +429,57 @@ export default function MatchingPage() {
     return geminiResults.map((result, index) => {
       // バックエンドの実際のレスポンス構造に対応
       // シンプルなインフルエンサー形式の場合
-      if (result.channel_name || result.channel_id || result.id) {
+      const safeResult = result || {};
+      if (safeResult.channel_name || safeResult.channel_id || safeResult.id) {
         return {
-          id: result.id || result.channel_id || `gemini-${index}`,
-          influencerName: result.channel_name || result.name || `Gemini推薦 ${index + 1}`,
-          score: result.ai_match_score || result.match_score || 85 + Math.random() * 10,
-          category: result.category || 'AI分析',
-          reason: `Gemini AIによる高度分析により選出されました。エンゲージメント率${result.engagement_rate || 'N/A'}%`,
-          estimatedReach: result.subscriber_count || Math.floor(Math.random() * 100000) + 50000,
-          estimatedCost: Math.floor((result.subscriber_count || 50000) * 0.5) + Math.floor(Math.random() * 100000),
-          thumbnailUrl: result.thumbnail_url,
-          subscriberCount: result.subscriber_count,
-          engagementRate: result.engagement_rate,
-          description: result.description,
-          email: result.email,
+          id: safeResult.id || safeResult.channel_id || `gemini-${index}`,
+          influencerName: safeResult.channel_name || safeResult.name || `Gemini推薦 ${index + 1}`,
+          score: safeResult.ai_match_score || safeResult.match_score || 85 + Math.random() * 10,
+          category: safeResult.category || 'AI分析',
+          reason: `Gemini AIによる高度分析により選出されました。エンゲージメント率${safeResult.engagement_rate || 'N/A'}%`,
+          estimatedReach: safeResult.subscriber_count || Math.floor(Math.random() * 100000) + 50000,
+          estimatedCost: Math.floor((safeResult.subscriber_count || 50000) * 0.5) + Math.floor(Math.random() * 100000),
+          thumbnailUrl: safeResult.thumbnail_url || '',
+          subscriberCount: safeResult.subscriber_count || 0,
+          engagementRate: safeResult.engagement_rate || 0,
+          description: safeResult.description || 'AI分析による推薦インフルエンサー',
+          email: safeResult.email || '',
           compatibility: {
-            audience: 80 + Math.random() * 15,
-            content: 75 + Math.random() * 20,
-            brand: 70 + Math.random() * 25,
+            audience: Math.round(80 + Math.random() * 15),
+            content: Math.round(75 + Math.random() * 20),
+            brand: Math.round(70 + Math.random() * 25),
           },
           geminiAnalysis: result
         };
       } else {
         // 複雑なGeminiAnalysisResult形式の場合（フォールバック）
+        const safeResult = result || {};
+        const influencerData = safeResult.influencer_data || {};
+        const recommendationSummary = safeResult.recommendation_summary || {};
+        const strategicInsights = safeResult.strategic_insights || {};
+        const budgetRecommendations = strategicInsights.budget_recommendations || {};
+        const detailedAnalysis = safeResult.detailed_analysis || {};
+        const audienceSynergy = detailedAnalysis.audience_synergy || {};
+        const contentFit = detailedAnalysis.content_fit || {};
+        const brandAlignment = detailedAnalysis.brand_alignment || {};
+        
         return {
-          id: result.influencer_id || `gemini-${index}`,
-          influencerName: result.influencer_data?.channel_name || result.influencer_data?.channel_title || `Gemini推薦 ${index + 1}`,
-          score: result.overall_compatibility_score || 85,
-          category: result.influencer_data?.category || '高度AI分析',
-          reason: result.recommendation_summary?.primary_recommendation_reason || 'AI高度分析による推薦',
-          estimatedReach: result.influencer_data?.subscriber_count || Math.floor(Math.random() * 100000) + 50000,
-          estimatedCost: result.strategic_insights?.budget_recommendations?.min || Math.floor(Math.random() * 200000) + 100000,
-          thumbnailUrl: result.influencer_data?.thumbnail_url,
-          subscriberCount: result.influencer_data?.subscriber_count,
-          engagementRate: result.influencer_data?.engagement_rate,
-          description: result.influencer_data?.description || result.recommendation_summary?.success_scenario,
-          email: result.influencer_data?.email,
+          id: safeResult.influencer_id || `gemini-${index}`,
+          influencerName: influencerData.channel_name || influencerData.channel_title || `Gemini推薦 ${index + 1}`,
+          score: safeResult.overall_compatibility_score || 85,
+          category: influencerData.category || '高度AI分析',
+          reason: recommendationSummary.primary_recommendation_reason || 'AI高度分析による推薦',
+          estimatedReach: influencerData.subscriber_count || Math.floor(Math.random() * 100000) + 50000,
+          estimatedCost: budgetRecommendations.min || Math.floor(Math.random() * 200000) + 100000,
+          thumbnailUrl: influencerData.thumbnail_url || '',
+          subscriberCount: influencerData.subscriber_count || 0,
+          engagementRate: influencerData.engagement_rate || 0,
+          description: influencerData.description || recommendationSummary.success_scenario || 'AI高度分析による推薦',
+          email: influencerData.email || '',
           compatibility: {
-            audience: result.detailed_analysis?.audience_synergy?.score || 80,
-            content: result.detailed_analysis?.content_fit?.score || 75,
-            brand: result.detailed_analysis?.brand_alignment?.score || 70,
+            audience: audienceSynergy.score || 80,
+            content: contentFit.score || 75,
+            brand: brandAlignment.score || 70,
           },
           geminiAnalysis: result
         };
