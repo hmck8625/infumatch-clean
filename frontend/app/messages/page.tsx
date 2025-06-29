@@ -467,6 +467,16 @@ function MessagesPageContent() {
       const replyToHeader = latestMessage.payload?.headers?.find(h => h.name === 'Reply-To')?.value || '';
       const toHeader = latestMessage.payload?.headers?.find(h => h.name === 'To')?.value || '';
       
+      // 詳細なヘッダーログ出力
+      console.log('📧 詳細ヘッダー解析:', {
+        'メッセージID': latestMessage.id,
+        'From (生データ)': fromHeader,
+        'Reply-To (生データ)': replyToHeader,
+        'To (生データ)': toHeader,
+        'Subject': subjectHeader,
+        '全ヘッダー': latestMessage.payload?.headers?.map(h => `${h.name}: ${h.value}`)
+      });
+      
       // 自分宛メールかどうかをチェックして無限ループを防ぐ
       // 認証したアドレスのみをチェック
       const isFromSelf = userEmailAddress && 
@@ -497,14 +507,51 @@ function MessagesPageContent() {
         return;
       }
       
-      // 返信先を決定（Reply-To優先、なければFrom）
-      const replyToAddress = replyToHeader || fromHeader;
+      // 返信先を決定（より高度なロジック）
+      let replyToAddress = '';
       
-      console.log('📧 返信先決定:', {
-        From: fromHeader,
-        ReplyTo: replyToHeader,
-        To: toHeader,
-        決定された返信先: replyToAddress
+      // 1. Reply-To ヘッダーがある場合は優先
+      if (replyToHeader && replyToHeader.trim()) {
+        replyToAddress = replyToHeader;
+      }
+      // 2. Reply-To がない場合、From を使用
+      else if (fromHeader && fromHeader.trim()) {
+        replyToAddress = fromHeader;
+      }
+      // 3. 両方ともない場合のフォールバック
+      else {
+        console.error('❌ From も Reply-To も見つかりません');
+        return;
+      }
+      
+      // 4. 自分宛に返信することを防ぐ追加チェック
+      if (userEmailAddress && replyToAddress.toLowerCase().includes(userEmailAddress.toLowerCase())) {
+        console.warn('⚠️ 返信先が自分になっています。メールの流れを再確認:', {
+          '返信先': replyToAddress,
+          '自分のアドレス': userEmailAddress,
+          'From': fromHeader,
+          'To': toHeader
+        });
+        
+        // このケースでは、To ヘッダーに他の人がいるかチェック
+        if (toHeader && !toHeader.toLowerCase().includes(userEmailAddress.toLowerCase())) {
+          console.log('💡 To ヘッダーに他の受信者が見つかりました:', toHeader);
+          // しかし、通常は To ヘッダーに返信すべきではないので、警告のみ
+        }
+      }
+      
+      console.log('📧 返信先決定詳細:', {
+        'From ヘッダー': fromHeader,
+        'Reply-To ヘッダー': replyToHeader,
+        'To ヘッダー': toHeader,
+        '決定された返信先': replyToAddress,
+        '返信ロジック': replyToHeader ? 'Reply-To を使用' : 'From を使用',
+        '現在のユーザー': userEmailAddress,
+        'メール方向チェック': {
+          'From が自分': isFromSelf,
+          'To に自分が含まれる': toHeader.toLowerCase().includes(userEmailAddress?.toLowerCase() || ''),
+          '実際の返信先が自分': replyToAddress.toLowerCase().includes(userEmailAddress?.toLowerCase() || '')
+        }
       });
       
       console.log('📬 最新メッセージ詳細:', {
@@ -777,6 +824,16 @@ function MessagesPageContent() {
       const replyToHeader = latestMessage.payload?.headers?.find(h => h.name === 'Reply-To')?.value || '';
       const toHeader = latestMessage.payload?.headers?.find(h => h.name === 'To')?.value || '';
       
+      // 詳細なヘッダーログ出力
+      console.log('📧 詳細ヘッダー解析:', {
+        'メッセージID': latestMessage.id,
+        'From (生データ)': fromHeader,
+        'Reply-To (生データ)': replyToHeader,
+        'To (生データ)': toHeader,
+        'Subject': subjectHeader,
+        '全ヘッダー': latestMessage.payload?.headers?.map(h => `${h.name}: ${h.value}`)
+      });
+      
       // 自分宛メールかどうかをチェックして無限ループを防ぐ
       // 認証したアドレスのみをチェック
       const isFromSelf = userEmailAddress && 
@@ -807,14 +864,51 @@ function MessagesPageContent() {
         return;
       }
       
-      // 返信先を決定（Reply-To優先、なければFrom）
-      const replyToAddress = replyToHeader || fromHeader;
+      // 返信先を決定（より高度なロジック）
+      let replyToAddress = '';
       
-      console.log('📧 返信先決定:', {
-        From: fromHeader,
-        ReplyTo: replyToHeader,
-        To: toHeader,
-        決定された返信先: replyToAddress
+      // 1. Reply-To ヘッダーがある場合は優先
+      if (replyToHeader && replyToHeader.trim()) {
+        replyToAddress = replyToHeader;
+      }
+      // 2. Reply-To がない場合、From を使用
+      else if (fromHeader && fromHeader.trim()) {
+        replyToAddress = fromHeader;
+      }
+      // 3. 両方ともない場合のフォールバック
+      else {
+        console.error('❌ From も Reply-To も見つかりません');
+        return;
+      }
+      
+      // 4. 自分宛に返信することを防ぐ追加チェック
+      if (userEmailAddress && replyToAddress.toLowerCase().includes(userEmailAddress.toLowerCase())) {
+        console.warn('⚠️ 返信先が自分になっています。メールの流れを再確認:', {
+          '返信先': replyToAddress,
+          '自分のアドレス': userEmailAddress,
+          'From': fromHeader,
+          'To': toHeader
+        });
+        
+        // このケースでは、To ヘッダーに他の人がいるかチェック
+        if (toHeader && !toHeader.toLowerCase().includes(userEmailAddress.toLowerCase())) {
+          console.log('💡 To ヘッダーに他の受信者が見つかりました:', toHeader);
+          // しかし、通常は To ヘッダーに返信すべきではないので、警告のみ
+        }
+      }
+      
+      console.log('📧 返信先決定詳細:', {
+        'From ヘッダー': fromHeader,
+        'Reply-To ヘッダー': replyToHeader,
+        'To ヘッダー': toHeader,
+        '決定された返信先': replyToAddress,
+        '返信ロジック': replyToHeader ? 'Reply-To を使用' : 'From を使用',
+        '現在のユーザー': userEmailAddress,
+        'メール方向チェック': {
+          'From が自分': isFromSelf,
+          'To に自分が含まれる': toHeader.toLowerCase().includes(userEmailAddress?.toLowerCase() || ''),
+          '実際の返信先が自分': replyToAddress.toLowerCase().includes(userEmailAddress?.toLowerCase() || '')
+        }
       });
       
       console.log('📬 最新メッセージ詳細:', {
