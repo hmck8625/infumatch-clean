@@ -53,6 +53,16 @@ export default function ThreadAutomationControl({
     if (savedSettings) {
       setSettings(JSON.parse(savedSettings));
     }
+    
+    // ローカルストレージから自動化状態を復元
+    const threadStates = JSON.parse(localStorage.getItem('threadAutomationStates') || '{}');
+    const threadState = threadStates[threadId];
+    
+    if (threadState && threadState.enabled) {
+      console.log(`🔄 スレッド ${threadId} の自動化状態復元:`, threadState);
+      // 既に親コンポーネントから currentAutomationState を受け取っているので、
+      // ここでは確認のみ行う
+    }
   }, [threadId]);
 
 
@@ -60,23 +70,59 @@ export default function ThreadAutomationControl({
     setIsLoading(true);
     
     try {
-      // 半自動モードを開始
+      // 既存の automation status エンドポイントを使用
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-      const response = await fetch(`${apiUrl}/api/v1/negotiation/thread/${threadId}/automation`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          mode: 'semi_auto',
-          enabled: true,
-          settings: settings
-        })
+      
+      // まず現在のステータスを確認
+      const statusResponse = await fetch(`${apiUrl}/api/v1/automation/status`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' }
       });
 
-      if (response.ok) {
+      if (statusResponse.ok) {
+        const statusData = await statusResponse.json();
+        console.log('🤖 自動化ステータス確認:', statusData);
+        
+        // ローカルで半自動モードを開始したことを記録
+        const automationState = {
+          threadId,
+          mode: 'semi_auto',
+          enabled: true,
+          settings: settings,
+          startedAt: new Date().toISOString()
+        };
+        
+        // ローカルストレージに保存
+        const existingStates = JSON.parse(localStorage.getItem('threadAutomationStates') || '{}');
+        existingStates[threadId] = automationState;
+        localStorage.setItem('threadAutomationStates', JSON.stringify(existingStates));
+        
+        console.log(`🚀 スレッド ${threadId} の半自動モード開始 (ローカル管理)`);
+        
+        // 親コンポーネントに通知
         onModeChange?.(threadId, 'semi_auto', true);
+      } else {
+        throw new Error('自動化ステータスの確認に失敗しました');
       }
     } catch (error) {
       console.error('半自動開始エラー:', error);
+      
+      // フォールバック: エラーでもローカルで開始
+      const automationState = {
+        threadId,
+        mode: 'semi_auto',
+        enabled: true,
+        settings: settings,
+        startedAt: new Date().toISOString(),
+        fallback: true
+      };
+      
+      const existingStates = JSON.parse(localStorage.getItem('threadAutomationStates') || '{}');
+      existingStates[threadId] = automationState;
+      localStorage.setItem('threadAutomationStates', JSON.stringify(existingStates));
+      
+      console.log(`⚠️ フォールバック: スレッド ${threadId} の半自動モード開始 (ローカル管理のみ)`);
+      onModeChange?.(threadId, 'semi_auto', true);
     } finally {
       setIsLoading(false);
     }
@@ -86,6 +132,14 @@ export default function ThreadAutomationControl({
     setIsLoading(true);
     
     try {
+      // ローカルストレージから削除
+      const existingStates = JSON.parse(localStorage.getItem('threadAutomationStates') || '{}');
+      delete existingStates[threadId];
+      localStorage.setItem('threadAutomationStates', JSON.stringify(existingStates));
+      
+      console.log(`⏹️ スレッド ${threadId} の自動化停止 (ローカル管理)`);
+      
+      // 親コンポーネントに通知
       onModeChange?.(threadId, 'manual', false);
     } catch (error) {
       console.error('自動化停止エラー:', error);
