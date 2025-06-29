@@ -14,7 +14,7 @@ from google.auth import default
 import google.generativeai as genai
 import logging
 from datetime import datetime
-from gemini_matching_agent import GeminiMatchingAgent
+# from gemini_matching_agent import GeminiMatchingAgent
 
 # ロガーの設定
 logger = logging.getLogger(__name__)
